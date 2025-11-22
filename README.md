@@ -56,16 +56,28 @@
 git clone https://github.com/jwoirhaye/joule-profiler.git
 cd joule-profiler
 
-# Build release binary
+# Build and install system-wide
 cargo build --release
+sudo cp target/release/joule-profiler /usr/local/bin/
 
-# The binary will be available at target/release/joule-profiler
+# Verify installation
+sudo joule-profiler --version
 ```
 
-### Using Cargo
+**Note:** System-wide installation (`/usr/local/bin/`) is recommended as the tool requires `sudo` to access RAPL counters.
+
+### Alternative: User Installation
 
 ```bash
+# Install to ~/.cargo/bin/ (requires full path with sudo)
 cargo install --path .
+sudo ~/.cargo/bin/joule-profiler simple -- ./my-program
+```
+
+### Uninstall
+
+```bash
+sudo rm /usr/local/bin/joule-profiler
 ```
 
 ## 🚀 Quick Start
