@@ -1,0 +1,20 @@
+[package]
+name = "joule-profiler"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jérémy Woirhaye <jerem.woirhaye@gmail.com>"]
+description = "joule-profiler is a Rust tool that measures a program’s energy consumption using Intel RAPL."
+license = "MIT"
+repository = "https://github.com/jwoirhaye/joule-profiler"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.53", features = ["derive"] }
+env_logger = "0.11.8"
+thiserror = "2.0.17"
+log = "0.4.28"
+serde_json = "1.0.145"
+serde = { version = "1.0.228", features = ["derive"] }
+
+[dev-dependencies]
+serial_test = "3.0"
