@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: google-github-actions/release-please-action@v4
+        id: release
+        with:
+          release-type: rust
+          package-name: joule-profiler
+
+  build-release:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release --verbose
+
+      - name: Strip binary
+        run: strip target/release/joule-profiler
+
+      - name: Create archive
+        run: |
+          cd target/release
+          tar czf joule-profiler-${{ needs.release-please.outputs.tag_name }}-x86_64-unknown-linux-gnu.tar.gz joule-profiler
+          sha256sum joule-profiler-${{ needs.release-please.outputs.tag_name }}-x86_64-unknown-linux-gnu.tar.gz > joule-profiler-${{ needs.release-please.outputs.tag_name }}-x86_64-unknown-linux-gnu.tar.gz.sha256
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release-please.outputs.tag_name }} \
+            target/release/joule-profiler-${{ needs.release-please.outputs.tag_name }}-x86_64-unknown-linux-gnu.tar.gz \
+            target/release/joule-profiler-${{ needs.release-please.outputs.tag_name }}-x86_64-unknown-linux-gnu.tar.gz.sha256
