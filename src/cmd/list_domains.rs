@@ -58,8 +58,8 @@ fn print_domains_table(infos: &[DomainInfo]) -> Result<()> {
         if current_socket != Some(info.socket) {
             current_socket = Some(info.socket);
             println!("\nSocket {}:\n", info.socket);
-            println!("  {:<16} {:<20} {}", "NAME", "RAW_NAME", "PATH");
-            println!("  {:<16} {:<20} {}", "----", "--------", "----");
+            println!("  {:<16} {:<20} PATH", "NAME", "RAW_NAME",);
+            println!("  {:<16} {:<20} ----", "----", "--------");
         }
 
         println!("  {:<16} {:<20} {}", info.name, info.raw_name, info.path);

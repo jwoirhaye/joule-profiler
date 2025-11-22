@@ -135,7 +135,7 @@ impl Config {
     }
 
     pub fn is_multi_iteration(&self) -> bool {
-        self.iterations.map_or(false, |n| n > 1)
+        self.iterations.is_some_and(|n| n > 1)
     }
 }
 

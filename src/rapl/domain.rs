@@ -174,17 +174,14 @@ fn add_domain_if_energy(dir: &Path, out: &mut Vec<RaplDomain>) -> Result<()> {
 /// Extracts the socket number from a RAPL domain path.
 fn extract_socket_number(path: &Path) -> Result<u32> {
     for comp in path.components() {
-        if let std::path::Component::Normal(os) = comp {
-            if let Some(s) = os.to_str() {
-                if let Some(rest) = s.strip_prefix("intel-rapl:") {
-                    if let Some(idx) = rest.split(':').next() {
-                        if let Ok(n) = idx.parse::<u32>() {
-                            trace!("Extracted socket number {} from path: {:?}", n, path);
-                            return Ok(n);
-                        }
-                    }
-                }
-            }
+        if let std::path::Component::Normal(os) = comp
+            && let Some(s) = os.to_str()
+            && let Some(rest) = s.strip_prefix("intel-rapl:")
+            && let Some(idx) = rest.split(':').next()
+            && let Ok(n) = idx.parse::<u32>()
+        {
+            trace!("Extracted socket number {} from path: {:?}", n, path);
+            return Ok(n);
         }
     }
     warn!(
