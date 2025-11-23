@@ -40,6 +40,8 @@ impl CsvOutput {
     ) -> Result<()> {
         trace!("Writing CSV header with {} energy domains", keys.len());
 
+        write!(self.file, "command;")?;
+
         if include_iteration {
             write!(self.file, "iteration;")?;
         }
@@ -59,11 +61,14 @@ impl CsvOutput {
 
     fn write_row(
         &mut self,
+        command: &Vec<String>,
         res: &MeasurementResult,
         keys: &[String],
         iteration: Option<usize>,
         phase_name: Option<&str>,
     ) -> Result<()> {
+        write!(self.file, "'{}';", command.join(" "))?;
+
         if let Some(idx) = iteration {
             trace!("Writing CSV row for iteration {}", idx);
             write!(self.file, "{};", idx)?;
@@ -89,7 +94,7 @@ impl CsvOutput {
 }
 
 impl OutputFormat for CsvOutput {
-    fn simple_single(&mut self, res: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, _config: &Config, res: &MeasurementResult) -> Result<()> {
         debug!("Formatting simple single measurement for CSV");
 
         let mut keys: Vec<_> = res.energy_uj.keys().cloned().collect();
@@ -99,7 +104,7 @@ impl OutputFormat for CsvOutput {
 
         self.write_header(&keys, false, false)?;
 
-        self.write_row(res, &keys, None, None)?;
+        self.write_row(&_config.cmd, res, &keys, None, None)?;
 
         self.finalize();
         Ok(())
@@ -126,7 +131,7 @@ impl OutputFormat for CsvOutput {
         self.write_header(&keys, true, false)?;
 
         for (idx, res) in results {
-            self.write_row(res, &keys, Some(*idx), None)?;
+            self.write_row(&_config.cmd, res, &keys, Some(*idx), None)?;
         }
 
         self.finalize();
@@ -159,7 +164,7 @@ impl OutputFormat for CsvOutput {
 
         for phase in &phases.phases {
             trace!("Writing phase: {}", phase.name);
-            self.write_row(&phase.result, &keys, None, Some(&phase.name))?;
+            self.write_row(&_config.cmd, &phase.result, &keys, None, Some(&phase.name))?;
         }
 
         self.finalize();
@@ -198,7 +203,13 @@ impl OutputFormat for CsvOutput {
         for (idx, phases_result) in results {
             for phase in &phases_result.phases {
                 trace!("Writing iteration {} phase: {}", idx, phase.name);
-                self.write_row(&phase.result, &keys, Some(*idx), Some(&phase.name))?;
+                self.write_row(
+                    &_config.cmd,
+                    &phase.result,
+                    &keys,
+                    Some(*idx),
+                    Some(&phase.name),
+                )?;
             }
         }
 

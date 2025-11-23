@@ -1,10 +1,61 @@
 use anyhow::Result;
 use log::{debug, info, trace, warn};
+use std::collections::HashSet;
 
 use crate::config::Config;
 use crate::measure::{MeasurementResult, PhasesResult};
 
 use super::OutputFormat;
+
+/// Constants for formatting
+const BORDER_DOUBLE: &str = "═";
+const BORDER_SINGLE: &str = "─";
+const BOX_WIDTH: usize = 50;
+
+/// Statistics for a domain
+#[derive(Debug)]
+struct DomainStats {
+    mean: f64,
+    median: f64,
+    std_dev: f64,
+    min: f64,
+    max: f64,
+}
+
+impl DomainStats {
+    fn calculate(values: &[f64]) -> Option<Self> {
+        if values.is_empty() {
+            return None;
+        }
+
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+
+        let mut sorted = values.to_vec();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        let median = if sorted.len() % 2 == 0 {
+            (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
+        } else {
+            sorted[sorted.len() / 2]
+        };
+
+        let variance = values
+            .iter()
+            .map(|v| (v - mean).powi(2))
+            .sum::<f64>() / values.len() as f64;
+        let std_dev = variance.sqrt();
+
+        Some(Self {
+            mean,
+            median,
+            std_dev,
+            min,
+            max,
+        })
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct TerminalOutput;
@@ -12,44 +63,82 @@ pub struct TerminalOutput;
 impl TerminalOutput {
     pub fn new() -> Self {
         debug!("Terminal output formatter initialized");
-        TerminalOutput
+        Self
     }
 
+    /// Display command header
+    fn display_command(&self, config: &Config) {
+        if !config.cmd.is_empty() {
+            println!();
+            self.print_header("Command");
+            println!("  {}", config.cmd.join(" "));
+        }
+    }
+
+    /// Print a formatted header
+    fn print_header(&self, title: &str) {
+        println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("║  {:<width$} ║", title, width = BOX_WIDTH - 3);
+        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    }
+
+    /// Print a formatted sub-header
+    fn print_subheader(&self, title: &str, prefix: &str) {
+        println!("{}┌{}┐", prefix, BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len()));
+        println!("{}│ {:<width$}│", prefix, title, width = BOX_WIDTH - prefix.len() - 3);
+        println!("{}└{}┘", prefix, BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len()));
+    }
+
+    /// Convert microjoules to joules
+    #[inline]
+    const fn uj_to_j(uj: u64) -> f64 {
+        uj as f64 / 1_000_000.0
+    }
+
+    /// Convert milliseconds to seconds
+    #[inline]
+    const fn ms_to_s(ms: u128) -> f64 {
+        ms as f64 / 1000.0
+    }
+
+    /// Display a single measurement result
     fn display_result(&self, res: &MeasurementResult, prefix: &str) -> Result<()> {
         trace!("Displaying measurement result with prefix: '{}'", prefix);
 
         println!();
-        println!("{}═══════════════════════════════════════", prefix);
+        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
         println!("{}  Energy consumption (Joules)", prefix);
-        println!("{}═══════════════════════════════════════", prefix);
+        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         let mut keys: Vec<_> = res.energy_uj.keys().cloned().collect();
-        keys.sort();
+        keys.sort_unstable();
 
-        let mut total_uj: u64 = 0;
+        let total_uj: u64 = keys
+            .iter()
+            .filter_map(|k| res.energy_uj.get(k))
+            .sum();
 
-        for k in &keys {
-            if let Some(&v_uj) = res.energy_uj.get(k) {
-                let v_j = (v_uj as f64) / 1_000_000.0;
-                println!("{}  {:<20}: {:10.6} J", prefix, k, v_j);
-                total_uj += v_uj;
+        for key in &keys {
+            if let Some(&v_uj) = res.energy_uj.get(key) {
+                let v_j = Self::uj_to_j(v_uj);
+                println!("{}  {:<20}: {:10.6} J", prefix, key, v_j);
             }
         }
 
-        let duration_s = (res.duration_ms as f64) / 1000.0;
-        let total_j = (total_uj as f64) / 1_000_000.0;
+        let duration_s = Self::ms_to_s(res.duration_ms);
+        let total_j = Self::uj_to_j(total_uj);
         let avg_power_w = if duration_s > 0.0 {
             total_j / duration_s
         } else {
             0.0
         };
 
-        println!("{}───────────────────────────────────────", prefix);
-        println!("{}  Total energy (J): {:10.6}", prefix, total_j);
-        println!("{}  Average power (W): {:10.3}", prefix, avg_power_w);
-        println!("{}  Duration (s)    : {:10.3}", prefix, duration_s);
-        println!("{}  Exit code       : {}", prefix, res.exit_code);
-        println!("{}═══════════════════════════════════════", prefix);
+        println!("{}{}",prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+        println!("{}  {:<20}: {:>10.6} J", prefix, "Total energy", total_j);
+        println!("{}  {:<20}: {:>10.6} W", prefix, "Average power", avg_power_w);
+        println!("{}  {:<20}: {:>10.6} s", prefix, "Duration", duration_s);
+        println!("{}  {:<20}: {:>10.6}", prefix, "Exit code", res.exit_code);
+        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         trace!(
             "Displayed {} domain(s), total: {:.3} J, duration: {:.3} s",
@@ -61,6 +150,18 @@ impl TerminalOutput {
         Ok(())
     }
 
+    /// Extract all unique domain keys from results
+    fn extract_domain_keys(results: &[(usize, MeasurementResult)]) -> Vec<String> {
+        let mut all_keys = HashSet::new();
+        for (_, res) in results {
+            all_keys.extend(res.energy_uj.keys().cloned());
+        }
+        let mut keys: Vec<_> = all_keys.into_iter().collect();
+        keys.sort_unstable();
+        keys
+    }
+
+    /// Display statistics for a set of results
     fn display_statistics(&self, results: &[(usize, MeasurementResult)]) {
         if results.is_empty() {
             return;
@@ -68,115 +169,111 @@ impl TerminalOutput {
 
         info!("Computing statistics for {} iterations", results.len());
 
-        let mut all_keys = std::collections::HashSet::new();
-        for (_, res) in results {
-            for key in res.energy_uj.keys() {
-                all_keys.insert(key.clone());
-            }
-        }
-        let mut keys: Vec<_> = all_keys.into_iter().collect();
-        keys.sort();
+        let keys = Self::extract_domain_keys(results);
 
         println!();
-        println!("═══════════════════════════════════════");
+        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
         println!("  Statistics across {} iterations", results.len());
-        println!("═══════════════════════════════════════");
+        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         for key in &keys {
             let values: Vec<f64> = results
                 .iter()
                 .filter_map(|(_, res)| res.energy_uj.get(key))
-                .map(|&uj| (uj as f64) / 1_000_000.0)
+                .map(|&uj| Self::uj_to_j(uj))
                 .collect();
 
-            if values.is_empty() {
-                continue;
+            if let Some(stats) = DomainStats::calculate(&values) {
+                self.display_domain_stats(key, &stats);
             }
-
-            let mean = values.iter().sum::<f64>() / values.len() as f64;
-            let min = values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-            let max = values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-
-            let mut sorted = values.clone();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            let median = if sorted.len().is_multiple_of(2) {
-                (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
-            } else {
-                sorted[sorted.len() / 2]
-            };
-
-            let variance =
-                values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
-            let std_dev = variance.sqrt();
-
-            println!("\n  Domain: {}", key);
-            println!("    Mean   : {:10.6} J", mean);
-            println!("    Median : {:10.6} J", median);
-            println!("    Std Dev: {:10.6} J", std_dev);
-            println!("    Min    : {:10.6} J", min);
-            println!("    Max    : {:10.6} J", max);
-
-            trace!(
-                "Stats for {}: mean={:.6}, std={:.6}, range=[{:.6}, {:.6}]",
-                key, mean, std_dev, min, max
-            );
         }
 
+        self.display_duration_stats(results);
+        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    }
+
+    /// Display statistics for a single domain
+    fn display_domain_stats(&self, domain: &str, stats: &DomainStats) {
+        println!("\n  Domain: {}", domain);
+        println!("    Mean   : {:10.6} J", stats.mean);
+        println!("    Median : {:10.6} J", stats.median);
+        println!("    Std Dev: {:10.6} J", stats.std_dev);
+        println!("    Min    : {:10.6} J", stats.min);
+        println!("    Max    : {:10.6} J", stats.max);
+
+        trace!(
+            "Stats for {}: mean={:.6}, std={:.6}, range=[{:.6}, {:.6}]",
+            domain, stats.mean, stats.std_dev, stats.min, stats.max
+        );
+    }
+
+    /// Display duration statistics
+    fn display_duration_stats(&self, results: &[(usize, MeasurementResult)]) {
         let durations: Vec<f64> = results
             .iter()
-            .map(|(_, res)| (res.duration_ms as f64) / 1000.0)
+            .map(|(_, res)| Self::ms_to_s(res.duration_ms))
             .collect();
 
-        let mean_duration = durations.iter().sum::<f64>() / durations.len() as f64;
-        let min_duration = durations.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let max_duration = durations.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        if let Some(stats) = DomainStats::calculate(&durations) {
+            println!("\n  Duration (s):");
+            println!("    Mean   : {:10.3} s", stats.mean);
+            println!("    Min    : {:10.3} s", stats.min);
+            println!("    Max    : {:10.3} s", stats.max);
+        }
+    }
 
-        println!("\n  Duration (s):");
-        println!("    Mean   : {:10.3} s", mean_duration);
-        println!("    Min    : {:10.3} s", min_duration);
-        println!("    Max    : {:10.3} s", max_duration);
+    /// Display iteration header
+    fn display_iteration_header(&self, idx: usize, total: usize) {
+        println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("║  Iteration {} / {:<width$} ", idx + 1, total, width = BOX_WIDTH - 15);
+        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    }
 
-        println!("═══════════════════════════════════════");
+    /// Display phase header
+    fn display_phase_header(&self, phase_name: &str, prefix: &str) {
+        println!();
+        if prefix.is_empty() {
+            println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+            println!("║  Phase: {:<width$} ║", phase_name, width = BOX_WIDTH - 10);
+            println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        } else {
+            self.print_subheader(&format!("Phase: {}", phase_name), prefix);
+        }
     }
 }
 
 impl OutputFormat for TerminalOutput {
-    fn simple_single(&mut self, res: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, config: &Config, res: &MeasurementResult) -> Result<()> {
         debug!("Formatting simple single measurement for terminal");
+        self.display_command(config);
         self.display_result(res, "")
     }
 
     fn simple_iterations(
         &mut self,
-        _config: &Config,
+        config: &Config,
         results: &[(usize, MeasurementResult)],
     ) -> Result<()> {
-        info!(
-            "Formatting {} simple iterations for terminal",
-            results.len()
-        );
+        info!("Formatting {} simple iterations for terminal", results.len());
+
+        self.display_command(config);
 
         for (idx, res) in results {
-            println!("\n╔═══════════════════════════════════════╗");
-            println!(
-                "║  Iteration {} / {}                     ",
-                idx + 1,
-                results.len()
-            );
-            println!("╚═══════════════════════════════════════╝");
+            self.display_iteration_header(*idx, results.len());
             self.display_result(res, "")?;
         }
 
         self.display_statistics(results);
-
         Ok(())
     }
 
-    fn phases_single(&mut self, _config: &Config, phases: &PhasesResult) -> Result<()> {
+    fn phases_single(&mut self, config: &Config, phases: &PhasesResult) -> Result<()> {
         debug!(
             "Formatting phases single measurement for terminal ({} phases)",
             phases.phases.len()
         );
+
+        self.display_command(config);
 
         for (i, phase) in phases.phases.iter().enumerate() {
             trace!(
@@ -185,11 +282,7 @@ impl OutputFormat for TerminalOutput {
                 phases.phases.len(),
                 phase.name
             );
-
-            println!();
-            println!("╔═══════════════════════════════════════╗");
-            println!("║  Phase: {:<30} ║", phase.name);
-            println!("╚═══════════════════════════════════════╝");
+            self.display_phase_header(&phase.name, "");
             self.display_result(&phase.result, "")?;
         }
 
@@ -198,7 +291,7 @@ impl OutputFormat for TerminalOutput {
 
     fn phases_iterations(
         &mut self,
-        _config: &Config,
+        config: &Config,
         results: &[(usize, PhasesResult)],
     ) -> Result<()> {
         info!("Formatting {} phase iterations for terminal", results.len());
@@ -208,39 +301,30 @@ impl OutputFormat for TerminalOutput {
             return Ok(());
         }
 
+        self.display_command(config);
+
         for (idx, phases_result) in results {
-            println!();
-            println!("╔═══════════════════════════════════════╗");
-            println!(
-                "║  Iteration {} / {}                     ",
-                idx + 1,
-                results.len()
-            );
-            println!("╚═══════════════════════════════════════╝");
+            self.display_iteration_header(*idx, results.len());
 
             for phase in &phases_result.phases {
                 trace!("Displaying phase '{}' for iteration {}", phase.name, idx);
-
-                println!();
-                println!("  ┌─────────────────────────────────────┐");
-                println!("  │ Phase: {:<30}│", phase.name);
-                println!("  └─────────────────────────────────────┘");
+                self.display_phase_header(&phase.name, "  ");
                 self.display_result(&phase.result, "  ")?;
             }
         }
 
+        // Display statistics per phase
         if let Some((_, first_result)) = results.first() {
             println!();
-            println!("╔═══════════════════════════════════════╗");
-            println!("║  Statistics across {} iterations      ", results.len());
-            println!("╚═══════════════════════════════════════╝");
+            println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+            println!("║  Statistics across {} iterations{:<width$} ",
+                     results.len(), "", width = BOX_WIDTH - 32);
+            println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
-            for phase_idx in 0..first_result.phases.len() {
-                let phase_name = &first_result.phases[phase_idx].name;
-
+            for (phase_idx, phase) in first_result.phases.iter().enumerate() {
                 println!();
-                println!("  Phase: {}", phase_name);
-                println!("  ─────────────────────────────────────");
+                println!("  Phase: {}", phase.name);
+                println!("  {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
 
                 let phase_results: Vec<(usize, MeasurementResult)> = results
                     .iter()

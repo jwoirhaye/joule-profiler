@@ -48,8 +48,9 @@ impl JsonOutput {
 }
 
 impl OutputFormat for JsonOutput {
-    fn simple_single(&mut self, res: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, _config: &Config, res: &MeasurementResult) -> Result<()> {
         let obj = json!({
+            "command": _config.cmd.join(" "),
             "mode": "simple",
             "energy_uj": res.energy_uj,
             "duration_ms": res.duration_ms,
@@ -80,6 +81,7 @@ impl OutputFormat for JsonOutput {
             .collect();
 
         let root = json!({
+            "command": _config.cmd.join(" "),
             "mode": "simple-iterations",
             "iterations": iters
         });
@@ -91,6 +93,7 @@ impl OutputFormat for JsonOutput {
         let phases_value = serde_json::to_value(&phases.phases)?;
 
         let obj = json!({
+            "command": config.cmd.join(" "),
             "mode": "phases",
             "token_start": config.token_start,
             "token_end": config.token_end,
@@ -123,6 +126,7 @@ impl OutputFormat for JsonOutput {
             .collect();
 
         let root = json!({
+            "command": config.cmd.join(" "),
             "mode": "phases-iterations",
             "token_start": config.token_start,
             "token_end": config.token_end,

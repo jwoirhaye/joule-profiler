@@ -35,17 +35,17 @@ fn run_simple_single(config: &Config, domains: &[RaplDomain]) -> Result<()> {
         OutputFormat::Json => {
             debug!("Using JSON output format (file)");
             let mut out = JsonOutput::new(config)?;
-            out.simple_single(&res)?;
+            out.simple_single(&config, &res)?;
         }
         OutputFormat::Csv => {
             debug!("Using CSV output format (file)");
             let mut out = CsvOutput::new(config)?;
-            out.simple_single(&res)?;
+            out.simple_single(&config, &res)?;
         }
         OutputFormat::Terminal => {
             debug!("Using terminal output format");
             let mut out = TerminalOutput::new();
-            out.simple_single(&res)?;
+            out.simple_single(&config, &res)?;
         }
     }
 

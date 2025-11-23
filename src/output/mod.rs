@@ -13,7 +13,7 @@ pub use json::JsonOutput;
 pub use terminal::TerminalOutput;
 
 pub trait OutputFormat {
-    fn simple_single(&mut self, res: &MeasurementResult) -> Result<()>;
+    fn simple_single(&mut self, _config: &Config, res: &MeasurementResult) -> Result<()>;
 
     fn simple_iterations(
         &mut self,
