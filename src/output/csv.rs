@@ -9,6 +9,33 @@ use crate::measure::{MeasurementResult, PhasesResult};
 
 use super::{OutputFormat, default_iterations_filename, get_absolute_path};
 
+/// Data for a phase row in CSV output
+struct PhaseRowData<'a> {
+    name: &'a str,
+    start_token: Option<&'a str>,
+    end_token: Option<&'a str>,
+    start_line: Option<usize>,
+    end_line: Option<usize>,
+}
+
+impl<'a> PhaseRowData<'a> {
+    fn new(
+        name: &'a str,
+        start_token: Option<&'a str>,
+        end_token: Option<&'a str>,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+    ) -> Self {
+        Self {
+            name,
+            start_token,
+            end_token,
+            start_line,
+            end_line,
+        }
+    }
+}
+
 pub struct CsvOutput {
     file: File,
     filename: String,
@@ -68,13 +95,7 @@ impl CsvOutput {
         res: &MeasurementResult,
         keys: &[String],
         iteration: Option<usize>,
-        phase_data: Option<(
-            &str,
-            Option<&str>,
-            Option<&str>,
-            Option<usize>,
-            Option<usize>,
-        )>,
+        phase_data: Option<&PhaseRowData>,
     ) -> Result<()> {
         write!(self.file, "'{}';", command.join(" "))?;
 
@@ -83,19 +104,19 @@ impl CsvOutput {
             write!(self.file, "{};", idx)?;
         }
 
-        if let Some((name, start_token, end_token, start_line, end_line)) = phase_data {
-            write!(self.file, "{};", name)?;
-            write!(self.file, "{};", start_token.unwrap_or(""))?;
-            write!(self.file, "{};", end_token.unwrap_or(""))?;
+        if let Some(phase) = phase_data {
+            write!(self.file, "{};", phase.name)?;
+            write!(self.file, "{};", phase.start_token.unwrap_or(""))?;
+            write!(self.file, "{};", phase.end_token.unwrap_or(""))?;
             write!(
                 self.file,
                 "{};",
-                start_line.map(|l| l.to_string()).unwrap_or_default()
+                phase.start_line.map(|l| l.to_string()).unwrap_or_default()
             )?;
             write!(
                 self.file,
                 "{};",
-                end_line.map(|l| l.to_string()).unwrap_or_default()
+                phase.end_line.map(|l| l.to_string()).unwrap_or_default()
             )?;
         }
 
@@ -185,19 +206,16 @@ impl OutputFormat for CsvOutput {
 
         for phase in &phases.phases {
             trace!("Writing phase: {}", phase.name);
-            self.write_row(
-                &config.cmd,
-                &phase.result,
-                &keys,
-                None,
-                Some((
-                    &phase.name,
-                    phase.start_token.as_deref(),
-                    phase.end_token.as_deref(),
-                    phase.start_line,
-                    phase.end_line,
-                )),
-            )?;
+
+            let phase_data = PhaseRowData::new(
+                &phase.name,
+                phase.start_token.as_deref(),
+                phase.end_token.as_deref(),
+                phase.start_line,
+                phase.end_line,
+            );
+
+            self.write_row(&config.cmd, &phase.result, &keys, None, Some(&phase_data))?;
         }
 
         self.finalize();
@@ -236,18 +254,21 @@ impl OutputFormat for CsvOutput {
         for (idx, phases_result) in results {
             for phase in &phases_result.phases {
                 trace!("Writing iteration {} phase: {}", idx, phase.name);
+
+                let phase_data = PhaseRowData::new(
+                    &phase.name,
+                    phase.start_token.as_deref(),
+                    phase.end_token.as_deref(),
+                    phase.start_line,
+                    phase.end_line,
+                );
+
                 self.write_row(
                     &config.cmd,
                     &phase.result,
                     &keys,
                     Some(*idx),
-                    Some((
-                        &phase.name,
-                        phase.start_token.as_deref(),
-                        phase.end_token.as_deref(),
-                        phase.start_line,
-                        phase.end_line,
-                    )),
+                    Some(&phase_data),
                 )?;
             }
         }
