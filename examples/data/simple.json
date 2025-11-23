@@ -1,0 +1,11 @@
+{
+  "duration_ms": 2768,
+  "energy_uj": {
+    "CORE_0": 9962987,
+    "PACKAGE-0_0": 17384844,
+    "PSYS_1": 44210641,
+    "UNCORE_0": 10376
+  },
+  "exit_code": 0,
+  "mode": "simple"
+}

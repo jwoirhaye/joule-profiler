@@ -1,0 +1,292 @@
+{
+  "iterations": [
+    {
+      "iteration": 0,
+      "phases": [
+        {
+          "name": "global (START -> END)",
+          "result": {
+            "duration_ms": 29,
+            "energy_uj": {
+              "CORE_0": 229675,
+              "PACKAGE-0_0": 356750,
+              "PSYS_1": 809629,
+              "UNCORE_0": 793
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "pre_work (START -> __WORK_START__)",
+          "result": {
+            "duration_ms": 23,
+            "energy_uj": {
+              "CORE_0": 164916,
+              "PACKAGE-0_0": 268860,
+              "PSYS_1": 635679,
+              "UNCORE_0": 793
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "work (__WORK_START__ -> __WORK_END__)",
+          "result": {
+            "duration_ms": 3,
+            "energy_uj": {
+              "CORE_0": 35096,
+              "PACKAGE-0_0": 46447,
+              "PSYS_1": 90393,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "post_work (__WORK_END__ -> END)",
+          "result": {
+            "duration_ms": 2,
+            "energy_uj": {
+              "CORE_0": 29663,
+              "PACKAGE-0_0": 41443,
+              "PSYS_1": 83557,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 1,
+      "phases": [
+        {
+          "name": "global (START -> END)",
+          "result": {
+            "duration_ms": 30,
+            "energy_uj": {
+              "CORE_0": 216857,
+              "PACKAGE-0_0": 342834,
+              "PSYS_1": 790831,
+              "UNCORE_0": 1526
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "pre_work (START -> __WORK_START__)",
+          "result": {
+            "duration_ms": 21,
+            "energy_uj": {
+              "CORE_0": 173461,
+              "PACKAGE-0_0": 265685,
+              "PSYS_1": 588194,
+              "UNCORE_0": 1526
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "work (__WORK_START__ -> __WORK_END__)",
+          "result": {
+            "duration_ms": 5,
+            "energy_uj": {
+              "CORE_0": 23498,
+              "PACKAGE-0_0": 41565,
+              "PSYS_1": 109619,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "post_work (__WORK_END__ -> END)",
+          "result": {
+            "duration_ms": 3,
+            "energy_uj": {
+              "CORE_0": 19898,
+              "PACKAGE-0_0": 35584,
+              "PSYS_1": 93018,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "phases": [
+        {
+          "name": "global (START -> END)",
+          "result": {
+            "duration_ms": 28,
+            "energy_uj": {
+              "CORE_0": 226440,
+              "PACKAGE-0_0": 354186,
+              "PSYS_1": 794858,
+              "UNCORE_0": 2014
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "pre_work (START -> __WORK_START__)",
+          "result": {
+            "duration_ms": 22,
+            "energy_uj": {
+              "CORE_0": 144348,
+              "PACKAGE-0_0": 247985,
+              "PSYS_1": 603819,
+              "UNCORE_0": 2014
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "work (__WORK_START__ -> __WORK_END__)",
+          "result": {
+            "duration_ms": 3,
+            "energy_uj": {
+              "CORE_0": 33569,
+              "PACKAGE-0_0": 45105,
+              "PSYS_1": 86486,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "post_work (__WORK_END__ -> END)",
+          "result": {
+            "duration_ms": 2,
+            "energy_uj": {
+              "CORE_0": 48523,
+              "PACKAGE-0_0": 61096,
+              "PSYS_1": 104553,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "phases": [
+        {
+          "name": "global (START -> END)",
+          "result": {
+            "duration_ms": 21,
+            "energy_uj": {
+              "CORE_0": 268981,
+              "PACKAGE-0_0": 364195,
+              "PSYS_1": 704772,
+              "UNCORE_0": 549
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "pre_work (START -> __WORK_START__)",
+          "result": {
+            "duration_ms": 15,
+            "energy_uj": {
+              "CORE_0": 194701,
+              "PACKAGE-0_0": 263183,
+              "PSYS_1": 511718,
+              "UNCORE_0": 549
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "work (__WORK_START__ -> __WORK_END__)",
+          "result": {
+            "duration_ms": 3,
+            "energy_uj": {
+              "CORE_0": 42603,
+              "PACKAGE-0_0": 57372,
+              "PSYS_1": 107605,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "post_work (__WORK_END__ -> END)",
+          "result": {
+            "duration_ms": 2,
+            "energy_uj": {
+              "CORE_0": 31677,
+              "PACKAGE-0_0": 43640,
+              "PSYS_1": 85449,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 4,
+      "phases": [
+        {
+          "name": "global (START -> END)",
+          "result": {
+            "duration_ms": 21,
+            "energy_uj": {
+              "CORE_0": 243652,
+              "PACKAGE-0_0": 343322,
+              "PSYS_1": 685789,
+              "UNCORE_0": 1831
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "pre_work (START -> __WORK_START__)",
+          "result": {
+            "duration_ms": 15,
+            "energy_uj": {
+              "CORE_0": 177734,
+              "PACKAGE-0_0": 251037,
+              "PSYS_1": 499388,
+              "UNCORE_0": 1526
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "work (__WORK_START__ -> __WORK_END__)",
+          "result": {
+            "duration_ms": 3,
+            "energy_uj": {
+              "CORE_0": 33325,
+              "PACKAGE-0_0": 45594,
+              "PSYS_1": 91674,
+              "UNCORE_0": 0
+            },
+            "exit_code": 0
+          }
+        },
+        {
+          "name": "post_work (__WORK_END__ -> END)",
+          "result": {
+            "duration_ms": 2,
+            "energy_uj": {
+              "CORE_0": 32593,
+              "PACKAGE-0_0": 46691,
+              "PSYS_1": 94727,
+              "UNCORE_0": 305
+            },
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ],
+  "mode": "phases-iterations",
+  "token_end": "__WORK_END__",
+  "token_start": "__WORK_START__"
+}

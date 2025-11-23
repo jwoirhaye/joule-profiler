@@ -1,0 +1,60 @@
+{
+  "iterations": [
+    {
+      "duration_ms": 3129,
+      "energy_uj": {
+        "CORE_0": 10541355,
+        "PACKAGE-0_0": 19041821,
+        "PSYS_1": 49815974,
+        "UNCORE_0": 40222
+      },
+      "exit_code": 0,
+      "iteration": 0
+    },
+    {
+      "duration_ms": 3665,
+      "energy_uj": {
+        "CORE_0": 11804169,
+        "PACKAGE-0_0": 24098327,
+        "PSYS_1": 62031396,
+        "UNCORE_0": 98023
+      },
+      "exit_code": 0,
+      "iteration": 1
+    },
+    {
+      "duration_ms": 3750,
+      "energy_uj": {
+        "CORE_0": 14240442,
+        "PACKAGE-0_0": 28474597,
+        "PSYS_1": 69201544,
+        "UNCORE_0": 82580
+      },
+      "exit_code": 0,
+      "iteration": 2
+    },
+    {
+      "duration_ms": 3012,
+      "energy_uj": {
+        "CORE_0": 10555210,
+        "PACKAGE-0_0": 19958445,
+        "PSYS_1": 49993341,
+        "UNCORE_0": 22766
+      },
+      "exit_code": 0,
+      "iteration": 3
+    },
+    {
+      "duration_ms": 3583,
+      "energy_uj": {
+        "CORE_0": 13531887,
+        "PACKAGE-0_0": 26393854,
+        "PSYS_1": 64126789,
+        "UNCORE_0": 71960
+      },
+      "exit_code": 0,
+      "iteration": 4
+    }
+  ],
+  "mode": "simple-iterations"
+}

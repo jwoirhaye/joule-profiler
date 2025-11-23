@@ -1,0 +1,5 @@
+phase_name;CORE_0_uj;PACKAGE-0_0_uj;PSYS_1_uj;UNCORE_0_uj;duration_ms;exit_code
+global (START -> END);163208;305785;797667;244;34;0
+pre_work (START -> __WORK_START__);96253;216063;631895;244;28;0
+work (__WORK_START__ -> __WORK_END__);38452;51636;97107;0;3;0
+post_work (__WORK_END__ -> END);28503;38086;68665;0;2;0

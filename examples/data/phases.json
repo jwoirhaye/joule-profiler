@@ -1,0 +1,59 @@
+{
+  "mode": "phases",
+  "phases": [
+    {
+      "name": "global (START -> END)",
+      "result": {
+        "duration_ms": 30,
+        "energy_uj": {
+          "CORE_0": 170471,
+          "PACKAGE-0_0": 295043,
+          "PSYS_1": 744444,
+          "UNCORE_0": 1404
+        },
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "pre_work (START -> __WORK_START__)",
+      "result": {
+        "duration_ms": 24,
+        "energy_uj": {
+          "CORE_0": 114319,
+          "PACKAGE-0_0": 218933,
+          "PSYS_1": 594786,
+          "UNCORE_0": 1404
+        },
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "work (__WORK_START__ -> __WORK_END__)",
+      "result": {
+        "duration_ms": 3,
+        "energy_uj": {
+          "CORE_0": 36560,
+          "PACKAGE-0_0": 49133,
+          "PSYS_1": 95642,
+          "UNCORE_0": 0
+        },
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "post_work (__WORK_END__ -> END)",
+      "result": {
+        "duration_ms": 2,
+        "energy_uj": {
+          "CORE_0": 19592,
+          "PACKAGE-0_0": 26977,
+          "PSYS_1": 54016,
+          "UNCORE_0": 0
+        },
+        "exit_code": 0
+      }
+    }
+  ],
+  "token_end": "__WORK_END__",
+  "token_start": "__WORK_START__"
+}
