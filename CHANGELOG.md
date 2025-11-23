@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0](https://github.com/jwoirhaye/joule-profiler/compare/v0.2.0...v1.0.0) (2025-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* - Update Config struct: token_pattern replaces token_start/token_end
+
+### Features
+
+* display token metadata in terminal phase output ([1917f64](https://github.com/jwoirhaye/joule-profiler/commit/1917f6447def21bbb10c70403add094cc8847b8e))
+
+
+### Bug Fixes
+
+* resolve clippy warnings in output/csv.rs ([44be94a](https://github.com/jwoirhaye/joule-profiler/commit/44be94a081cc14c146c04ef438e440fa38437fe8))
+
+
+### Code Refactoring
+
+* replace --token-start/--token-end with regex-based --token-pattern ([87dc619](https://github.com/jwoirhaye/joule-profiler/commit/87dc619d84fd0e7543b47116a9b6362fac4fee8a))
+
 ## [0.2.0](https://github.com/jwoirhaye/joule-profiler/compare/v0.1.0...v0.2.0) (2025-11-23)
 
 
