@@ -49,6 +49,29 @@
 
 ## 📦 Installation
 
+### Quick Install (Recommended)
+
+Install the latest version with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash
+```
+
+### Custom Installation
+
+```bash
+# Install to custom directory
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --dir ~/.local/bin
+
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --version v0.1.0
+
+# List available versions
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --list
+
+# Non-interactive (for CI/CD)
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --yes
+```
 ### From Source
 
 ```bash
@@ -66,17 +89,13 @@ sudo joule-profiler --version
 
 **Note:** System-wide installation (`/usr/local/bin/`) is recommended as the tool requires `sudo` to access RAPL counters.
 
-### Alternative: User Installation
-
-```bash
-# Install to ~/.cargo/bin/ (requires full path with sudo)
-cargo install --path .
-sudo ~/.cargo/bin/joule-profiler simple -- ./my-program
-```
-
 ### Uninstall
 
 ```bash
+# Using uninstaller
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/uninstall.sh | bash
+
+# Or manually
 sudo rm /usr/local/bin/joule-profiler
 ```
 
