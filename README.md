@@ -222,8 +222,7 @@ joule-profiler phases [OPTIONS] -- COMMAND [ARGS]
 ```
 
 **Options:**
-- `--token-start <TOKEN>`: Start token printed by the program on stdout [default: `__WORK_START__`]
-- `--token-end <TOKEN>`: End token printed by the program on stdout [default: `__WORK_END__`]
+- `--token-pattern <REGEX>`: Regex pattern to detect phase tokens in stdout (default: `__[A-Z0-9_]+__`)
 - `--json`: Export results as JSON (default: terminal pretty print)
 - `--csv`: Export results as CSV (semicolon-separated values)
 - `-n, --iterations <N>`: Number of iterations (>=1)
@@ -232,92 +231,197 @@ joule-profiler phases [OPTIONS] -- COMMAND [ARGS]
 - `-o, --output-file <FILE>`: Redirect profiled program's stdout to file
 
 **How it works:**
-1. The tool monitors your program's stdout
-2. When `token-start` is detected, it records the starting energy
-3. When `token-end` is detected, it records the ending energy
-4. Energy consumption is calculated for multiple phases:
-    - **Global**: Total program execution (START → END)
-    - **Pre-work**: From start to `token-start`
-    - **Work**: From `token-start` to `token-end`
-    - **Post-work**: From `token-end` to program end
+
+**Key Concept**: Instead of defining fixed start/end tokens, you provide a **regex pattern** that matches ALL your phase markers. The tool automatically creates phases between consecutive matched tokens.
+
+**Pattern matching:**
+
+- If pattern has a capture group (parentheses), the captured text is used as token name
+- Otherwise, the full match is used as token name
+
+**Energy phases computed:**
+
+1. **Global**: Total program execution (START → END)
+2. **START -> first_token**: From program start to first matched token
+3. **token_i -> token_i+1**: Between each pair of consecutive matched tokens
+4. **last_token -> END**: From last matched token to program end
+
+**Default Pattern**
+
+By default, the pattern `__[A-Z0-9_]+__` matches tokens like:
+
+- `__INIT__`
+- `__LOAD_DATA__`
+- `__COMPUTE__`
+- `__CLEANUP__`
+
 
 **Example program output:**
 
 ```python
 # example.py
-print("Initializing...")
-print("Loading data...")
-print("__WORK_START__")  # Default token
-# Heavy computation here
-print("Processing complete")
-print("__WORK_END__")    # Default token
-print("Cleaning up...")
+print("Starting program...")
+print("__INIT__")
+# Initialization code
+print("__LOAD_DATA__")
+# Load data
+print("__COMPUTE__")
+# Heavy computation
+print("__CLEANUP__")
+# Cleanup
+print("Done!")
 ```
 
 **Measurement command:**
 
 ```bash
-# Using default tokens
+# Using default pattern
 sudo joule-profiler phases -- python example.py
 
-# Using custom tokens
-sudo joule-profiler phases \
-    --token-start "=== BEGIN ===" \
-    --token-end "=== DONE ===" \
-    -- python3 example.py
-
-# With JSON output
-sudo joule-profiler phases --json -- python example.py
+# Detected phases:
+# - global (START -> END)
+# - START -> __INIT__
+# - __INIT__ -> __LOAD_DATA__
+# - __LOAD_DATA__ -> __COMPUTE__
+# - __COMPUTE__ -> __CLEANUP__
+# - __CLEANUP__ -> END
 ```
 
 **Terminal Output Example:**
 
 ```
-═══════════════════════════════════════
-  Phase: global (START -> END)
-═══════════════════════════════════════
-  CORE_0              :   2.456789 J
-  PACKAGE-0_0         :  12.345678 J
-  DRAM_0              :   3.890123 J
-───────────────────────────────────────
-  Total energy (J):  18.692590
-  Average power (W):     17.234
-  Duration (s)    :      1.085
-  Exit code       : 0
+╔══════════════════════════════════════════════════╗
+║  Command                                         ║
+╚══════════════════════════════════════════════════╝
+  python3 example.py
 
-═══════════════════════════════════════
-  Phase: pre_work (START -> __WORK_START__)
-═══════════════════════════════════════
-  CORE_0              :   0.123456 J
-  PACKAGE-0_0         :   1.234567 J
-  DRAM_0              :   0.345678 J
-───────────────────────────────────────
-  Total energy (J):   1.703701
-  Average power (W):      5.678
-  Duration (s)    :      0.300
+╔══════════════════════════════════════════════════╗
+║  Phase: global (START -> END)                    ║
+╚══════════════════════════════════════════════════╝
+  Start token: START
+  End token  : END
 
-═══════════════════════════════════════
-  Phase: work (__WORK_START__ -> __WORK_END__)
-═══════════════════════════════════════
-  CORE_0              :   2.100000 J
-  PACKAGE-0_0         :  10.000000 J
-  DRAM_0              :   3.200000 J
-───────────────────────────────────────
-  Total energy (J):  15.300000
-  Average power (W):     20.400
-  Duration (s)    :      0.750
 
-═══════════════════════════════════════
-  Phase: post_work (__WORK_END__ -> END)
-═══════════════════════════════════════
-  CORE_0              :   0.233333 J
-  PACKAGE-0_0         :   1.111111 J
-  DRAM_0              :   0.344445 J
-───────────────────────────────────────
-  Total energy (J):   1.688889
-  Average power (W):     48.254
-  Duration (s)    :      0.035
-═══════════════════════════════════════
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.052673 J
+  PACKAGE-0_0         :   0.118897 J
+  PSYS_1              :   0.361754 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.533324 J
+  Average power       :  23.188000 W
+  Duration            :   0.023000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════╗
+║  Phase: START -> __INIT__                        ║
+╚══════════════════════════════════════════════════╝
+  Start token: START
+  End token  : __INIT__ (line 2)
+
+
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.040588 J
+  PACKAGE-0_0         :   0.097229 J
+  PSYS_1              :   0.303161 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.440978 J
+  Average power       :  22.048900 W
+  Duration            :   0.020000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════╗
+║  Phase: __INIT__ -> __LOAD_DATA__                ║
+╚══════════════════════════════════════════════════╝
+  Start token: __INIT__ (line 2)
+  End token  : __LOAD_DATA__ (line 3)
+
+
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.000000 J
+  PACKAGE-0_0         :   0.000000 J
+  PSYS_1              :   0.000000 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.000000 J
+  Average power       :   0.000000 W
+  Duration            :   0.000000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════╗
+║  Phase: __LOAD_DATA__ -> __COMPUTE__             ║
+╚══════════════════════════════════════════════════╝
+  Start token: __LOAD_DATA__ (line 3)
+  End token  : __COMPUTE__ (line 4)
+
+
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.000000 J
+  PACKAGE-0_0         :   0.000000 J
+  PSYS_1              :   0.000000 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.000000 J
+  Average power       :   0.000000 W
+  Duration            :   0.000000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════╗
+║  Phase: __COMPUTE__ -> __CLEANUP__               ║
+╚══════════════════════════════════════════════════╝
+  Start token: __COMPUTE__ (line 4)
+  End token  : __CLEANUP__ (line 5)
+
+
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.000000 J
+  PACKAGE-0_0         :   0.000000 J
+  PSYS_1              :   0.000000 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.000000 J
+  Average power       :   0.000000 W
+  Duration            :   0.000000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════╗
+║  Phase: __CLEANUP__ -> END                       ║
+╚══════════════════════════════════════════════════╝
+  Start token: __CLEANUP__ (line 5)
+  End token  : END
+
+
+══════════════════════════════════════════════════
+  Energy consumption (Joules)
+══════════════════════════════════════════════════
+  CORE_0              :   0.012085 J
+  PACKAGE-0_0         :   0.021668 J
+  PSYS_1              :   0.058593 J
+  UNCORE_0            :   0.000000 J
+──────────────────────────────────────────────────
+  Total energy        :   0.092346 J
+  Average power       :  46.173000 W
+  Duration            :   0.002000 s
+  Exit code           :          0
+══════════════════════════════════════════════════
+
+
 ```
 
 ### Multiple Iterations
@@ -384,20 +488,19 @@ sudo joule-profiler simple -- sleep 1
 sudo joule-profiler -v simple -- sleep 1
 ```
 
-### Example 2: Python Script
+### Example 2: Python Script with Phases
 
 ```bash
-# Measure a Python script
-sudo joule-profiler simple -- python train_model.py
+# Measure with default pattern
+sudo joule-profiler phases -- python train_model.py
 
-# With phases
+# Custom pattern for "=== PHASE ===" markers
 sudo joule-profiler phases \
-    --token-start "Training started" \
-    --token-end "Training complete" \
-    -- python3 train_model.py
+    --token-pattern "=== ([A-Z_]+) ===" \
+    -- python train_model.py
 
 # Save results to JSON
-sudo joule-profiler simple --json --jouleit-file training-energy.json -- python train_model.py
+sudo joule-profiler phases --json --jouleit-file training-energy.json -- python train_model.py
 ```
 ### Example 3: Benchmark
 
@@ -419,18 +522,17 @@ sudo joule-profiler simple --output-file benchmark.log -- ./benchmark
 sudo joule-profiler simple -- docker run image-name 
 ```
 
-### Example 5: Phase-Based Analysis
+### Example 5: Custom Token Format
 
 ```bash
-# C program with custom tokens
-sudo joule-profiler phases \
-    --token-start "COMPUTATION_START" \
-    --token-end "COMPUTATION_END" \
-    --json \
-    -- ./scientific-simulation
+# Match timestamps [HH:MM:SS]
+sudo joule-profiler phases --token-pattern "\[(\d{2}:\d{2}:\d{2})\]" -- ./program
 
-# Multiple iterations for reliability
-sudo joule-profiler phases --iterations 10 --csv -- ./my-app
+# Match >>> phase <<< markers
+sudo joule-profiler phases --token-pattern ">>> (.*) <<<" -- ./program
+
+# Match underscore-prefixed tokens
+sudo joule-profiler phases --token-pattern "_[a-z]+" -- ./program
 ```
 
 ## 🔍 How It Works
@@ -517,7 +619,7 @@ sudo cpupower frequency-set --governor performance
 
 ### Tokens Not Detected (Phases Mode)
 
-**Problem:** Phases not computed, warnings about missing tokens
+**Problem:** No phases computed, warning "No tokens matching pattern"
 
 **Check with logging:**
 ```bash
@@ -527,9 +629,16 @@ sudo joule-profiler -v phases -- ./my-program
 **Solutions:**
 
 1. Verify tokens are printed to **stdout** (not stderr)
-2. Check token spelling (case-sensitive, default: `__WORK_START__` and `__WORK_END__`)
-3. Ensure tokens are **always printed** (not conditional)
-4. Flush output buffers in your program:
+2. Check tokens are printed to stdout (not stderr):
+    ```python
+    # Correct (stdout)
+    print("__INIT__")
+    
+    # Wrong (stderr)
+    import sys
+    print("__INIT__", file=sys.stderr)
+   ```
+3. Flush output buffers:
    ```python
    # Python
    print("__WORK_START__", flush=True)
@@ -547,6 +656,23 @@ sudo joule-profiler -v phases -- ./my-program
    printf("__WORK_START__\n");
    fflush(stdout);
    ```
+   
+### Invalid Regex Pattern
+
+**Problem:** Error "Invalid regex pattern"
+
+**Solution:** Check regex syntax. Common mistakes:
+
+```bash
+# Wrong: unescaped special characters
+--token-pattern "[INIT]"
+
+# Correct: escape brackets
+--token-pattern "\[INIT\]"
+
+# Test pattern online: https://regex101.com/
+```
+
 
 ### Counter Overflow Warning
 
