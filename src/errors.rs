@@ -79,6 +79,9 @@ pub enum JouleProfilerError {
 
     #[error("Invalid JSON format: {0}")]
     InvalidJsonFormat(String),
+
+    #[error("Invalid regex pattern: {0}")]
+    InvalidPattern(String),
 }
 
 impl From<std::io::Error> for JouleProfilerError {

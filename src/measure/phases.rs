@@ -4,6 +4,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use log::{debug, error, info, trace, warn};
+use regex::Regex;
 
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
@@ -12,29 +13,37 @@ use crate::measure::common::{
 };
 use crate::rapl::{EnergySnapshot, RaplDomain, read_snapshot};
 
-/// Measure one run in phases mode.
+/// Detected token with timestamp
+#[derive(Debug, Clone)]
+struct DetectedToken {
+    token: String,
+    snapshot: EnergySnapshot,
+    line_number: usize,
+}
+
+/// Measure one run in phases mode with regex pattern.
 pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<PhasesResult> {
-    info!("Starting single phase measurement");
+    info!("Starting single phase measurement with regex pattern");
 
     if config.cmd.is_empty() {
         error!("No command specified for measurement");
         return Err(JouleProfilerError::NoCommand.into());
     }
 
-    let token_start = config.token_start.as_ref().ok_or_else(|| {
-        error!("token_start not configured for phases mode");
-        JouleProfilerError::TokenNotFound("token_start not configured".to_string())
-    })?;
-
-    let token_end = config.token_end.as_ref().ok_or_else(|| {
-        error!("token_end not configured for phases mode");
-        JouleProfilerError::TokenNotFound("token_end not configured".to_string())
+    let token_pattern = config.token_pattern.as_ref().ok_or_else(|| {
+        error!("token_pattern not configured for phases mode");
+        JouleProfilerError::TokenNotFound("token_pattern not configured".to_string())
     })?;
 
     info!(
-        "Running in phase mode with tokens start='{}', end='{}'",
-        token_start, token_end
+        "Running in phase mode with token pattern: '{}'",
+        token_pattern
     );
+
+    let regex = Regex::new(token_pattern).map_err(|e| {
+        error!("Invalid regex pattern '{}': {}", token_pattern, e);
+        JouleProfilerError::InvalidPattern(format!("{}: {}", token_pattern, e))
+    })?;
 
     let filtered: Vec<&RaplDomain> = domains
         .iter()
@@ -103,69 +112,55 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
         None
     };
 
-    let mut work_start_snapshot: Option<EnergySnapshot> = None;
-    let mut work_end_snapshot: Option<EnergySnapshot> = None;
+    let mut detected_tokens = Vec::<DetectedToken>::new();
     let mut line_count = 0;
-    let mut start_token_count = 0;
-    let mut end_token_count = 0;
 
-    trace!("Starting to monitor command output for phase tokens");
+    trace!(
+        "Starting to monitor command output for tokens matching pattern '{}'",
+        token_pattern
+    );
+
     for line_res in reader.lines() {
         let line = line_res?;
         line_count += 1;
 
+        // Write to output file or stdout
         if let Some(f) = out_file.as_mut() {
-            writeln!(f, "{line}").map_err(|e| {
+            writeln!(f, "{}", line).map_err(|e| {
                 error!("Failed to write to output file: {}", e);
                 JouleProfilerError::OutputWriteFailed(e.to_string())
             })?;
         } else {
-            println!("{line}");
+            println!("{}", line);
         }
 
-        if line.contains(token_start) {
-            start_token_count += 1;
-
-            if work_start_snapshot.is_none() {
-                info!(
-                    "✓ Detected start token '{}' at line {}",
-                    token_start, line_count
-                );
-                let snap = read_snapshot(&filtered)?;
-                debug!(
-                    "Work phase start snapshot taken at {} µs",
-                    snap.timestamp_us
-                );
-                work_start_snapshot = Some(snap);
+        // Check if line matches the regex pattern
+        if let Some(captures) = regex.captures(&line) {
+            // Get the full match or the first capture group
+            let token = if let Some(capture) = captures.get(1) {
+                capture.as_str().to_string()
             } else {
-                warn!(
-                    "⚠ Multiple occurrences of start token '{}' detected at line {} (already found at line {})",
-                    token_start, line_count, start_token_count
-                );
-            }
-        }
+                captures.get(0).unwrap().as_str().to_string()
+            };
 
-        if line.contains(token_end) {
-            end_token_count += 1;
+            info!("✓ Detected token '{}' at line {}", token, line_count);
 
-            if work_end_snapshot.is_none() {
-                info!(
-                    "✓ Detected end token '{}' at line {}",
-                    token_end, line_count
-                );
-                let snap = read_snapshot(&filtered)?;
-                debug!("Work phase end snapshot taken at {} µs", snap.timestamp_us);
-                work_end_snapshot = Some(snap);
-            } else {
-                warn!(
-                    "⚠ Multiple occurrences of end token '{}' detected at line {}",
-                    token_end, line_count
-                );
-            }
+            let snapshot = read_snapshot(&filtered)?;
+            debug!(
+                "Token '{}' (line {}) snapshot taken at {} µs",
+                token, line_count, snapshot.timestamp_us
+            );
+
+            detected_tokens.push(DetectedToken {
+                token: token.clone(),
+                snapshot,
+                line_number: line_count,
+            });
         }
     }
 
     debug!("Processed {} lines of command output", line_count);
+    info!("Found {} matching token(s)", detected_tokens.len());
 
     let status = child.wait().context("Failed to wait on child")?;
     let exit_code = status.code().unwrap_or_else(|| {
@@ -182,19 +177,8 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
     let end_snapshot = read_snapshot(&filtered)?;
     info!("Final snapshot taken at {} µs", end_snapshot.timestamp_us);
 
-    if start_token_count > 1 {
-        warn!(
-            "⚠ Start token '{}' appeared {} times (expected exactly 1)",
-            token_start, start_token_count
-        );
-    }
-
-    if end_token_count > 1 {
-        warn!(
-            "⚠ End token '{}' appeared {} times (expected exactly 1)",
-            token_end, end_token_count
-        );
-    }
+    // Build phases from detected tokens
+    let mut phases = Vec::<PhaseMeasurement>::new();
 
     let duration_between_ms = |a: &EnergySnapshot, b: &EnergySnapshot| -> u128 {
         if b.timestamp_us >= a.timestamp_us {
@@ -208,9 +192,7 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
         }
     };
 
-    let mut phases = Vec::<PhaseMeasurement>::new();
-
-    // Global (START -> END)
+    // 1. Global phase (START -> END)
     debug!("Computing global phase (START -> END)");
     let global_duration_ms = duration_between_ms(&start_snapshot, &end_snapshot);
     let global = compute_measurement_from_snapshots(
@@ -224,100 +206,100 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
     info!("Global phase: {} ms", global_duration_ms);
     phases.push(PhaseMeasurement {
         name: "global (START -> END)".to_string(),
+        start_token: Some("START".to_string()),
+        end_token: Some("END".to_string()),
+        start_line: None,
+        end_line: None,
         result: global,
     });
 
-    // Pre-work (START -> token_start)
-    if let Some(ws) = &work_start_snapshot {
-        debug!("Computing pre-work phase (START -> {})", token_start);
-        let pre_duration_ms = duration_between_ms(&start_snapshot, ws);
-        let pre = compute_measurement_from_snapshots(
+    if detected_tokens.is_empty() {
+        warn!(
+            "⚠ No tokens matching pattern '{}' were detected in output",
+            token_pattern
+        );
+    } else {
+        // 2. Phase from START to first token
+        let first_token = &detected_tokens[0];
+        debug!(
+            "Computing phase START -> '{}' (line {})",
+            first_token.token, first_token.line_number
+        );
+        let duration_ms = duration_between_ms(&start_snapshot, &first_token.snapshot);
+        let measurement = compute_measurement_from_snapshots(
             &filtered,
             &max_map,
             &start_snapshot,
-            ws,
-            pre_duration_ms,
+            &first_token.snapshot,
+            duration_ms,
             exit_code,
         )?;
-        info!("Pre-work phase: {} ms", pre_duration_ms);
+        info!("Phase START -> '{}': {} ms", first_token.token, duration_ms);
         phases.push(PhaseMeasurement {
-            name: format!("pre_work (START -> {})", token_start),
-            result: pre,
+            name: format!("START -> {}", first_token.token),
+            start_token: Some("START".to_string()),
+            end_token: Some(first_token.token.clone()),
+            start_line: None,
+            end_line: Some(first_token.line_number),
+            result: measurement,
         });
-    } else {
-        warn!(
-            "⚠ Start token '{}' was never detected in output; skipping pre-work phase",
-            token_start
+
+        // 3. Phases between consecutive tokens
+        for i in 0..detected_tokens.len() - 1 {
+            let token_a = &detected_tokens[i];
+            let token_b = &detected_tokens[i + 1];
+
+            debug!(
+                "Computing phase '{}' (line {}) -> '{}' (line {})",
+                token_a.token, token_a.line_number, token_b.token, token_b.line_number
+            );
+            let duration_ms = duration_between_ms(&token_a.snapshot, &token_b.snapshot);
+            let measurement = compute_measurement_from_snapshots(
+                &filtered,
+                &max_map,
+                &token_a.snapshot,
+                &token_b.snapshot,
+                duration_ms,
+                exit_code,
+            )?;
+            info!(
+                "Phase '{}' -> '{}': {} ms",
+                token_a.token, token_b.token, duration_ms
+            );
+            phases.push(PhaseMeasurement {
+                name: format!("{} -> {}", token_a.token, token_b.token),
+                start_token: Some(token_a.token.clone()),
+                end_token: Some(token_b.token.clone()),
+                start_line: Some(token_a.line_number),
+                end_line: Some(token_b.line_number),
+                result: measurement,
+            });
+        }
+
+        // 4. Phase from last token to END
+        let last_token = &detected_tokens[detected_tokens.len() - 1];
+        debug!(
+            "Computing phase '{}' (line {}) -> END",
+            last_token.token, last_token.line_number
         );
-    }
-
-    // Work (token_start -> token_end)
-    if let (Some(ws), Some(we)) = (&work_start_snapshot, &work_end_snapshot) {
-        debug!("Computing work phase ({} -> {})", token_start, token_end);
-
-        if we.timestamp_us < ws.timestamp_us {
-            error!(
-                "End token '{}' appeared before start token '{}' in timeline",
-                token_end, token_start
-            );
-            return Err(JouleProfilerError::InvalidTokenOrder {
-                start: token_start.clone(),
-                end: token_end.clone(),
-            }
-            .into());
-        }
-
-        let work_duration_ms = duration_between_ms(ws, we);
-        let work = compute_measurement_from_snapshots(
+        let duration_ms = duration_between_ms(&last_token.snapshot, &end_snapshot);
+        let measurement = compute_measurement_from_snapshots(
             &filtered,
             &max_map,
-            ws,
-            we,
-            work_duration_ms,
-            exit_code,
-        )?;
-        info!("Work phase: {} ms", work_duration_ms);
-        phases.push(PhaseMeasurement {
-            name: format!("work ({} -> {})", token_start, token_end),
-            result: work,
-        });
-    } else {
-        if work_start_snapshot.is_none() {
-            warn!(
-                "⚠ Start token '{}' not detected; skipping work phase",
-                token_start
-            );
-        }
-        if work_end_snapshot.is_none() {
-            warn!(
-                "⚠ End token '{}' not detected; skipping work phase",
-                token_end
-            );
-        }
-    }
-
-    // Post-work (token_end -> END)
-    if let Some(we) = &work_end_snapshot {
-        debug!("Computing post-work phase ({} -> END)", token_end);
-        let post_duration_ms = duration_between_ms(we, &end_snapshot);
-        let post = compute_measurement_from_snapshots(
-            &filtered,
-            &max_map,
-            we,
+            &last_token.snapshot,
             &end_snapshot,
-            post_duration_ms,
+            duration_ms,
             exit_code,
         )?;
-        info!("Post-work phase: {} ms", post_duration_ms);
+        info!("Phase '{}' -> END: {} ms", last_token.token, duration_ms);
         phases.push(PhaseMeasurement {
-            name: format!("post_work ({} -> END)", token_end),
-            result: post,
+            name: format!("{} -> END", last_token.token),
+            start_token: Some(last_token.token.clone()),
+            end_token: Some("END".to_string()),
+            start_line: Some(last_token.line_number),
+            end_line: None,
+            result: measurement,
         });
-    } else {
-        warn!(
-            "⚠ End token '{}' not detected; skipping post-work phase",
-            token_end
-        );
     }
 
     info!(
@@ -388,8 +370,7 @@ mod tests {
             iterations: Some(0),
             jouleit_file: None,
             output_file: None,
-            token_start: Some("START".to_string()),
-            token_end: Some("END".to_string()),
+            token_pattern: Some("_.*".to_string()),
             cmd: vec!["echo".to_string(), "test".to_string()],
         };
 
@@ -413,8 +394,7 @@ mod tests {
             iterations: None,
             jouleit_file: None,
             output_file: None,
-            token_start: Some("START".to_string()),
-            token_end: Some("END".to_string()),
+            token_pattern: Some("_.*".to_string()),
             cmd: vec![],
         };
 
@@ -430,32 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_domains() {
-        let config = Config {
-            sockets: vec![99],
-            json: false,
-            csv: false,
-            iterations: None,
-            jouleit_file: None,
-            output_file: None,
-            token_start: Some("START".to_string()),
-            token_end: Some("END".to_string()),
-            cmd: vec!["echo".to_string(), "test".to_string()],
-        };
-
-        let domains = vec![create_mock_domain("package-0", 0)];
-
-        let result = measure_phases_once(&config, &domains);
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            let err = e.downcast::<JouleProfilerError>().unwrap();
-            assert!(matches!(err, JouleProfilerError::NoDomains));
-        }
-    }
-
-    #[test]
-    fn test_missing_token_start() {
+    fn test_invalid_regex() {
         let config = Config {
             sockets: vec![0],
             json: false,
@@ -463,28 +418,7 @@ mod tests {
             iterations: None,
             jouleit_file: None,
             output_file: None,
-            token_start: None,
-            token_end: Some("END".to_string()),
-            cmd: vec!["echo".to_string(), "test".to_string()],
-        };
-
-        let domains = vec![create_mock_domain("package-0", 0)];
-
-        let result = measure_phases_once(&config, &domains);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_missing_token_end() {
-        let config = Config {
-            sockets: vec![0],
-            json: false,
-            csv: false,
-            iterations: None,
-            jouleit_file: None,
-            output_file: None,
-            token_start: Some("START".to_string()),
-            token_end: None,
+            token_pattern: Some("[invalid(".to_string()), // Invalid regex
             cmd: vec!["echo".to_string(), "test".to_string()],
         };
 

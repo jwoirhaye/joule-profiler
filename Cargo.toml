@@ -15,6 +15,7 @@ thiserror = "2.0.17"
 log = "0.4.28"
 serde_json = "1.0.145"
 serde = { version = "1.0.228", features = ["derive"] }
+regex = "1.12.2"
 
 [dev-dependencies]
 serial_test = "3.0"

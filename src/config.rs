@@ -12,8 +12,7 @@ pub struct Config {
     pub iterations: Option<usize>,
     pub jouleit_file: Option<String>,
     pub output_file: Option<String>,
-    pub token_start: Option<String>,
-    pub token_end: Option<String>,
+    pub token_pattern: Option<String>, // Remplace token_start et token_end
     pub cmd: Vec<String>,
 }
 
@@ -58,8 +57,7 @@ impl Config {
             iterations: args.iterations,
             jouleit_file: args.jouleit_file,
             output_file: args.output_file,
-            token_start: None,
-            token_end: None,
+            token_pattern: None, // Pas de pattern en mode simple
             cmd: args.cmd,
         })
     }
@@ -84,21 +82,18 @@ impl Config {
             anyhow::bail!("Cannot use both --json and --csv flags simultaneously");
         }
 
+        // Validation du pattern regex
+        if let Err(e) = regex::Regex::new(&args.token_pattern) {
+            warn!("Invalid regex pattern '{}': {}", args.token_pattern, e);
+            anyhow::bail!("Invalid regex pattern '{}': {}", args.token_pattern, e);
+        }
+
         debug!(
-            "Phases mode config: sockets={:?}, json={}, csv={}, iterations={:?}, tokens=[{}, {}], cmd={:?}",
-            sockets,
-            args.json,
-            args.csv,
-            args.iterations,
-            args.token_start,
-            args.token_end,
-            args.cmd
+            "Phases mode config: sockets={:?}, json={}, csv={}, iterations={:?}, pattern='{}', cmd={:?}",
+            sockets, args.json, args.csv, args.iterations, args.token_pattern, args.cmd
         );
 
-        info!(
-            "Phase tokens: start='{}', end='{}'",
-            args.token_start, args.token_end
-        );
+        info!("Phase token pattern: '{}'", args.token_pattern);
 
         if let Some(n) = args.iterations {
             info!("Configured for {} iteration(s)", n);
@@ -115,8 +110,7 @@ impl Config {
             iterations: args.iterations,
             jouleit_file: args.jouleit_file,
             output_file: args.output_file,
-            token_start: Some(args.token_start),
-            token_end: Some(args.token_end),
+            token_pattern: Some(args.token_pattern), // Pattern regex
             cmd: args.cmd,
         })
     }

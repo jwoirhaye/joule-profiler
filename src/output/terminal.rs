@@ -35,16 +35,13 @@ impl DomainStats {
         let mut sorted = values.to_vec();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-        let median = if sorted.len() % 2 == 0 {
+        let median = if sorted.len().is_multiple_of(2) {
             (sorted[sorted.len() / 2 - 1] + sorted[sorted.len() / 2]) / 2.0
         } else {
             sorted[sorted.len() / 2]
         };
 
-        let variance = values
-            .iter()
-            .map(|v| (v - mean).powi(2))
-            .sum::<f64>() / values.len() as f64;
+        let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
         let std_dev = variance.sqrt();
 
         Some(Self {
@@ -84,9 +81,22 @@ impl TerminalOutput {
 
     /// Print a formatted sub-header
     fn print_subheader(&self, title: &str, prefix: &str) {
-        println!("{}┌{}┐", prefix, BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len()));
-        println!("{}│ {:<width$}│", prefix, title, width = BOX_WIDTH - prefix.len() - 3);
-        println!("{}└{}┘", prefix, BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len()));
+        println!(
+            "{}┌{}┐",
+            prefix,
+            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len())
+        );
+        println!(
+            "{}│ {:<width$}│",
+            prefix,
+            title,
+            width = BOX_WIDTH - prefix.len() - 3
+        );
+        println!(
+            "{}└{}┘",
+            prefix,
+            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len())
+        );
     }
 
     /// Convert microjoules to joules
@@ -106,17 +116,14 @@ impl TerminalOutput {
         trace!("Displaying measurement result with prefix: '{}'", prefix);
 
         println!();
-        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
         println!("{}  Energy consumption (Joules)", prefix);
-        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         let mut keys: Vec<_> = res.energy_uj.keys().cloned().collect();
         keys.sort_unstable();
 
-        let total_uj: u64 = keys
-            .iter()
-            .filter_map(|k| res.energy_uj.get(k))
-            .sum();
+        let total_uj: u64 = keys.iter().filter_map(|k| res.energy_uj.get(k)).sum();
 
         for key in &keys {
             if let Some(&v_uj) = res.energy_uj.get(key) {
@@ -133,12 +140,15 @@ impl TerminalOutput {
             0.0
         };
 
-        println!("{}{}",prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
         println!("{}  {:<20}: {:>10.6} J", prefix, "Total energy", total_j);
-        println!("{}  {:<20}: {:>10.6} W", prefix, "Average power", avg_power_w);
+        println!(
+            "{}  {:<20}: {:>10.6} W",
+            prefix, "Average power", avg_power_w
+        );
         println!("{}  {:<20}: {:>10.6} s", prefix, "Duration", duration_s);
         println!("{}  {:<20}: {:>10.6}", prefix, "Exit code", res.exit_code);
-        println!("{}{}",prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         trace!(
             "Displayed {} domain(s), total: {:.3} J, duration: {:.3} s",
@@ -225,7 +235,12 @@ impl TerminalOutput {
     /// Display iteration header
     fn display_iteration_header(&self, idx: usize, total: usize) {
         println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
-        println!("║  Iteration {} / {:<width$} ", idx + 1, total, width = BOX_WIDTH - 15);
+        println!(
+            "║  Iteration {} / {:<width$} ",
+            idx + 1,
+            total,
+            width = BOX_WIDTH - 15
+        );
         println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
     }
 
@@ -254,7 +269,10 @@ impl OutputFormat for TerminalOutput {
         config: &Config,
         results: &[(usize, MeasurementResult)],
     ) -> Result<()> {
-        info!("Formatting {} simple iterations for terminal", results.len());
+        info!(
+            "Formatting {} simple iterations for terminal",
+            results.len()
+        );
 
         self.display_command(config);
 
@@ -317,8 +335,12 @@ impl OutputFormat for TerminalOutput {
         if let Some((_, first_result)) = results.first() {
             println!();
             println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
-            println!("║  Statistics across {} iterations{:<width$} ",
-                     results.len(), "", width = BOX_WIDTH - 32);
+            println!(
+                "║  Statistics across {} iterations{:<width$} ",
+                results.len(),
+                "",
+                width = BOX_WIDTH - 32
+            );
             println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
             for (phase_idx, phase) in first_result.phases.iter().enumerate() {

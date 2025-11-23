@@ -20,6 +20,19 @@ pub struct MeasurementResult {
 #[derive(Debug, Clone, Serialize)]
 pub struct PhaseMeasurement {
     pub name: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_token: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_token: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+
     pub result: MeasurementResult,
 }
 

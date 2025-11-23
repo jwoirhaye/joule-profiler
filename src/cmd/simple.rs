@@ -35,17 +35,17 @@ fn run_simple_single(config: &Config, domains: &[RaplDomain]) -> Result<()> {
         OutputFormat::Json => {
             debug!("Using JSON output format (file)");
             let mut out = JsonOutput::new(config)?;
-            out.simple_single(&config, &res)?;
+            out.simple_single(config, &res)?;
         }
         OutputFormat::Csv => {
             debug!("Using CSV output format (file)");
             let mut out = CsvOutput::new(config)?;
-            out.simple_single(&config, &res)?;
+            out.simple_single(config, &res)?;
         }
         OutputFormat::Terminal => {
             debug!("Using terminal output format");
             let mut out = TerminalOutput::new();
-            out.simple_single(&config, &res)?;
+            out.simple_single(config, &res)?;
         }
     }
 
@@ -130,8 +130,7 @@ mod tests {
             iterations,
             jouleit_file: None,
             output_file: None,
-            token_start: None,
-            token_end: None,
+            token_pattern: None, // Changé: remplace token_start/token_end
             cmd,
         }
     }
@@ -219,8 +218,7 @@ mod tests {
                 iterations: None,
                 jouleit_file: None,
                 output_file: None,
-                token_start: None,
-                token_end: None,
+                token_pattern: None, // Changé
                 cmd: vec!["echo".to_string()],
             };
 

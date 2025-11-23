@@ -93,13 +93,28 @@ pub struct SimpleArgs {
 
 #[derive(Parser, Debug)]
 pub struct PhasesArgs {
-    /// Start token printed by the program on stdout
-    #[arg(long = "token-start", default_value = "__WORK_START__")]
-    pub token_start: String,
-
-    /// End token printed by the program on stdout
-    #[arg(long = "token-end", default_value = "__WORK_END__")]
-    pub token_end: String,
+    /// Regex pattern to detect phase tokens in program output.
+    ///
+    /// The pattern matches tokens in stdout, and energy is measured between
+    /// consecutive matched tokens. If the pattern has a capture group, the
+    /// captured text is used as the token name; otherwise the full match is used.
+    ///
+    /// Examples:
+    ///   - "_.*"              : matches _a, _b, _c, etc.
+    ///   - "__([A-Z_]+)__"    : matches __INIT__, __WORK__, __CLEANUP__, etc.
+    ///   - "\[(\d{2}:\d{2})\]": matches [12:34], [56:78], etc.
+    ///
+    /// Energy phases computed:
+    ///   - global (START -> END)
+    ///   - START -> first_token
+    ///   - token_i -> token_i+1 (for all consecutive tokens)
+    ///   - last_token -> END
+    #[arg(
+        long = "token-pattern",
+        default_value = "__[A-Z0-9_]+__",
+        value_name = "REGEX"
+    )]
+    pub token_pattern: String,
 
     /// Export results as JSON (default: terminal pretty print)
     #[arg(long = "json")]
@@ -115,7 +130,7 @@ pub struct PhasesArgs {
     /// Number of iterations (>=1).
     ///
     /// When provided, the command is executed N times and
-    /// each iteration is measured using phases (global, pre, work, post).
+    /// each iteration is measured using phases.
     #[arg(short = 'n', long = "iterations")]
     pub iterations: Option<usize>,
 

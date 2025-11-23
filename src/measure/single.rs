@@ -170,8 +170,7 @@ mod tests {
             iterations: None,
             jouleit_file: None,
             output_file: None,
-            token_start: None,
-            token_end: None,
+            token_pattern: None,
             cmd,
         }
     }

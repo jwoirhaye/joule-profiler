@@ -48,9 +48,9 @@ impl JsonOutput {
 }
 
 impl OutputFormat for JsonOutput {
-    fn simple_single(&mut self, _config: &Config, res: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, config: &Config, res: &MeasurementResult) -> Result<()> {
         let obj = json!({
-            "command": _config.cmd.join(" "),
+            "command": config.cmd.join(" "),
             "mode": "simple",
             "energy_uj": res.energy_uj,
             "duration_ms": res.duration_ms,
@@ -62,7 +62,7 @@ impl OutputFormat for JsonOutput {
 
     fn simple_iterations(
         &mut self,
-        _config: &Config,
+        config: &Config,
         results: &[(usize, MeasurementResult)],
     ) -> Result<()> {
         info!("Formatting {} simple iterations", results.len());
@@ -81,7 +81,7 @@ impl OutputFormat for JsonOutput {
             .collect();
 
         let root = json!({
-            "command": _config.cmd.join(" "),
+            "command": config.cmd.join(" "),
             "mode": "simple-iterations",
             "iterations": iters
         });
@@ -95,8 +95,7 @@ impl OutputFormat for JsonOutput {
         let obj = json!({
             "command": config.cmd.join(" "),
             "mode": "phases",
-            "token_start": config.token_start,
-            "token_end": config.token_end,
+            "token_pattern": config.token_pattern,
             "phases": phases_value
         });
 
@@ -128,8 +127,7 @@ impl OutputFormat for JsonOutput {
         let root = json!({
             "command": config.cmd.join(" "),
             "mode": "phases-iterations",
-            "token_start": config.token_start,
-            "token_end": config.token_end,
+            "token_pattern": config.token_pattern,
             "iterations": iters
         });
 
