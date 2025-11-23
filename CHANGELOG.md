@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/jwoirhaye/joule-profiler/compare/v0.1.0...v0.2.0) (2025-11-23)
+
+
+### Features
+
+* add example data files and test program ([7ac087f](https://github.com/jwoirhaye/joule-profiler/commit/7ac087fda8a44cd63ce64a11f59c65c6b92e9875))
+* add executed command to all output formats ([9291031](https://github.com/jwoirhaye/joule-profiler/commit/92910313ef00dec638e35090f3884b7833abb2b1))
+* add installer script ([9177a6b](https://github.com/jwoirhaye/joule-profiler/commit/9177a6bb20198e687c586fe310c1432421bca317))
+* add phases analysis notebook ([7e4a1be](https://github.com/jwoirhaye/joule-profiler/commit/7e4a1bedb61526b0d7d3dd23a4464b01c04236f0))
+* add quickstart notebook for simple mode visualization ([884cf40](https://github.com/jwoirhaye/joule-profiler/commit/884cf406a2610a9a399aafb330203acb7223751a))
+* add uninstaller script ([1c7a8f0](https://github.com/jwoirhaye/joule-profiler/commit/1c7a8f0be45d9fc85ee99fd1569606a3e7cd30ac))
+
 ## 0.1.0 (2025-11-22)
 
 
