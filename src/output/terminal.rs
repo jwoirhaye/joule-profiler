@@ -147,7 +147,7 @@ impl TerminalOutput {
             prefix, "Average power", avg_power_w
         );
         println!("{}  {:<20}: {:>10.6} s", prefix, "Duration", duration_s);
-        println!("{}  {:<20}: {:>10.6}", prefix, "Exit code", res.exit_code);
+        println!("{}  {:<20}: {:>10}", prefix, "Exit code", res.exit_code);
         println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         trace!(
@@ -236,16 +236,24 @@ impl TerminalOutput {
     fn display_iteration_header(&self, idx: usize, total: usize) {
         println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
         println!(
-            "║  Iteration {} / {:<width$} ",
+            "║  Iteration {} / {:<width$} ║",
             idx + 1,
             total,
-            width = BOX_WIDTH - 15
+            width = BOX_WIDTH - 17
         );
         println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
     }
 
-    /// Display phase header
-    fn display_phase_header(&self, phase_name: &str, prefix: &str) {
+    /// Display phase header with token information
+    fn display_phase_header(
+        &self,
+        phase_name: &str,
+        start_token: Option<&str>,
+        end_token: Option<&str>,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+        prefix: &str,
+    ) {
         println!();
         if prefix.is_empty() {
             println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
@@ -253,6 +261,30 @@ impl TerminalOutput {
             println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
         } else {
             self.print_subheader(&format!("Phase: {}", phase_name), prefix);
+        }
+
+        // Display token information
+        if let Some(start) = start_token {
+            let start_info = if let Some(line) = start_line {
+                format!("{} (line {})", start, line)
+            } else {
+                start.to_string()
+            };
+            println!("{}  Start token: {}", prefix, start_info);
+        }
+
+        if let Some(end) = end_token {
+            let end_info = if let Some(line) = end_line {
+                format!("{} (line {})", end, line)
+            } else {
+                end.to_string()
+            };
+            println!("{}  End token  : {}", prefix, end_info);
+        }
+
+        // Add a blank line for spacing if tokens were displayed
+        if start_token.is_some() || end_token.is_some() {
+            println!();
         }
     }
 }
@@ -300,7 +332,14 @@ impl OutputFormat for TerminalOutput {
                 phases.phases.len(),
                 phase.name
             );
-            self.display_phase_header(&phase.name, "");
+            self.display_phase_header(
+                &phase.name,
+                phase.start_token.as_deref(),
+                phase.end_token.as_deref(),
+                phase.start_line,
+                phase.end_line,
+                "",
+            );
             self.display_result(&phase.result, "")?;
         }
 
@@ -326,7 +365,14 @@ impl OutputFormat for TerminalOutput {
 
             for phase in &phases_result.phases {
                 trace!("Displaying phase '{}' for iteration {}", phase.name, idx);
-                self.display_phase_header(&phase.name, "  ");
+                self.display_phase_header(
+                    &phase.name,
+                    phase.start_token.as_deref(),
+                    phase.end_token.as_deref(),
+                    phase.start_line,
+                    phase.end_line,
+                    "  ",
+                );
                 self.display_result(&phase.result, "  ")?;
             }
         }
@@ -336,10 +382,10 @@ impl OutputFormat for TerminalOutput {
             println!();
             println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
             println!(
-                "║  Statistics across {} iterations{:<width$} ",
+                "║  Statistics across {} iterations{:<width$} ║",
                 results.len(),
                 "",
-                width = BOX_WIDTH - 32
+                width = BOX_WIDTH - 34
             );
             println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
