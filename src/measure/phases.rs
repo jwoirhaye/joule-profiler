@@ -1,8 +1,9 @@
 use std::fs::File;
+use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use log::{debug, error, info, trace, warn};
 use regex::Regex;
 
@@ -113,18 +114,24 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
     };
 
     let mut detected_tokens = Vec::<DetectedToken>::new();
-    let mut line_count = 0;
 
     trace!(
         "Starting to monitor command output for tokens matching pattern '{}'",
         token_pattern
     );
 
-    for line_res in reader.lines() {
-        let line = line_res?;
-        line_count += 1;
+    for (line_number, line_res) in reader.lines().enumerate() {
+        let line = match line_res {
+            Ok(l) => l,
+            Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+                warn!("Non-UTF8 data in child stdout at line {} — skipping this line", line_number + 1);
+                continue;
+            }
+            Err(e) => {
+                bail!("Failed to read line {} from command output: {}", line_number + 1, e);
+            }
+        };
 
-        // Write to output file or stdout
         if let Some(f) = out_file.as_mut() {
             writeln!(f, "{}", line).map_err(|e| {
                 error!("Failed to write to output file: {}", e);
@@ -143,23 +150,22 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
                 captures.get(0).unwrap().as_str().to_string()
             };
 
-            info!("✓ Detected token '{}' at line {}", token, line_count);
+            info!("✓ Detected token '{}' at line {}", token, line_number+1);
 
             let snapshot = read_snapshot(&filtered)?;
             debug!(
                 "Token '{}' (line {}) snapshot taken at {} µs",
-                token, line_count, snapshot.timestamp_us
+                token, line_number+1, snapshot.timestamp_us
             );
 
             detected_tokens.push(DetectedToken {
                 token: token.clone(),
                 snapshot,
-                line_number: line_count,
+                line_number: line_number+1,
             });
         }
     }
 
-    debug!("Processed {} lines of command output", line_count);
     info!("Found {} matching token(s)", detected_tokens.len());
 
     let status = child.wait().context("Failed to wait on child")?;
