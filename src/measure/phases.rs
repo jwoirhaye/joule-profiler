@@ -3,7 +3,7 @@ use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{debug, error, info, trace, warn};
 use regex::Regex;
 
@@ -124,11 +124,18 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
         let line = match line_res {
             Ok(l) => l,
             Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-                warn!("Non-UTF8 data in child stdout at line {} — skipping this line", line_number + 1);
+                warn!(
+                    "Non-UTF8 data in child stdout at line {} — skipping this line",
+                    line_number + 1
+                );
                 continue;
             }
             Err(e) => {
-                bail!("Failed to read line {} from command output: {}", line_number + 1, e);
+                bail!(
+                    "Failed to read line {} from command output: {}",
+                    line_number + 1,
+                    e
+                );
             }
         };
 
@@ -150,18 +157,20 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
                 captures.get(0).unwrap().as_str().to_string()
             };
 
-            info!("✓ Detected token '{}' at line {}", token, line_number+1);
+            info!("✓ Detected token '{}' at line {}", token, line_number + 1);
 
             let snapshot = read_snapshot(&filtered)?;
             debug!(
                 "Token '{}' (line {}) snapshot taken at {} µs",
-                token, line_number+1, snapshot.timestamp_us
+                token,
+                line_number + 1,
+                snapshot.timestamp_us
             );
 
             detected_tokens.push(DetectedToken {
                 token: token.clone(),
                 snapshot,
-                line_number: line_number+1,
+                line_number: line_number + 1,
             });
         }
     }
