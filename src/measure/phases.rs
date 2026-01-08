@@ -13,6 +13,7 @@ use crate::measure::common::{
     PhaseMeasurement, PhasesResult, build_max_map, compute_measurement_from_snapshots,
 };
 use crate::rapl::{EnergySnapshot, RaplDomain, read_snapshot};
+use crate::util::file::create_file_with_user_permissions;
 
 /// Detected token with timestamp
 #[derive(Debug, Clone)]
@@ -102,12 +103,13 @@ pub fn measure_phases_once(config: &Config, domains: &[RaplDomain]) -> Result<Ph
         .context("Failed to capture child stdout")?;
     let reader = BufReader::new(stdout);
 
-    let mut out_file: Option<File> = if let Some(path) = config.output_file.as_deref() {
+    let mut out_file: Option<File> = if let Some(path) = &config.output_file {
         debug!("Creating output file: {:?}", path);
-        Some(File::create(path).map_err(|e| {
+        let file = create_file_with_user_permissions(&path).map_err(|e| {
             error!("Failed to create output file {:?}: {}", path, e);
             JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, e))
-        })?)
+        })?;
+        Some(file)
     } else {
         debug!("No output file specified, using stdout");
         None
