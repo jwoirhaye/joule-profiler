@@ -108,7 +108,7 @@ fn run_command(config: &Config) -> Result<(i32, std::process::ExitStatus)> {
 
     if let Some(path) = &config.output_file {
         debug!("Redirecting stdout to file: {:?}", path);
-        let file = create_file_with_user_permissions(&path).map_err(|e| {
+        let file = create_file_with_user_permissions(path).map_err(|e| {
             error!("Failed to create output file {:?}: {}", path, e);
             JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, e))
         })?;

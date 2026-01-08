@@ -16,7 +16,7 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
         .write(true)
         .create(true)
         .truncate(true)
-        .open(&path)?;
+        .open(path)?;
 
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
@@ -28,7 +28,7 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
         .parse()
         .context("Unable to parse root GID to u32")?;
 
-    chown(&path, Some(uid), Some(gid))?;
+    chown(path, Some(uid), Some(gid))?;
 
     Ok(file)
 }
@@ -38,7 +38,7 @@ pub fn get_absolute_path(filename: &str) -> Result<String> {
     let absolute_path = if path.is_absolute() {
         path
     } else {
-        std::env::current_dir()?.join(&path)
+        std::env::current_dir()?.join(path)
     };
 
     Ok(absolute_path.display().to_string())
