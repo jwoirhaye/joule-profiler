@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/jwoirhaye/joule-profiler/compare/v1.0.0...v1.0.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* skip non-UTF-8 stdout lines and propagate other I/O errors ([e34fcfc](https://github.com/jwoirhaye/joule-profiler/commit/e34fcfc059577a4f7739061dc177caaad1bb90ad))
+
 ## [1.0.0](https://github.com/jwoirhaye/joule-profiler/compare/v0.2.0...v1.0.0) (2025-11-23)
 
 
