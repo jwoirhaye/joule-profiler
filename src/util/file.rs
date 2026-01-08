@@ -7,6 +7,10 @@ use std::{
 
 use anyhow::{Context, Result};
 
+const ROOT_UID_ENV_VAR: &str = "SUDO_UID";
+const ROOT_GID_ENV_VAR: &str = "SUDO_GID";
+const URW_GRW_OR_PERMS: u32 = 0o664;
+
 pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
     let file = OpenOptions::new()
         .write(true)
@@ -14,15 +18,15 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
         .truncate(true)
         .open(&path)?;
 
-    file.set_permissions(Permissions::from_mode(0o664))?;
+    file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
-    let uid: u32 = env::var("SUDO_UID")?
+    let uid: u32 = env::var(ROOT_UID_ENV_VAR)?
         .parse()
-        .context("SUDO_UID is not a valid u32")?;
+        .context("Unable to parse root UID to u32")?;
 
-    let gid: u32 = env::var("SUDO_GID")?
+    let gid: u32 = env::var(ROOT_GID_ENV_VAR)?
         .parse()
-        .context("SUDO_GID is not a valid u32")?;
+        .context("Unable to parse root GID to u32")?;
 
     chown(&path, Some(uid), Some(gid))?;
 
