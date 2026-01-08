@@ -5,6 +5,7 @@ pub mod errors;
 pub mod measure;
 pub mod output;
 pub mod rapl;
+mod util;
 
 use anyhow::Result;
 use clap::Parser;

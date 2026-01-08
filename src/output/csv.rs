@@ -6,8 +6,9 @@ use log::{debug, info, trace, warn};
 
 use crate::config::Config;
 use crate::measure::{MeasurementResult, PhasesResult};
+use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
-use super::{OutputFormat, default_iterations_filename, get_absolute_path};
+use super::{OutputFormat, default_iterations_filename};
 
 /// Data for a phase row in CSV output
 struct PhaseRowData<'a> {
@@ -51,7 +52,7 @@ impl CsvOutput {
         let absolute_path = get_absolute_path(&filename)?;
         info!("Creating CSV output file: {}", absolute_path);
 
-        let file = File::create(&filename)?;
+        let file = create_file_with_user_permissions(&absolute_path)?;
 
         Ok(Self {
             file,

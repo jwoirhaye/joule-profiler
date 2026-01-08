@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
 use std::time::Instant;
@@ -11,6 +10,7 @@ use crate::errors::JouleProfilerError;
 use crate::measure::MeasurementResult;
 use crate::measure::common::{build_max_map, compute_measurement_from_snapshots};
 use crate::rapl::{RaplDomain, read_snapshot};
+use crate::util::file::create_file_with_user_permissions;
 
 /// Performs a single energy measurement by executing the configured command.
 pub fn measure_once(config: &Config, domains: &[RaplDomain]) -> Result<MeasurementResult> {
@@ -106,9 +106,9 @@ fn run_command(config: &Config) -> Result<(i32, std::process::ExitStatus)> {
         );
     }
 
-    if let Some(path) = config.output_file.as_deref() {
+    if let Some(path) = &config.output_file {
         debug!("Redirecting stdout to file: {:?}", path);
-        let file = File::create(path).map_err(|e| {
+        let file = create_file_with_user_permissions(&path).map_err(|e| {
             error!("Failed to create output file {:?}: {}", path, e);
             JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, e))
         })?;

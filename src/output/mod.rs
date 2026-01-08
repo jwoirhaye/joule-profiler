@@ -1,6 +1,5 @@
 use anyhow::Result;
 use log::{debug, trace, warn};
-use std::path::PathBuf;
 
 use crate::config::Config;
 use crate::measure::{MeasurementResult, PhasesResult};
@@ -56,15 +55,4 @@ pub(crate) fn default_iterations_filename(ext: &str) -> String {
     debug!("Generated default filename: {}", filename);
 
     filename
-}
-
-pub(crate) fn get_absolute_path(filename: &str) -> Result<String> {
-    let path = PathBuf::from(filename);
-    let absolute_path = if path.is_absolute() {
-        path
-    } else {
-        std::env::current_dir()?.join(&path)
-    };
-
-    Ok(absolute_path.display().to_string())
 }

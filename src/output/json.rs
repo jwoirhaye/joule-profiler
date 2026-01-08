@@ -7,8 +7,9 @@ use serde_json::json;
 
 use crate::config::Config;
 use crate::measure::{MeasurementResult, PhasesResult};
+use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
-use super::{OutputFormat, default_iterations_filename, get_absolute_path};
+use super::{OutputFormat, default_iterations_filename};
 
 /// JSON output writer to file.
 pub struct JsonOutput {
@@ -27,7 +28,7 @@ impl JsonOutput {
         let absolute_path = get_absolute_path(&filename)?;
         info!("Creating JSON output file: {}", absolute_path);
 
-        let file = File::create(&filename)?;
+        let file = create_file_with_user_permissions(&absolute_path)?;
 
         Ok(Self {
             writer: file,
