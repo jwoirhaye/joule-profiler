@@ -44,7 +44,7 @@ impl EnergySnapshot {
     }
 }
 
-pub fn read_snapshot(domains: &[&RaplDomain]) -> Result<EnergySnapshot> {
+pub fn read_snapshot(domains: &[RaplDomain]) -> Result<EnergySnapshot> {
     if domains.is_empty() {
         warn!("Attempting to read snapshot with no domains");
         return Err(JouleProfilerError::NoDomains.into());
