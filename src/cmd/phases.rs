@@ -6,24 +6,25 @@ use crate::config::{Config, OutputFormat};
 use crate::measure::{measure_phases_iterations, measure_phases_once};
 use crate::output::csv::CsvOutput;
 use crate::output::{JsonOutput, OutputFormat as OutputFormatTrait, TerminalOutput};
-use crate::rapl::RaplDomain;
+use crate::source::MetricSource;
+use crate::source::rapl::RaplDomain;
 
-pub fn run_phases(args: PhasesArgs, domains: &[RaplDomain]) -> Result<()> {
+pub fn run_phases(args: PhasesArgs, sources: &[MetricSource]) -> Result<()> {
     info!("Running phases mode");
-    let config = Config::from_phases(args, domains)?;
+    let config = Config::from_phases(args)?;
 
     if let Some(n) = config.iterations {
         debug!("Phases mode with {} iteration(s)", n);
-        run_phases_iterations(&config, domains, n)
+        run_phases_iterations(&config, sources, n)
     } else {
         debug!("Phases mode with single measurement");
-        run_phases_single(&config, domains)
+        run_phases_single(&config, sources)
     }
 }
 
-fn run_phases_single(config: &Config, domains: &[RaplDomain]) -> Result<()> {
+fn run_phases_single(config: &Config, sources: &[MetricSource]) -> Result<()> {
     info!("Measuring single phases execution");
-    let res = measure_phases_once(config, domains)?;
+    let res = measure_phases_once(config, sources)?;
 
     debug!("Phases measurement complete, formatting output");
 
@@ -49,9 +50,9 @@ fn run_phases_single(config: &Config, domains: &[RaplDomain]) -> Result<()> {
     Ok(())
 }
 
-fn run_phases_iterations(config: &Config, domains: &[RaplDomain], iterations: usize) -> Result<()> {
+fn run_phases_iterations(config: &Config, sources: &[MetricSource], iterations: usize) -> Result<()> {
     info!("Running {} iteration(s) in phases mode", iterations);
-    let results = measure_phases_iterations(config, domains, iterations)?;
+    let results = measure_phases_iterations(config, sources, iterations)?;
 
     debug!("All iterations complete, formatting output");
 

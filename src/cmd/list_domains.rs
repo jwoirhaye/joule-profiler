@@ -1,8 +1,7 @@
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::cli::ListArgs;
-use crate::rapl::{RaplDomain, discover_sockets, parse_sockets};
+use crate::{cli::ListArgs, source::rapl::RaplDomain};
 
 #[derive(Debug, Serialize)]
 pub struct DomainInfo {
@@ -12,16 +11,9 @@ pub struct DomainInfo {
     path: String,
 }
 
-pub fn run_list_domains(args: ListArgs, domains: &[RaplDomain]) -> Result<()> {
-    let sockets = if let Some(spec) = args.sockets.as_deref() {
-        parse_sockets(spec, domains)?
-    } else {
-        discover_sockets(domains)
-    };
-
+pub fn run_list_domains(args: ListArgs, domains: Vec<RaplDomain>) -> Result<()> {
     let mut infos: Vec<DomainInfo> = domains
         .iter()
-        .filter(|d| sockets.contains(&d.socket))
         .map(|d| DomainInfo {
             socket: d.socket,
             name: d.name.to_uppercase(),

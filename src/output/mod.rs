@@ -1,8 +1,7 @@
 use anyhow::Result;
 use log::{debug, trace, warn};
 
-use crate::config::Config;
-use crate::measure::{MeasurementResult, PhasesResult};
+use crate::{config::Config, source::rapl::measure::{MeasurementResult, PhasesResult}};
 
 pub mod csv;
 pub mod json;

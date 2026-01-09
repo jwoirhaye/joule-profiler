@@ -20,6 +20,10 @@ pub struct Cli {
     #[arg(long = "rapl-path")]
     pub rapl_path: Option<String>,
 
+    /// Sockets to measure (e.g. 0 or 0,1)
+    #[arg(short = 's', long = "sockets")]
+    pub sockets: Option<String>,
+    
     #[command(subcommand)]
     pub command: Command,
 }
@@ -38,10 +42,6 @@ pub enum Command {
 
 #[derive(Parser, Debug)]
 pub struct ListArgs {
-    /// Sockets to filter (optional), e.g. "0" or "0,1"
-    #[arg(short = 's', long = "sockets")]
-    pub sockets: Option<String>,
-
     /// Output as JSON instead of a formatted table
     #[arg(long = "json")]
     pub json: bool,
@@ -77,10 +77,6 @@ pub struct SimpleArgs {
     /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
     #[arg(long = "jouleit-file")]
     pub jouleit_file: Option<String>,
-
-    /// Sockets to measure (e.g. 0 or 0,1)
-    #[arg(short = 's', long = "sockets")]
-    pub sockets: Option<String>,
 
     /// Redirect profiled program stdout to this file
     #[arg(short = 'o', long = "output-file")]
@@ -137,9 +133,6 @@ pub struct PhasesArgs {
     /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
     #[arg(long = "jouleit-file")]
     pub jouleit_file: Option<String>,
-
-    #[arg(short = 's', long = "sockets")]
-    pub sockets: Option<String>,
 
     /// Redirect profiled program stdout to this file
     #[arg(short = 'o', long = "output-file")]

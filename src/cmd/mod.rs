@@ -1,7 +1,6 @@
 use anyhow::Result;
 
-use crate::cli::{Cli, Command};
-use crate::rapl::{check_os, check_rapl, discover_domains, rapl_base_path};
+use crate::{cli::{Cli, Command}, source::{MetricSource, rapl::{Rapl, get_domains}}};
 
 mod list_domains;
 mod phases;
@@ -12,16 +11,15 @@ pub use phases::run_phases;
 pub use simple::run_simple;
 
 pub fn run(cli: Cli) -> Result<()> {
-    check_os()?;
-
-    let base = rapl_base_path(cli.rapl_path.as_ref());
-    check_rapl(&base)?;
-
-    let domains = discover_domains(&base)?;
+    let domains = get_domains(cli.rapl_path.as_deref(), cli.sockets.as_deref())?;
+    
+    let rapl = Rapl::new(domains)?;
+    let sources = vec![rapl.into()];
 
     match cli.command {
-        Command::Simple(args) => run_simple(args, &domains),
-        Command::Phases(args) => run_phases(args, &domains),
-        Command::ListDomains(args) => run_list_domains(args, &domains),
+        Command::Simple(args) => run_simple(args, &sources),
+        Command::Phases(args) => run_phases(args, &sources),
+        // Command::ListDomains(args) => run_list_domains(args, rapl.domains),
+        _ => Ok(())
     }
 }

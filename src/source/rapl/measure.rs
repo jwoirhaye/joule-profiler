@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::rapl::{EnergySnapshot, RaplDomain};
+use crate::source::{Metrics, rapl::{EnergySnapshot, RaplDomain}};
 use anyhow::Result;
 use log::{debug, error, trace, warn};
 use serde::Serialize;
@@ -10,7 +10,7 @@ use crate::errors::JouleProfilerError;
 #[derive(Debug, Clone, Serialize)]
 pub struct MeasurementResult {
     /// Energy per domain (key) in microjoules
-    pub energy_uj: HashMap<String, u64>,
+    pub metrics: Metrics,
     /// Duration in milliseconds
     pub duration_ms: u128,
     /// Command exit code
@@ -33,7 +33,9 @@ pub struct PhaseMeasurement {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<usize>,
 
-    pub result: MeasurementResult,
+    pub metrics: Metrics,
+
+    pub duration_ms: u128,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,22 +45,15 @@ pub struct PhasesResult {
 
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
-    domains: &[&RaplDomain],
-    max_map: &HashMap<String, u64>,
+    domains: &[RaplDomain],
     begin: &EnergySnapshot,
     end: &EnergySnapshot,
-    duration_ms: u128,
-    exit_code: i32,
-) -> Result<MeasurementResult> {
+) -> Result<HashMap<String, u64>> {
     if domains.is_empty() {
         warn!("Computing measurement with no domains");
         return Err(JouleProfilerError::NoDomains.into());
     }
 
-    debug!(
-        "Computing measurement from snapshots (duration: {} ms)",
-        duration_ms
-    );
     trace!(
         "Snapshot timestamps: begin={} µs, end={} µs",
         begin.timestamp_us, end.timestamp_us
@@ -92,7 +87,7 @@ pub fn compute_measurement_from_snapshots(
             ))
         })?;
 
-        let max_uj = max_map.get(&key).copied();
+        let max_uj = d.max_energy_uj;
 
         trace!(
             "Domain '{}': start={} µJ, end={} µJ, max={:?} µJ",
@@ -136,12 +131,6 @@ pub fn compute_measurement_from_snapshots(
         energy_uj.insert(key, val_uj);
     }
 
-    debug!(
-        "Measurement computed: {} domain key(s), total duration {} ms",
-        energy_uj.len(),
-        duration_ms
-    );
-
     if !energy_uj.is_empty() {
         let total_energy: u64 = energy_uj.values().sum();
         debug!(
@@ -159,11 +148,7 @@ pub fn compute_measurement_from_snapshots(
         }
     }
 
-    Ok(MeasurementResult {
-        energy_uj,
-        duration_ms,
-        exit_code,
-    })
+    Ok(energy_uj)
 }
 
 pub fn energy_diff(start: u64, end: u64, max: Option<u64>, domain_name: &str) -> Result<u64> {
@@ -195,37 +180,6 @@ pub fn energy_diff(start: u64, end: u64, max: Option<u64>, domain_name: &str) ->
         );
         Err(JouleProfilerError::CounterOverflow.into())
     }
-}
-
-pub fn build_max_map(domains: &[&RaplDomain]) -> HashMap<String, u64> {
-    debug!("Building max_energy map for {} domain(s)", domains.len());
-    let mut m = HashMap::new();
-    let mut count_with_max = 0;
-
-    for d in domains {
-        if let Some(max) = d.max_energy_uj {
-            let key = d.path.to_string_lossy().to_string();
-            trace!(
-                "Domain '{}' (socket {}): max_energy = {} µJ",
-                d.name, d.socket, max
-            );
-            m.insert(key, max);
-            count_with_max += 1;
-        } else {
-            trace!(
-                "Domain '{}' (socket {}): no max_energy_range_uj available",
-                d.name, d.socket
-            );
-        }
-    }
-
-    debug!(
-        "Max energy map built: {}/{} domain(s) have max_energy configured",
-        count_with_max,
-        domains.len()
-    );
-
-    m
 }
 
 #[cfg(test)]

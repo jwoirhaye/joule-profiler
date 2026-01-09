@@ -2,8 +2,7 @@ use anyhow::Result;
 use log::{debug, info, trace, warn};
 use std::collections::HashSet;
 
-use crate::config::Config;
-use crate::measure::{MeasurementResult, PhasesResult};
+use crate::{config::Config, source::rapl::measure::{MeasurementResult, PhasesResult}};
 
 use super::OutputFormat;
 
@@ -120,40 +119,23 @@ impl TerminalOutput {
         println!("{}  Energy consumption (Joules)", prefix);
         println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
-        let mut keys: Vec<_> = res.energy_uj.keys().cloned().collect();
+        let mut keys: Vec<_> = res.metrics.iter().map(|metric| &metric.name).cloned().collect();
         keys.sort_unstable();
 
-        let total_uj: u64 = keys.iter().filter_map(|k| res.energy_uj.get(k)).sum();
-
-        for key in &keys {
-            if let Some(&v_uj) = res.energy_uj.get(key) {
-                let v_j = Self::uj_to_j(v_uj);
-                println!("{}  {:<20}: {:10.6} J", prefix, key, v_j);
-            }
+        for metric in &res.metrics {
+            // let v_j = Self::uj_to_j(v_uj);
+            println!("{}  {:<20}: {:10.6} {}", prefix, metric.name, metric.value, metric.unit);
         }
 
         let duration_s = Self::ms_to_s(res.duration_ms);
-        let total_j = Self::uj_to_j(total_uj);
-        let avg_power_w = if duration_s > 0.0 {
-            total_j / duration_s
-        } else {
-            0.0
-        };
 
-        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
-        println!("{}  {:<20}: {:>10.6} J", prefix, "Total energy", total_j);
-        println!(
-            "{}  {:<20}: {:>10.6} W",
-            prefix, "Average power", avg_power_w
-        );
         println!("{}  {:<20}: {:>10.6} s", prefix, "Duration", duration_s);
         println!("{}  {:<20}: {:>10}", prefix, "Exit code", res.exit_code);
         println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         trace!(
-            "Displayed {} domain(s), total: {:.3} J, duration: {:.3} s",
-            keys.len(),
-            total_j,
+            "Displayed {} metrics, duration: {:.3} s",
+            res.metrics.len(),
             duration_s
         );
 
@@ -161,46 +143,46 @@ impl TerminalOutput {
     }
 
     /// Extract all unique domain keys from results
-    fn extract_domain_keys(results: &[(usize, MeasurementResult)]) -> Vec<String> {
-        let mut all_keys = HashSet::new();
-        for (_, res) in results {
-            all_keys.extend(res.energy_uj.keys().cloned());
-        }
-        let mut keys: Vec<_> = all_keys.into_iter().collect();
-        keys.sort_unstable();
-        keys
-    }
+    // fn extract_domain_keys(results: &[(usize, MeasurementResult)]) -> Vec<String> {
+    //     let mut all_keys = HashSet::new();
+    //     for (_, res) in results {
+    //         // all_keys.extend(res.energy_uj.keys().cloned());
+    //     }
+    //     let mut keys: Vec<_> = all_keys.into_iter().collect();
+    //     keys.sort_unstable();
+    //     keys
+    // }
 
-    /// Display statistics for a set of results
-    fn display_statistics(&self, results: &[(usize, MeasurementResult)]) {
-        if results.is_empty() {
-            return;
-        }
+    // /// Display statistics for a set of results
+    // fn display_statistics(&self, results: &[(usize, MeasurementResult)]) {
+    //     if results.is_empty() {
+    //         return;
+    //     }
 
-        info!("Computing statistics for {} iterations", results.len());
+    //     info!("Computing statistics for {} iterations", results.len());
 
-        let keys = Self::extract_domain_keys(results);
+    //     let keys = Self::extract_domain_keys(results);
 
-        println!();
-        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
-        println!("  Statistics across {} iterations", results.len());
-        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    //     println!();
+    //     println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    //     println!("  Statistics across {} iterations", results.len());
+    //     println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
-        for key in &keys {
-            let values: Vec<f64> = results
-                .iter()
-                .filter_map(|(_, res)| res.energy_uj.get(key))
-                .map(|&uj| Self::uj_to_j(uj))
-                .collect();
+    //     for key in &keys {
+    //         let values: Vec<f64> = results
+    //             .iter()
+    //             .filter_map(|(_, res)| res.energy_uj.get(key))
+    //             .map(|&uj| Self::uj_to_j(uj))
+    //             .collect();
 
-            if let Some(stats) = DomainStats::calculate(&values) {
-                self.display_domain_stats(key, &stats);
-            }
-        }
+    //         if let Some(stats) = DomainStats::calculate(&values) {
+    //             self.display_domain_stats(key, &stats);
+    //         }
+    //     }
 
-        self.display_duration_stats(results);
-        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
-    }
+    //     self.display_duration_stats(results);
+    //     println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+    // }
 
     /// Display statistics for a single domain
     fn display_domain_stats(&self, domain: &str, stats: &DomainStats) {
@@ -313,7 +295,7 @@ impl OutputFormat for TerminalOutput {
             self.display_result(res, "")?;
         }
 
-        self.display_statistics(results);
+        // self.display_statistics(results);
         Ok(())
     }
 
@@ -351,61 +333,61 @@ impl OutputFormat for TerminalOutput {
         config: &Config,
         results: &[(usize, PhasesResult)],
     ) -> Result<()> {
-        info!("Formatting {} phase iterations for terminal", results.len());
+        // info!("Formatting {} phase iterations for terminal", results.len());
 
-        if results.is_empty() {
-            warn!("No phase iterations to display");
-            return Ok(());
-        }
+        // if results.is_empty() {
+        //     warn!("No phase iterations to display");
+        //     return Ok(());
+        // }
 
-        self.display_command(config);
+        // self.display_command(config);
 
-        for (idx, phases_result) in results {
-            self.display_iteration_header(*idx, results.len());
+        // for (idx, phases_result) in results {
+        //     self.display_iteration_header(*idx, results.len());
 
-            for phase in &phases_result.phases {
-                trace!("Displaying phase '{}' for iteration {}", phase.name, idx);
-                self.display_phase_header(
-                    &phase.name,
-                    phase.start_token.as_deref(),
-                    phase.end_token.as_deref(),
-                    phase.start_line,
-                    phase.end_line,
-                    "  ",
-                );
-                self.display_result(&phase.result, "  ")?;
-            }
-        }
+        //     for phase in &phases_result.phases {
+        //         trace!("Displaying phase '{}' for iteration {}", phase.name, idx);
+        //         self.display_phase_header(
+        //             &phase.name,
+        //             phase.start_token.as_deref(),
+        //             phase.end_token.as_deref(),
+        //             phase.start_line,
+        //             phase.end_line,
+        //             "  ",
+        //         );
+        //         self.display_result(&phase.result, "  ")?;
+        //     }
+        // }
 
         // Display statistics per phase
-        if let Some((_, first_result)) = results.first() {
-            println!();
-            println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
-            println!(
-                "║  Statistics across {} iterations{:<width$} ║",
-                results.len(),
-                "",
-                width = BOX_WIDTH - 34
-            );
-            println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        // if let Some((_, first_result)) = results.first() {
+        //     println!();
+        //     println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        //     println!(
+        //         "║  Statistics across {} iterations{:<width$} ║",
+        //         results.len(),
+        //         "",
+        //         width = BOX_WIDTH - 34
+        //     );
+        //     println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
 
-            for (phase_idx, phase) in first_result.phases.iter().enumerate() {
-                println!();
-                println!("  Phase: {}", phase.name);
-                println!("  {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
+        //     for (phase_idx, phase) in first_result.phases.iter().enumerate() {
+        //         println!();
+        //         println!("  Phase: {}", phase.name);
+        //         println!("  {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
 
-                let phase_results: Vec<(usize, MeasurementResult)> = results
-                    .iter()
-                    .filter_map(|(idx, pr)| {
-                        pr.phases.get(phase_idx).map(|p| (*idx, p.result.clone()))
-                    })
-                    .collect();
+        //         let phase_results: Vec<(usize, MeasurementResult)> = results
+        //             .iter()
+        //             .filter_map(|(idx, pr)| {
+        //                 pr.phases.get(phase_idx).map(|p| (*idx, p.result.clone()))
+        //             })
+        //             .collect();
 
-                if !phase_results.is_empty() {
-                    self.display_statistics(&phase_results);
-                }
-            }
-        }
+        //         // if !phase_results.is_empty() {
+        //         //     self.display_statistics(&phase_results);
+        //         // }
+        //     }
+        // }
 
         Ok(())
     }

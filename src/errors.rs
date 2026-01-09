@@ -82,6 +82,9 @@ pub enum JouleProfilerError {
 
     #[error("Invalid regex pattern: {0}")]
     InvalidPattern(String),
+
+    #[error("Not enough snapshots to retrieve metrics")]
+    NotEnoughSnapshots,
 }
 
 impl From<std::io::Error> for JouleProfilerError {
