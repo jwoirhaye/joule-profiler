@@ -2,11 +2,9 @@ use anyhow::Result;
 use log::{debug, info, trace, warn};
 
 use crate::cli::{PhasesArgs, SimpleArgs};
-use crate::rapl::{RaplDomain, discover_sockets};
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub sockets: Vec<u32>,
     pub json: bool,
     pub csv: bool,
     pub iterations: Option<usize>,
@@ -17,10 +15,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_simple(args: SimpleArgs, domains: &[RaplDomain]) -> Result<Self> {
+    pub fn from_simple(args: SimpleArgs) -> Result<Self> {
         info!("Building configuration from simple mode arguments");
-
-        let sockets = parse_or_all_sockets(args.sockets.as_deref(), domains)?;
 
         if args.iterations == Some(0) {
             warn!("Invalid iterations value: 0");
@@ -38,8 +34,8 @@ impl Config {
         }
 
         debug!(
-            "Simple mode config: sockets={:?}, json={}, csv={}, iterations={:?}, cmd={:?}",
-            sockets, args.json, args.csv, args.iterations, args.cmd
+            "Simple mode config: json={}, csv={}, iterations={:?}, cmd={:?}",
+            args.json, args.csv, args.iterations, args.cmd
         );
 
         if let Some(n) = args.iterations {
@@ -51,7 +47,6 @@ impl Config {
         }
 
         Ok(Self {
-            sockets,
             json: args.json,
             csv: args.csv,
             iterations: args.iterations,
@@ -62,10 +57,8 @@ impl Config {
         })
     }
 
-    pub fn from_phases(args: PhasesArgs, domains: &[RaplDomain]) -> Result<Self> {
+    pub fn from_phases(args: PhasesArgs) -> Result<Self> {
         info!("Building configuration from phases mode arguments");
-
-        let sockets = parse_or_all_sockets(args.sockets.as_deref(), domains)?;
 
         if args.iterations == Some(0) {
             warn!("Invalid iterations value: 0");
@@ -89,8 +82,8 @@ impl Config {
         }
 
         debug!(
-            "Phases mode config: sockets={:?}, json={}, csv={}, iterations={:?}, pattern='{}', cmd={:?}",
-            sockets, args.json, args.csv, args.iterations, args.token_pattern, args.cmd
+            "Phases mode config: json={}, csv={}, iterations={:?}, pattern='{}', cmd={:?}",
+            args.json, args.csv, args.iterations, args.token_pattern, args.cmd
         );
 
         info!("Phase token pattern: '{}'", args.token_pattern);
@@ -104,7 +97,6 @@ impl Config {
         }
 
         Ok(Self {
-            sockets,
             json: args.json,
             csv: args.csv,
             iterations: args.iterations,
@@ -138,20 +130,4 @@ pub enum OutputFormat {
     Json,
     Csv,
     Terminal,
-}
-
-fn parse_or_all_sockets(spec: Option<&str>, domains: &[RaplDomain]) -> Result<Vec<u32>> {
-    if let Some(spec) = spec {
-        debug!("Parsing socket specification: {}", spec);
-        let sockets = crate::rapl::parse_sockets(spec, domains)?;
-        info!("Using specified sockets: {:?}", sockets);
-        Ok(sockets)
-    } else {
-        let sockets = discover_sockets(domains);
-        debug!(
-            "No socket specification, using all discovered sockets: {:?}",
-            sockets
-        );
-        Ok(sockets)
-    }
 }

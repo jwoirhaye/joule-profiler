@@ -6,7 +6,7 @@ use log::{info, trace};
 use serde_json::json;
 
 use crate::config::Config;
-use crate::measure::{MeasurementResult, PhasesResult};
+use crate::source::rapl::measure::{MeasurementResult, PhasesResult};
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
 use super::{OutputFormat, default_iterations_filename};
@@ -53,7 +53,7 @@ impl OutputFormat for JsonOutput {
         let obj = json!({
             "command": config.cmd.join(" "),
             "mode": "simple",
-            "energy_uj": res.energy_uj,
+            "metrics": res.metrics,
             "duration_ms": res.duration_ms,
             "exit_code": res.exit_code
         });
@@ -74,7 +74,7 @@ impl OutputFormat for JsonOutput {
                 trace!("Formatting iteration {}", idx);
                 json!({
                     "iteration": idx,
-                    "energy_uj": res.energy_uj,
+                    "metrics": res.metrics,
                     "duration_ms": res.duration_ms,
                     "exit_code": res.exit_code
                 })

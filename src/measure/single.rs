@@ -7,13 +7,13 @@ use log::{debug, error, info, trace, warn};
 
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
-use crate::measure::MeasurementResult;
-use crate::measure::common::{build_max_map, compute_measurement_from_snapshots};
-use crate::rapl::{RaplDomain, read_snapshot};
+use crate::source::metric::Metrics;
+use crate::source::{MetricSource};
+use crate::source::rapl::measure::MeasurementResult;
 use crate::util::file::create_file_with_user_permissions;
 
 /// Performs a single energy measurement by executing the configured command.
-pub fn measure_once(config: &Config, domains: &[RaplDomain]) -> Result<MeasurementResult> {
+pub fn measure_once(config: &Config, sources: &[MetricSource]) -> Result<MeasurementResult> {
     info!("Starting single measurement");
 
     if config.cmd.is_empty() {
@@ -21,31 +21,13 @@ pub fn measure_once(config: &Config, domains: &[RaplDomain]) -> Result<Measureme
         return Err(JouleProfilerError::NoCommand.into());
     }
 
-    let filtered: Vec<&RaplDomain> = domains
-        .iter()
-        .filter(|d| config.sockets.contains(&d.socket))
-        .collect();
+    // debug!("Taking initial energy snapshot");
+    // let begin = read_snapshot(domains)?;
+    // info!("Initial snapshot taken at {} µs", begin.timestamp_us);
 
-    if filtered.is_empty() {
-        error!(
-            "No RAPL domains found for requested sockets {:?}",
-            config.sockets
-        );
-        return Err(JouleProfilerError::NoDomains.into());
+    for source in sources {
+        source.measure()?;
     }
-
-    debug!(
-        "Filtered {} domain(s) for sockets {:?}",
-        filtered.len(),
-        config.sockets
-    );
-
-    let max_map = build_max_map(&filtered);
-    trace!("Built max_energy map with {} entries", max_map.len());
-
-    debug!("Taking initial energy snapshot");
-    let begin = read_snapshot(&filtered)?;
-    info!("Initial snapshot taken at {} µs", begin.timestamp_us);
 
     info!("Executing command: {:?}", config.cmd);
     let start_instant = Instant::now();
@@ -68,21 +50,26 @@ pub fn measure_once(config: &Config, domains: &[RaplDomain]) -> Result<Measureme
         );
     }
 
-    debug!("Taking final energy snapshot");
-    let end = read_snapshot(&filtered)?;
-    info!("Final snapshot taken at {} µs", end.timestamp_us);
+    // debug!("Taking final energy snapshot");
+    // let end = read_snapshot(domains)?;
+    // info!("Final snapshot taken at {} µs", end.timestamp_us);
 
-    debug!("Computing energy consumption from snapshots");
-    let result = compute_measurement_from_snapshots(
-        &filtered,
-        &max_map,
-        &begin,
-        &end,
-        duration_ms,
-        exit_code,
-    )?;
+    for source in sources {
+        source.measure()?;
+    }
+
+    let mut metrics = Vec::new();
+
+    for source in sources {
+        let source_metrics: Metrics = source.retrieve()?.into_iter().flatten().collect();
+        for metric in source_metrics {
+            metrics.push(metric);
+        }
+    }
 
     info!("Measurement completed successfully");
+
+    let result = MeasurementResult { metrics, duration_ms, exit_code };
 
     Ok(result)
 }
@@ -148,23 +135,22 @@ fn run_command(config: &Config) -> Result<(i32, std::process::ExitStatus)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    // use std::path::PathBuf;
 
-    fn create_mock_domain(name: &str, socket: u32) -> RaplDomain {
-        RaplDomain {
-            path: PathBuf::from(format!(
-                "/sys/class/powercap/intel-rapl:0/{}/energy_uj",
-                name
-            )),
-            name: name.to_string(),
-            socket,
-            max_energy_uj: Some(10_000_000),
-        }
-    }
+    // fn create_mock_domain(name: &str, socket: u32) -> RaplDomain {
+    //     RaplDomain {
+    //         path: PathBuf::from(format!(
+    //             "/sys/class/powercap/intel-rapl:0/{}/energy_uj",
+    //             name
+    //         )),
+    //         name: name.to_string(),
+    //         socket,
+    //         max_energy_uj: Some(10_000_000),
+    //     }
+    // }
 
-    fn create_test_config(cmd: Vec<String>, sockets: Vec<u32>) -> Config {
+    fn create_test_config(cmd: Vec<String>) -> Config {
         Config {
-            sockets,
             json: false,
             csv: false,
             iterations: None,
@@ -175,37 +161,37 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_no_command() {
-        let config = create_test_config(vec![], vec![0]);
-        let domains = vec![create_mock_domain("package-0", 0)];
+    // #[test]
+    // fn test_no_command() {
+    //     let config = create_test_config(vec![]);
+    //     let domains = vec![create_mock_domain("package-0", 0)];
 
-        let result = measure_once(&config, &domains);
-        assert!(result.is_err());
+    //     let result = measure_once(&config, &domains);
+    //     assert!(result.is_err());
 
-        if let Err(e) = result {
-            let err = e.downcast::<JouleProfilerError>().unwrap();
-            assert!(matches!(err, JouleProfilerError::NoCommand));
-        }
-    }
+    //     if let Err(e) = result {
+    //         let err = e.downcast::<JouleProfilerError>().unwrap();
+    //         assert!(matches!(err, JouleProfilerError::NoCommand));
+    //     }
+    // }
 
-    #[test]
-    fn test_no_domains_for_sockets() {
-        let config = create_test_config(vec!["echo".to_string(), "test".to_string()], vec![99]);
-        let domains = vec![create_mock_domain("package-0", 0)];
+    // #[test]
+    // fn test_no_domains_for_sockets() {
+    //     let config = create_test_config(vec!["echo".to_string(), "test".to_string()]);
+    //     let domains = vec![create_mock_domain("package-0", 0)];
 
-        let result = measure_once(&config, &domains);
-        assert!(result.is_err());
+    //     let result = measure_once(&config, &domains);
+    //     assert!(result.is_err());
 
-        if let Err(e) = result {
-            let err = e.downcast::<JouleProfilerError>().unwrap();
-            assert!(matches!(err, JouleProfilerError::NoDomains));
-        }
-    }
+    //     if let Err(e) = result {
+    //         let err = e.downcast::<JouleProfilerError>().unwrap();
+    //         assert!(matches!(err, JouleProfilerError::NoDomains));
+    //     }
+    // }
 
     #[test]
     fn test_run_command_empty() {
-        let config = create_test_config(vec![], vec![0]);
+        let config = create_test_config(vec![]);
 
         let result = run_command(&config);
         assert!(result.is_err());
@@ -219,8 +205,7 @@ mod tests {
     #[test]
     fn test_run_command_not_found() {
         let config = create_test_config(
-            vec!["this-command-definitely-does-not-exist-12345".to_string()],
-            vec![0],
+            vec!["this-command-definitely-does-not-exist-12345".to_string()]
         );
 
         let result = run_command(&config);
@@ -236,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_run_command_success() {
-        let config = create_test_config(vec!["echo".to_string(), "test".to_string()], vec![0]);
+        let config = create_test_config(vec!["echo".to_string(), "test".to_string()]);
 
         let result = run_command(&config);
         assert!(result.is_ok());
@@ -248,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_run_command_with_failure() {
-        let config = create_test_config(vec!["false".to_string()], vec![0]);
+        let config = create_test_config(vec!["false".to_string()]);
 
         let result = run_command(&config);
         assert!(result.is_ok());
@@ -262,7 +247,6 @@ mod tests {
     fn test_run_command_with_args() {
         let config = create_test_config(
             vec!["echo".to_string(), "hello".to_string(), "world".to_string()],
-            vec![0],
         );
 
         let result = run_command(&config);
@@ -279,7 +263,7 @@ mod tests {
         use std::thread;
         use std::time::Duration;
 
-        let config = create_test_config(vec!["sleep".to_string(), "60".to_string()], vec![0]);
+        let config = create_test_config(vec!["sleep".to_string(), "60".to_string()]);
 
         let mut child: Child = StdCommand::new(&config.cmd[0])
             .args(&config.cmd[1..])

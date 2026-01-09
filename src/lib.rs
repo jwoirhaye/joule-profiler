@@ -4,7 +4,7 @@ pub mod config;
 pub mod errors;
 pub mod measure;
 pub mod output;
-pub mod rapl;
+pub mod source;
 mod util;
 
 use anyhow::Result;
