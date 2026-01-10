@@ -23,7 +23,7 @@ pub struct Cli {
     /// Sockets to measure (e.g. 0 or 0,1)
     #[arg(short = 's', long = "sockets")]
     pub sockets: Option<String>,
-    
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -37,7 +37,7 @@ pub enum Command {
     Phases(PhasesArgs),
 
     /// List available RAPL energy domains
-    ListDomains(ListArgs),
+    ListSources(ListArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -54,14 +54,14 @@ pub struct ListArgs {
 #[derive(Parser, Debug)]
 pub struct SimpleArgs {
     /// Export results as JSON instead of pretty terminal output
-    #[arg(long = "json")]
+    #[arg(long = "json", conflicts_with = "csv")]
     pub json: bool,
 
     /// Export results as CSV (semicolon-separated values)
     ///
     /// For single measurements: outputs to stdout
     /// For iterations: outputs to file (--jouleit-file or data<TIMESTAMP>.csv)
-    #[arg(long = "csv")]
+    #[arg(long = "csv", conflicts_with = "json")]
     pub csv: bool,
 
     /// Number of iterations (>=1).

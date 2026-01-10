@@ -7,13 +7,13 @@ use log::{debug, error, info, trace, warn};
 
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
-use crate::source::metric::Metrics;
-use crate::source::{MetricSource};
-use crate::source::rapl::measure::MeasurementResult;
+use crate::measure::MeasurementResult;
+use crate::source::MetricSource;
+use crate::source::metric::Metric;
 use crate::util::file::create_file_with_user_permissions;
 
-/// Performs a single energy measurement by executing the configured command.
-pub fn measure_once(config: &Config, sources: &[MetricSource]) -> Result<MeasurementResult> {
+/// Performs a single measurement by executing the configured command.
+pub fn measure_once(config: &Config, sources: &mut [MetricSource]) -> Result<MeasurementResult> {
     info!("Starting single measurement");
 
     if config.cmd.is_empty() {
@@ -21,11 +21,7 @@ pub fn measure_once(config: &Config, sources: &[MetricSource]) -> Result<Measure
         return Err(JouleProfilerError::NoCommand.into());
     }
 
-    // debug!("Taking initial energy snapshot");
-    // let begin = read_snapshot(domains)?;
-    // info!("Initial snapshot taken at {} µs", begin.timestamp_us);
-
-    for source in sources {
+    for source in sources.iter_mut() {
         source.measure()?;
     }
 
@@ -50,18 +46,18 @@ pub fn measure_once(config: &Config, sources: &[MetricSource]) -> Result<Measure
         );
     }
 
-    // debug!("Taking final energy snapshot");
-    // let end = read_snapshot(domains)?;
-    // info!("Final snapshot taken at {} µs", end.timestamp_us);
-
-    for source in sources {
+    for source in sources.iter_mut() {
         source.measure()?;
     }
 
     let mut metrics = Vec::new();
 
     for source in sources {
-        let source_metrics: Metrics = source.retrieve()?.into_iter().flatten().collect();
+        let source_metrics: Vec<Metric> = source
+            .retrieve()?
+            .into_iter()
+            .flat_map(|snapshot| snapshot.metrics)
+            .collect();
         for metric in source_metrics {
             metrics.push(metric);
         }
@@ -69,7 +65,11 @@ pub fn measure_once(config: &Config, sources: &[MetricSource]) -> Result<Measure
 
     info!("Measurement completed successfully");
 
-    let result = MeasurementResult { metrics, duration_ms, exit_code };
+    let result = MeasurementResult {
+        metrics,
+        duration_ms,
+        exit_code,
+    };
 
     Ok(result)
 }
@@ -134,6 +134,8 @@ fn run_command(config: &Config) -> Result<(i32, std::process::ExitStatus)> {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::OutputFormat;
+
     use super::*;
     // use std::path::PathBuf;
 
@@ -151,8 +153,7 @@ mod tests {
 
     fn create_test_config(cmd: Vec<String>) -> Config {
         Config {
-            json: false,
-            csv: false,
+            output_format: OutputFormat::Terminal,
             iterations: None,
             jouleit_file: None,
             output_file: None,
@@ -204,9 +205,9 @@ mod tests {
 
     #[test]
     fn test_run_command_not_found() {
-        let config = create_test_config(
-            vec!["this-command-definitely-does-not-exist-12345".to_string()]
-        );
+        let config = create_test_config(vec![
+            "this-command-definitely-does-not-exist-12345".to_string(),
+        ]);
 
         let result = run_command(&config);
         assert!(result.is_err());
@@ -245,9 +246,11 @@ mod tests {
 
     #[test]
     fn test_run_command_with_args() {
-        let config = create_test_config(
-            vec!["echo".to_string(), "hello".to_string(), "world".to_string()],
-        );
+        let config = create_test_config(vec![
+            "echo".to_string(),
+            "hello".to_string(),
+            "world".to_string(),
+        ]);
 
         let result = run_command(&config);
         assert!(result.is_ok());

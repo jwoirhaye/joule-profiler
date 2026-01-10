@@ -7,9 +7,8 @@ use crate::measure::{measure_phases_iterations, measure_phases_once};
 use crate::output::csv::CsvOutput;
 use crate::output::{JsonOutput, OutputFormat as OutputFormatTrait, TerminalOutput};
 use crate::source::MetricSource;
-use crate::source::rapl::RaplDomain;
 
-pub fn run_phases(args: PhasesArgs, sources: &[MetricSource]) -> Result<()> {
+pub fn run_phases(args: PhasesArgs, sources: &mut [MetricSource]) -> Result<()> {
     info!("Running phases mode");
     let config = Config::from_phases(args)?;
 
@@ -22,13 +21,13 @@ pub fn run_phases(args: PhasesArgs, sources: &[MetricSource]) -> Result<()> {
     }
 }
 
-fn run_phases_single(config: &Config, sources: &[MetricSource]) -> Result<()> {
+fn run_phases_single(config: &Config, sources: &mut [MetricSource]) -> Result<()> {
     info!("Measuring single phases execution");
     let res = measure_phases_once(config, sources)?;
 
     debug!("Phases measurement complete, formatting output");
 
-    match config.output_format() {
+    match config.output_format {
         OutputFormat::Json => {
             debug!("Using JSON output format (stdout)");
             let mut out = JsonOutput::new(config)?;
@@ -50,13 +49,17 @@ fn run_phases_single(config: &Config, sources: &[MetricSource]) -> Result<()> {
     Ok(())
 }
 
-fn run_phases_iterations(config: &Config, sources: &[MetricSource], iterations: usize) -> Result<()> {
+fn run_phases_iterations(
+    config: &Config,
+    sources: &mut [MetricSource],
+    iterations: usize,
+) -> Result<()> {
     info!("Running {} iteration(s) in phases mode", iterations);
     let results = measure_phases_iterations(config, sources, iterations)?;
 
     debug!("All iterations complete, formatting output");
 
-    match config.output_format() {
+    match config.output_format {
         OutputFormat::Json => {
             debug!("Using JSON output format (file)");
             let mut out = JsonOutput::new(config)?;
