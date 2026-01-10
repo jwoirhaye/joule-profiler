@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 
@@ -5,7 +6,8 @@ use anyhow::Result;
 use log::{debug, info, trace, warn};
 
 use crate::config::Config;
-use crate::source::rapl::measure::{MeasurementResult, PhasesResult};
+use crate::measure::{MeasurementResult, PhasesResult};
+use crate::source::metric::Metric;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
 use super::{OutputFormat, default_iterations_filename};
@@ -62,11 +64,11 @@ impl CsvOutput {
 
     fn write_header(
         &mut self,
-        res: &MeasurementResult,
+        keys: &[&String],
         include_iteration: bool,
         include_phase: bool,
     ) -> Result<()> {
-        trace!("Writing CSV header with {} metrics", res.metrics.len());
+        trace!("Writing CSV header with {} metrics", keys.len());
 
         write!(self.file, "command;")?;
 
@@ -81,8 +83,8 @@ impl CsvOutput {
             )?;
         }
 
-        for metric in &res.metrics {
-            write!(self.file, "{}_uj;", metric.name)?;
+        for key in keys {
+            write!(self.file, "{}_uj;", key)?;
         }
         writeln!(self.file, "duration_ms;exit_code")?;
 
@@ -93,7 +95,7 @@ impl CsvOutput {
     fn write_row(
         &mut self,
         command: &[String],
-        res: &MeasurementResult,
+        metrics: &[Metric],
         iteration: Option<usize>,
         phase_data: Option<&PhaseRowData>,
     ) -> Result<()> {
@@ -120,11 +122,9 @@ impl CsvOutput {
             )?;
         }
 
-        for metric in &res.metrics {
+        for metric in metrics {
             write!(self.file, "{};", metric.value)?;
         }
-
-        writeln!(self.file, "{};{}", res.duration_ms, res.exit_code)?;
 
         Ok(())
     }
@@ -138,15 +138,10 @@ impl CsvOutput {
 impl OutputFormat for CsvOutput {
     fn simple_single(&mut self, config: &Config, res: &MeasurementResult) -> Result<()> {
         debug!("Formatting simple single measurement for CSV");
+        let keys = res.extract_keys();
 
-        // let mut keys: Vec<_> = res.metrics.iter().map(|metric| &metric.name).cloned().collect();
-        // keys.sort();
-
-        // debug!("CSV will contain {} energy domains", keys.len());
-
-        self.write_header(res, false, false)?;
-
-        self.write_row(&config.cmd, res, None, None)?;
+        self.write_header(&keys, false, false)?;
+        self.write_row(&config.cmd, &res.metrics, None, None)?;
 
         self.finalize();
         Ok(())
@@ -166,12 +161,14 @@ impl OutputFormat for CsvOutput {
 
         let (_, first) = &results[0];
 
-        debug!("CSV will contain {} energy domains", first.metrics.len());
+        let keys = first.extract_keys();
 
-        self.write_header(first, true, false)?;
+        debug!("CSV will contain {} metrics", first.metrics.len());
+
+        self.write_header(&keys, true, false)?;
 
         for (idx, res) in results {
-            self.write_row(&config.cmd, res, Some(*idx), None)?;
+            self.write_row(&config.cmd, &res.metrics, Some(*idx), None)?;
         }
 
         self.finalize();
@@ -189,20 +186,9 @@ impl OutputFormat for CsvOutput {
             return Ok(());
         }
 
-        let first_phase = &phases.phases[0];
+        let keys = phases.extract_keys();
 
-        // let mut all_keys = std::collections::HashSet::new();
-        // for phase in &phases.phases {
-        //     for metric in &phase.result.metrics {
-        //         all_keys.insert(metric.name.clone());
-        //     }
-        // }
-        // let mut keys: Vec<_> = all_keys.into_iter().collect();
-        // keys.sort();
-
-        // debug!("CSV will contain {} energy domains", keys.len());
-
-        self.write_header(&first_phase.metrics, false, true)?;
+        self.write_header(&keys, false, true)?;
 
         for phase in &phases.phases {
             trace!("Writing phase: {}", phase.name);
@@ -234,29 +220,25 @@ impl OutputFormat for CsvOutput {
             return Ok(());
         }
 
-         let (_, first_result) = &results[0];
-
-        // if let Some((_, first_result)) = results.first() {
-        //     for phase in &first_result.phases {
-        //         for key in phase.result.energy_uj.keys() {
-        //             all_keys.insert(key.clone());
-        //         }
-        //     }
-        // }
+        let (_, first_result) = &results[0];
 
         if first_result.phases.is_empty() {
             warn!("No phases to write to CSV");
             return Ok(());
         }
 
-        let first_phase = &first_result.phases[0];
+        let mut keys: HashSet<&String> = HashSet::new();
+        for (_, phase_result) in results {
+            keys.extend(phase_result.extract_keys());
+        }
+        let keys_vec: Vec<&String> = keys.into_iter().collect();
 
-        debug!("CSV will contain {} energy domains", first_phase.metrics.metrics.len());
+        debug!("CSV will contain {} metrics", keys_vec.len());
 
-        self.write_header(&first_phase.metrics, true, true)?;
+        self.write_header(&keys_vec, true, true)?;
 
-        for (idx, phases_result) in results {
-            for phase in &phases_result.phases {
+        for (idx, iteration_results) in results {
+            for phase in &iteration_results.phases {
                 trace!("Writing iteration {} phase: {}", idx, phase.name);
 
                 let phase_data = PhaseRowData::new(
@@ -267,12 +249,7 @@ impl OutputFormat for CsvOutput {
                     phase.end_line,
                 );
 
-                self.write_row(
-                    &config.cmd,
-                    &phase.metrics,
-                    Some(*idx),
-                    Some(&phase_data),
-                )?;
+                self.write_row(&config.cmd, &phase.metrics, Some(*idx), Some(&phase_data))?;
             }
         }
 

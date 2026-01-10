@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use anyhow::Result;
 use log::{debug, info, trace, warn};
 
@@ -5,8 +7,7 @@ use crate::cli::{PhasesArgs, SimpleArgs};
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub json: bool,
-    pub csv: bool,
+    pub output_format: OutputFormat,
     pub iterations: Option<usize>,
     pub jouleit_file: Option<String>,
     pub output_file: Option<String>,
@@ -46,9 +47,11 @@ impl Config {
             debug!("Output file specified: {}", file);
         }
 
+        let output_format = OutputFormat::new(args.json, args.csv);
+        trace!("Output format determined: {}", output_format);
+
         Ok(Self {
-            json: args.json,
-            csv: args.csv,
+            output_format,
             iterations: args.iterations,
             jouleit_file: args.jouleit_file,
             output_file: args.output_file,
@@ -96,28 +99,17 @@ impl Config {
             debug!("Output file specified: {}", file);
         }
 
+        let output_format = OutputFormat::new(args.json, args.csv);
+        trace!("Output format determined: {}", output_format);
+
         Ok(Self {
-            json: args.json,
-            csv: args.csv,
+            output_format,
             iterations: args.iterations,
             jouleit_file: args.jouleit_file,
             output_file: args.output_file,
             token_pattern: Some(args.token_pattern), // Pattern regex
             cmd: args.cmd,
         })
-    }
-
-    pub fn output_format(&self) -> OutputFormat {
-        if self.json {
-            trace!("Output format determined: JSON");
-            OutputFormat::Json
-        } else if self.csv {
-            trace!("Output format determined: CSV");
-            OutputFormat::Csv
-        } else {
-            trace!("Output format determined: Terminal (default)");
-            OutputFormat::Terminal
-        }
     }
 
     pub fn is_multi_iteration(&self) -> bool {
@@ -130,4 +122,26 @@ pub enum OutputFormat {
     Json,
     Csv,
     Terminal,
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            OutputFormat::Json => "JSON",
+            OutputFormat::Csv => "CSV",
+            OutputFormat::Terminal => "Terminal (default)",
+        })
+    }
+}
+
+impl OutputFormat {
+    pub fn new(json: bool, csv: bool) -> OutputFormat {
+        if json {
+            OutputFormat::Json
+        } else if csv {
+            OutputFormat::Csv
+        } else {
+            OutputFormat::Terminal
+        }
+    }
 }

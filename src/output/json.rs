@@ -6,7 +6,7 @@ use log::{info, trace};
 use serde_json::json;
 
 use crate::config::Config;
-use crate::source::rapl::measure::{MeasurementResult, PhasesResult};
+use crate::measure::{MeasurementResult, PhasesResult};
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
 use super::{OutputFormat, default_iterations_filename};
