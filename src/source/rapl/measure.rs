@@ -1,47 +1,10 @@
 use std::collections::HashMap;
 
-use crate::source::{Metrics, rapl::{EnergySnapshot, RaplDomain}};
-use anyhow::Result;
+use crate::source::rapl::{EnergySnapshot, RaplDomain};
+use anyhow::{Result, bail};
 use log::{debug, error, trace, warn};
-use serde::Serialize;
 
 use crate::errors::JouleProfilerError;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MeasurementResult {
-    /// Energy per domain (key) in microjoules
-    pub metrics: Metrics,
-    /// Duration in milliseconds
-    pub duration_ms: u128,
-    /// Command exit code
-    pub exit_code: i32,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct PhaseMeasurement {
-    pub name: String,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_token: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_token: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_line: Option<usize>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<usize>,
-
-    pub metrics: Metrics,
-
-    pub duration_ms: u128,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct PhasesResult {
-    pub phases: Vec<PhaseMeasurement>,
-}
 
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
@@ -169,7 +132,7 @@ pub fn energy_diff(start: u64, end: u64, max: Option<u64>, domain_name: &str) ->
                 "Suspicious overflow for domain '{}': calculated diff ({} µJ) is > 50% of max range ({} µJ)",
                 domain_name, diff, max
             );
-            return Err(JouleProfilerError::CounterOverflow.into());
+            bail!(JouleProfilerError::CounterOverflow)
         }
 
         Ok(diff)
@@ -178,7 +141,7 @@ pub fn energy_diff(start: u64, end: u64, max: Option<u64>, domain_name: &str) ->
             "Counter overflow without max_energy for domain '{}': end={} < start={}, cannot compute accurate measurement",
             domain_name, end, start
         );
-        Err(JouleProfilerError::CounterOverflow.into())
+        bail!(JouleProfilerError::CounterOverflow)
     }
 }
 

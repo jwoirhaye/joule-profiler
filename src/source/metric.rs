@@ -19,10 +19,17 @@ impl Metric {
     }
 }
 
-pub type Metrics = Vec<Metric>;
-
 #[derive(Debug, Clone)]
 pub struct Snapshot {
-    pub metrics: Metrics,
+    pub metrics: Vec<Metric>,
     pub timestamp_us: u128,
+}
+
+impl Snapshot {
+    pub fn extract_keys(&self) -> Vec<String> {
+        self.metrics
+            .iter()
+            .map(|metric| metric.name.clone())
+            .collect()
+    }
 }

@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Write};
@@ -9,25 +10,50 @@ use regex::Regex;
 
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
+use crate::measure::{PhaseMeasurement, PhasesResult};
 use crate::source::MetricSource;
-use crate::source::rapl::measure::{
-    MeasurementResult, PhaseMeasurement, PhasesResult, compute_measurement_from_snapshots
-};
-use crate::source::rapl::{EnergySnapshot, RaplDomain, read_snapshot};
+use crate::source::metric::Snapshot;
+
 use crate::util::file::create_file_with_user_permissions;
 use crate::util::get_timestamp;
+
+#[derive(Debug, Clone)]
+pub enum PhaseToken {
+    Start,
+    Token(String),
+    End,
+}
+
+impl Display for PhaseToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PhaseToken::Start => f.write_str("START"),
+            PhaseToken::Token(token) => f.write_str(token),
+            PhaseToken::End => f.write_str("END"),
+        }
+    }
+}
+
+impl From<PhaseToken> for Option<String> {
+    fn from(token: PhaseToken) -> Self {
+        match token {
+            PhaseToken::Start | PhaseToken::End => None,
+            PhaseToken::Token(token) => Some(token),
+        }
+    }
+}
 
 /// Detected token with timestamp
 #[derive(Debug, Clone)]
 struct Phase {
-    token: String,
-    // snapshot: EnergySnapshot,
-    begin_timestamp: u128,
-    line_number: usize,
+    token: PhaseToken,
+    snapshot_index: usize,
+    timestamp: u128,
+    line_number: Option<usize>,
 }
 
 /// Measure one run in phases mode with regex pattern.
-pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<PhasesResult> {
+pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Result<PhasesResult> {
     info!("Starting single phase measurement with regex pattern");
 
     if config.cmd.is_empty() {
@@ -52,16 +78,19 @@ pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<
 
     let mut phases = Vec::new();
 
-    let start_timestamp = get_timestamp();
-    phases.push(Phase { token: "START".to_string(), begin_timestamp: start_timestamp, line_number: 0 });
-    
-    // info!(
-    //     "Initial snapshot taken at {} µs",
-    //     start_snapshot.timestamp_us
-    // );
+    let mut nb_snapshots = 0;
 
-    for source in sources {
-        source.measure();
+    let start_timestamp = get_timestamp();
+    phases.push(Phase {
+        token: PhaseToken::Start,
+        timestamp: start_timestamp,
+        snapshot_index: nb_snapshots,
+        line_number: None,
+    });
+
+    nb_snapshots += 1;
+    for source in sources.iter_mut() {
+        source.measure()?;
     }
 
     let mut command = Command::new(&config.cmd[0]);
@@ -103,8 +132,6 @@ pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<
         debug!("No output file specified, using stdout");
         None
     };
-
-    let mut detected_tokens = Vec::<Phase>::new();
 
     trace!(
         "Starting to monitor command output for tokens matching pattern '{}'",
@@ -152,27 +179,21 @@ pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<
 
             let phase_timestamp = get_timestamp();
 
-            for source in sources {
-                source.measure();
+            for source in sources.iter_mut() {
+                source.measure()?;
             }
 
-            // let snapshot = read_snapshot(domains)?;
-            // debug!(
-            //     "Token '{}' (line {}) snapshot taken at {} µs",
-            //     token,
-            //     line_number + 1,
-            //     snapshot.timestamp_us
-            // );
-
             phases.push(Phase {
-                token,
-                begin_timestamp: phase_timestamp,
-                line_number: line_number + 1,
+                token: PhaseToken::Token(token),
+                timestamp: phase_timestamp,
+                snapshot_index: nb_snapshots,
+                line_number: Some(line_number + 1),
             });
+            nb_snapshots += 1;
         }
     }
 
-    info!("Found {} matching token(s)", detected_tokens.len());
+    info!("Found {} phase", phases.len());
 
     let status = child.wait().context("Failed to wait on child")?;
     let exit_code = status.code().unwrap_or_else(|| {
@@ -186,167 +207,48 @@ pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<
         warn!("Command failed with exit code: {}", exit_code);
     }
 
-    // let end_snapshot = read_snapshot(domains)?;
+    for source in sources.iter_mut() {
+        source.measure()?;
+    }
 
     let end_timestamp = get_timestamp();
-    phases.push(Phase { token: "END".to_string(), begin_timestamp: end_timestamp, line_number: 0 });
+    phases.push(Phase {
+        token: PhaseToken::End,
+        timestamp: end_timestamp,
+        snapshot_index: nb_snapshots,
+        line_number: None,
+    });
+
+    let mut phases_metrics = Vec::with_capacity(phases.len());
+    let mut sources_phases: Vec<Vec<Snapshot>> = Vec::with_capacity(sources.len());
 
     for source in sources {
-        source.measure();
+        sources_phases.push(source.retrieve()?)
     }
 
-    let mut phase_metrics = Vec::new();
-    for i in 0..phases.len() {
-        phase_metrics.push(Vec::new());
-    }
-
-    for source in sources {
-        let metrics = source.retrieve()?;
-        for (i, phase) in metrics.into_iter().enumerate() {
-            for metric in phase {
-                phase_metrics[i].push(metric);
-            }
+    for phase in &phases[0..nb_snapshots] {
+        let mut phase_metrics = Vec::new();
+        for source_snapshots in &sources_phases {
+            phase_metrics.extend(source_snapshots[phase.snapshot_index].metrics.clone());
         }
+        phases_metrics.push(phase_metrics);
     }
-
-    // info!("Final snapshot taken at {} µs", end_snapshot.timestamp_us);
-
-    // Build phases from detected tokens
-
-    // 1. Global phase (START -> END)
-    // debug!("Computing global phase (START -> END)");
-    // let global_duration_ms = duration_between_ms(&start_snapshot, &end_snapshot);
-    // let global = compute_measurement_from_snapshots(
-    //     domains,
-    //     &start_snapshot,
-    //     &end_snapshot,
-    // )?;
-    // info!("Global phase: {} ms", global_duration_ms);
-
-    // phases_measurements.push(PhaseMeasurement {
-    //     name: "global (START -> END)".to_string(),
-    //     start_token: Some("START".to_string()),
-    //     end_token: Some("END".to_string()),
-    //     start_line: None,
-    //     end_line: None,
-    //     result: global,
-    // });
-
-    // if detected_tokens.is_empty() {
-    //     warn!(
-    //         "⚠ No tokens matching pattern '{}' were detected in output",
-    //         token_pattern
-    //     );
-    // } else {
-    //     // 2. Phase from START to first token
-    //     let first_token = &detected_tokens[0];
-    //     debug!(
-    //         "Computing phase START -> '{}' (line {})",
-    //         first_token.token, first_token.line_number
-    //     );
-    //     let duration_ms = duration_between_ms(&start_snapshot, &first_token.snapshot);
-    //     let measurement = compute_measurement_from_snapshots(
-    //         domains,
-    //         &start_snapshot,
-    //         &first_token.snapshot,
-    //         duration_ms,
-    //         exit_code,
-    //     )?;
-    //     info!("Phase START -> '{}': {} ms", first_token.token, duration_ms);
-    //     phases.push(PhaseMeasurement {
-    //         name: format!("START -> {}", first_token.token),
-    //         start_token: Some("START".to_string()),
-    //         end_token: Some(first_token.token.clone()),
-    //         start_line: None,
-    //         end_line: Some(first_token.line_number),
-    //         result: measurement,
-    //     });
-
-        // // 3. Phases between consecutive tokens
-        // for i in 0..detected_tokens.len() - 1 {
-        //     let token_a = &detected_tokens[i];
-        //     let token_b = &detected_tokens[i + 1];
-
-        //     debug!(
-        //         "Computing phase '{}' (line {}) -> '{}' (line {})",
-        //         token_a.token, token_a.line_number, token_b.token, token_b.line_number
-        //     );
-        //     let duration_ms = duration_between_ms(&token_a.snapshot, &token_b.snapshot);
-        //     let measurement = compute_measurement_from_snapshots(
-        //         domains,
-        //         &token_a.snapshot,
-        //         &token_b.snapshot,
-        //         duration_ms,
-        //         exit_code,
-        //     )?;
-        //     info!(
-        //         "Phase '{}' -> '{}': {} ms",
-        //         token_a.token, token_b.token, duration_ms
-        //     );
-        //     phases.push(PhaseMeasurement {
-        //         name: format!("{} -> {}", token_a.token, token_b.token),
-        //         start_token: Some(token_a.token.clone()),
-        //         end_token: Some(token_b.token.clone()),
-        //         start_line: Some(token_a.line_number),
-        //         end_line: Some(token_b.line_number),
-        //         result: measurement,
-        //     });
-        // }
-
-    //     // 4. Phase from last token to END
-    //     let last_token = &detected_tokens[detected_tokens.len() - 1];
-    //     debug!(
-    //         "Computing phase '{}' (line {}) -> END",
-    //         last_token.token, last_token.line_number
-    //     );
-    //     let duration_ms = duration_between_ms(&last_token.snapshot, &end_snapshot);
-    //     let measurement = compute_measurement_from_snapshots(
-    //         domains,
-    //         &last_token.snapshot,
-    //         &end_snapshot,
-    //         duration_ms,
-    //         exit_code,
-    //     )?;
-    //     info!("Phase '{}' -> END: {} ms", last_token.token, duration_ms);
-    //     phases.push(PhaseMeasurement {
-    //         name: format!("{} -> END", last_token.token),
-    //         start_token: Some(last_token.token.clone()),
-    //         end_token: Some("END".to_string()),
-    //         start_line: Some(last_token.line_number),
-    //         end_line: None,
-    //         result: measurement,
-    //     });
-    // }
-
-    // let duration_between_ms = |a: &Phase, b: &Phase| -> u128 {
-    //     if b.begin_timestamp >= a.begin_timestamp {
-    //         (b.begin_timestamp - a.begin_timestamp) / 1000
-    //     } else {
-    //         warn!(
-    //             "Negative time duration detected: {} -> {}",
-    //             a.begin_timestamp, b.begin_timestamp
-    //         );
-    //         0
-    //     }
-    // };
 
     let mut phases_measurements = Vec::new();
 
-    for (i, phases) in phases.windows(2).into_iter().enumerate() {
-        let (p1, p2) = (phases[0].clone(), phases[1].clone());
-        let metrics = phase_metrics[i].clone();
-        let duration_ms = p2.begin_timestamp - p1.begin_timestamp;
+    for (i, phases) in phases.windows(2).enumerate() {
+        let (begin_phase, end_phase) = (&phases[0], &phases[1]);
+        let metrics = phases_metrics[i].clone();
+        let duration_ms = end_phase.timestamp - begin_phase.timestamp;
 
-        let phase_mesurement = PhaseMeasurement {
-            name: format!("{} -> {}", p1.token.clone(), p2.token.clone()),
-            start_token: Some(p1.token),
-            end_token: Some(p2.token),
-            start_line: Some(p1.line_number),
-            end_line: Some(p2.line_number),
+        let phase_mesurement = PhaseMeasurement::new(
+            &begin_phase.token,
+            &end_phase.token,
+            begin_phase.line_number,
+            end_phase.line_number,
             metrics,
             duration_ms,
-        };
-
+        );
         phases_measurements.push(phase_mesurement);
     }
 
@@ -355,13 +257,15 @@ pub fn measure_phases_once(config: &Config, sources: &[MetricSource]) -> Result<
         phases.len()
     );
 
-    Ok(PhasesResult { phases: phases_measurements })
+    Ok(PhasesResult {
+        phases: phases_measurements,
+    })
 }
 
 /// Run phases measurement N times.
 pub fn measure_phases_iterations(
     config: &Config,
-    sources: &[MetricSource],
+    sources: &mut [MetricSource],
     iterations: usize,
 ) -> Result<Vec<(usize, PhasesResult)>> {
     if iterations == 0 {
@@ -372,42 +276,40 @@ pub fn measure_phases_iterations(
 
     let mut all = Vec::with_capacity(iterations);
 
-    // for i in 0..iterations {
-    //     info!("═══ Phase iteration {}/{} ═══", i + 1, iterations);
+    for i in 0..iterations {
+        info!("═══ Phase iteration {}/{} ═══", i + 1, iterations);
 
-    //     match measure_phases_once(config, domains) {
-    //         Ok(res) => {
-    //             debug!("Iteration {} completed successfully", i + 1);
-    //             all.push((i, res));
-    //         }
-    //         Err(e) => {
-    //             error!("Iteration {} failed: {}", i + 1, e);
-    //             return Err(e);
-    //         }
-    //     }
-    // }
+        match measure_phases_once(config, sources) {
+            Ok(res) => {
+                debug!("Iteration {} completed successfully", i + 1);
+                all.push((i, res));
+            }
+            Err(e) => {
+                error!("Iteration {} failed: {}", i + 1, e);
+                return Err(e);
+            }
+        }
+    }
 
-    // info!("All {} iteration(s) completed successfully", iterations);
+    info!("All {} iteration(s) completed successfully", iterations);
 
     Ok(all)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::path::PathBuf;
 
-    fn create_mock_domain(name: &str, socket: u32) -> RaplDomain {
-        RaplDomain {
-            path: PathBuf::from(format!(
-                "/sys/class/powercap/intel-rapl:0/{}/energy_uj",
-                name
-            )),
-            name: name.to_string(),
-            socket,
-            max_energy_uj: Some(10_000_000),
-        }
-    }
+    // fn create_mock_domain(name: &str, socket: u32) -> RaplDomain {
+    //     RaplDomain {
+    //         path: PathBuf::from(format!(
+    //             "/sys/class/powercap/intel-rapl:0/{}/energy_uj",
+    //             name
+    //         )),
+    //         name: name.to_string(),
+    //         socket,
+    //         max_energy_uj: Some(10_000_000),
+    //     }
+    // }
 
     // #[test]
     // fn test_measure_phases_iterations_zero() {
