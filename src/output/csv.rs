@@ -7,10 +7,11 @@ use log::{debug, info, trace, warn};
 
 use crate::config::Config;
 use crate::measure::{MeasurementResult, PhasesResult};
+use crate::output::OutputFormat;
 use crate::source::metric::Metric;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
-use super::{OutputFormat, default_iterations_filename};
+use super::default_iterations_filename;
 
 /// Data for a phase row in CSV output
 struct PhaseRowData<'a> {
