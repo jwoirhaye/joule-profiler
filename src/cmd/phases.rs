@@ -6,24 +6,24 @@ use crate::config::{Config, OutputFormat};
 use crate::measure::{measure_phases_iterations, measure_phases_once};
 use crate::output::csv::CsvOutput;
 use crate::output::{JsonOutput, OutputFormat as OutputFormatTrait, TerminalOutput};
-use crate::source::MetricSource;
+use crate::source::{SourceManager};
 
-pub fn run_phases(args: PhasesArgs, sources: &mut [MetricSource]) -> Result<()> {
+pub fn run_phases(args: PhasesArgs, source_manager: &mut SourceManager) -> Result<()> {
     info!("Running phases mode");
     let config = Config::from_phases(args)?;
 
     if let Some(n) = config.iterations {
         debug!("Phases mode with {} iteration(s)", n);
-        run_phases_iterations(&config, sources, n)
+        run_phases_iterations(&config, source_manager, n)
     } else {
         debug!("Phases mode with single measurement");
-        run_phases_single(&config, sources)
+        run_phases_single(&config, source_manager)
     }
 }
 
-fn run_phases_single(config: &Config, sources: &mut [MetricSource]) -> Result<()> {
+fn run_phases_single(config: &Config, source_manager: &mut SourceManager) -> Result<()> {
     info!("Measuring single phases execution");
-    let res = measure_phases_once(config, sources)?;
+    let res = measure_phases_once(config, source_manager)?;
 
     debug!("Phases measurement complete, formatting output");
 
@@ -51,11 +51,11 @@ fn run_phases_single(config: &Config, sources: &mut [MetricSource]) -> Result<()
 
 fn run_phases_iterations(
     config: &Config,
-    sources: &mut [MetricSource],
+    source_manager: &mut SourceManager,
     iterations: usize,
 ) -> Result<()> {
     info!("Running {} iteration(s) in phases mode", iterations);
-    let results = measure_phases_iterations(config, sources, iterations)?;
+    let results = measure_phases_iterations(config, source_manager, iterations)?;
 
     debug!("All iterations complete, formatting output");
 

@@ -7,27 +7,27 @@ use crate::errors::JouleProfilerError;
 use crate::measure::measure_once;
 use crate::output::csv::CsvOutput;
 use crate::output::{JsonOutput, OutputFormat as OutputFormatTrait, TerminalOutput};
-use crate::source::MetricSource;
+use crate::source::{SourceManager};
 
 /// Runs the profiler in simple mode.
-pub fn run_simple(args: SimpleArgs, sources: &mut [MetricSource]) -> Result<()> {
+pub fn run_simple(args: SimpleArgs, source_manager: &mut SourceManager) -> Result<()> {
     info!("Running simple mode");
 
     let config = Config::from_simple(args)?;
 
     if let Some(n) = config.iterations {
         debug!("Simple mode with {} iteration(s)", n);
-        run_simple_iterations(&config, sources, n)
+        run_simple_iterations(&config, source_manager, n)
     } else {
         debug!("Simple mode with single measurement");
-        run_simple_single(&config, sources)
+        run_simple_single(&config, source_manager)
     }
 }
 
 /// Executes a single measurement and outputs the result.
-fn run_simple_single(config: &Config, sources: &mut [MetricSource]) -> Result<()> {
+fn run_simple_single(config: &Config, source_manager: &mut SourceManager) -> Result<()> {
     info!("Measuring single execution");
-    let res = measure_once(config, sources)?;
+    let res = measure_once(config, source_manager)?;
 
     debug!("Measurement complete, formatting output");
 
@@ -57,7 +57,7 @@ fn run_simple_single(config: &Config, sources: &mut [MetricSource]) -> Result<()
 /// Executes multiple measurements (iterations) and outputs aggregated results.
 fn run_simple_iterations(
     config: &Config,
-    sources: &mut [MetricSource],
+    source_manager: &mut SourceManager,
     iterations: usize,
 ) -> Result<()> {
     if iterations == 0 {
@@ -69,7 +69,7 @@ fn run_simple_iterations(
 
     for i in 0..iterations {
         info!("═══ Iteration {}/{} ═══", i + 1, iterations);
-        let res = measure_once(config, sources)?;
+        let res = measure_once(config, source_manager)?;
         debug!(
             "Iteration {}: duration {} ms, exit code {}",
             i + 1,

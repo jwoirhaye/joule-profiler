@@ -11,8 +11,7 @@ use regex::Regex;
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
 use crate::measure::{PhaseMeasurement, PhasesResult};
-use crate::source::metric::Snapshot;
-use crate::source::{MetricReader, MetricSource};
+use crate::source::{SourceManager};
 
 use crate::util::file::create_file_with_user_permissions;
 use crate::util::get_timestamp;
@@ -53,7 +52,7 @@ struct Phase {
 }
 
 /// Measure one run in phases mode with regex pattern.
-pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Result<PhasesResult> {
+pub fn measure_phases_once(config: &Config, source_manager: &mut SourceManager) -> Result<PhasesResult> {
     info!("Starting single phase measurement with regex pattern");
 
     if config.cmd.is_empty() {
@@ -89,9 +88,7 @@ pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Res
     });
 
     nb_snapshots += 1;
-    for source in sources.iter_mut() {
-        source.measure()?;
-    }
+    source_manager.measure()?;
 
     let mut command = Command::new(&config.cmd[0]);
     if config.cmd.len() > 1 {
@@ -179,9 +176,7 @@ pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Res
 
             let phase_timestamp = get_timestamp();
 
-            for source in sources.iter_mut() {
-                source.measure()?;
-            }
+            source_manager.measure()?;
 
             phases.push(Phase {
                 token: PhaseToken::Token(token),
@@ -207,9 +202,7 @@ pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Res
         warn!("Command failed with exit code: {}", exit_code);
     }
 
-    for source in sources.iter_mut() {
-        source.measure()?;
-    }
+    source_manager.measure()?;
 
     let end_timestamp = get_timestamp();
     phases.push(Phase {
@@ -219,12 +212,8 @@ pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Res
         line_number: None,
     });
 
+    let sources_phases = source_manager.retrieve()?;
     let mut phases_metrics = Vec::with_capacity(phases.len());
-    let mut sources_phases: Vec<Vec<Snapshot>> = Vec::with_capacity(sources.len());
-
-    for source in sources {
-        sources_phases.push(source.retrieve()?)
-    }
 
     for phase in &phases[0..nb_snapshots] {
         let mut phase_metrics = Vec::new();
@@ -265,7 +254,7 @@ pub fn measure_phases_once(config: &Config, sources: &mut [MetricSource]) -> Res
 /// Run phases measurement N times.
 pub fn measure_phases_iterations(
     config: &Config,
-    sources: &mut [MetricSource],
+    source_manager: &mut SourceManager,
     iterations: usize,
 ) -> Result<Vec<(usize, PhasesResult)>> {
     if iterations == 0 {
@@ -279,7 +268,7 @@ pub fn measure_phases_iterations(
     for i in 0..iterations {
         info!("═══ Phase iteration {}/{} ═══", i + 1, iterations);
 
-        match measure_phases_once(config, sources) {
+        match measure_phases_once(config, source_manager) {
             Ok(res) => {
                 debug!("Iteration {} completed successfully", i + 1);
                 all.push((i, res));
