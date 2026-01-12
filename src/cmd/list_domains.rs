@@ -1,6 +1,10 @@
 use anyhow::Result;
 
-use crate::{cli::ListArgs, config::OutputFormat, source::MetricSource};
+use crate::{
+    cli::ListArgs,
+    config::OutputFormat,
+    source::{MetricReader, MetricSource},
+};
 
 pub fn run_list_sources(args: ListArgs, sources: &[MetricSource]) -> Result<()> {
     let output_format = OutputFormat::new(args.json, args.csv);

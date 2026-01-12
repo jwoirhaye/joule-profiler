@@ -11,8 +11,8 @@ use regex::Regex;
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
 use crate::measure::{PhaseMeasurement, PhasesResult};
-use crate::source::MetricSource;
 use crate::source::metric::Snapshot;
+use crate::source::{MetricReader, MetricSource};
 
 use crate::util::file::create_file_with_user_permissions;
 use crate::util::get_timestamp;
