@@ -8,8 +8,8 @@ use log::{debug, error, info, trace, warn};
 use crate::config::Config;
 use crate::errors::JouleProfilerError;
 use crate::measure::MeasurementResult;
-use crate::source::MetricSource;
 use crate::source::metric::Metric;
+use crate::source::{MetricReader, MetricSource};
 use crate::util::file::create_file_with_user_permissions;
 
 /// Performs a single measurement by executing the configured command.
