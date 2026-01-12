@@ -1,3 +1,5 @@
+use std::{sync::mpsc::{Sender, channel}, thread::JoinHandle};
+
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 
@@ -21,17 +23,47 @@ pub enum MetricSource {
     Rapl(Rapl),
 }
 
+enum Event {
+    Stop,
+    Measure
+}
+
+struct SourceHandle {
+    tx: Sender<Event>,
+    handle: JoinHandle<Result<Vec<Snapshot>>>
+}
+
 #[derive(Default)]
 pub struct SourceManager {
     sources: Vec<MetricSource>,
-
+    handles: Vec<SourceHandle>,
 }
 
 impl SourceManager {
     pub fn new(sources: Vec<MetricSource>) -> Self {
         Self {
-            sources
+            sources,
+            handles: Vec::new()
         }
+    }
+
+    pub fn start(&mut self) {
+        let sources = std::mem::take(&mut self.sources);
+        self.handles = sources.into_iter().map(|mut source| {
+            let (tx, rx) = channel();
+            let join_handle = std::thread::spawn(move || {
+                loop {
+                    if let Ok(event) = rx.recv() {
+                        match event {
+                            Event::Stop => break,
+                            Event::Measure => source.measure()?,
+                        };
+                    }
+                }
+                source.retrieve()
+            });
+            SourceHandle { handle: join_handle, tx }
+        }).collect()
     }
 
     pub fn add_source<T: Into<MetricSource>>(&mut self, source: T) {
