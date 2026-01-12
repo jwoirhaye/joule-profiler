@@ -20,7 +20,7 @@ pub fn run(cli: Cli) -> Result<()> {
     let domains = get_domains(cli.rapl_path.as_deref(), cli.sockets.as_deref())?;
 
     let rapl = Rapl::new(domains)?;
-    let mut sources: Vec<MetricSource> = vec![Box::new(rapl)];
+    let mut sources: Vec<MetricSource> = vec![MetricSource::Rapl(rapl)];
 
     match cli.command {
         Command::Simple(args) => run_simple(args, &mut sources),
