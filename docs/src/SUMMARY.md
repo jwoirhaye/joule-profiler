@@ -6,11 +6,6 @@
 
 - [Installation](./tutorials/install.md)
 
-# Supported Plugins
+# Supported Sources
 
-- [Intel RAPL](./sources/rapl/README.md)
-
-# Resources
-
-- [Related work](./related-work.md)
-- [References](./references.md)
+- [RAPL](./sources/rapl/README.md)
