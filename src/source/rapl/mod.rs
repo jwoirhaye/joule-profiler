@@ -16,9 +16,7 @@ use crate::{
     config::OutputFormat,
     errors::JouleProfilerError,
     source::{
-        MetricReader,
-        metric::{Metric, Snapshot},
-        rapl::measure::compute_measurement_from_snapshots,
+        MetricReader, metric::{Metric, Snapshot}, rapl::measure::compute_measurement_from_snapshots
     },
 };
 
@@ -74,7 +72,7 @@ impl MetricReader for Rapl {
         Ok(snapshots_metrics)
     }
 
-    fn print_source(&self, format: OutputFormat) -> Result<()> {
+    fn print_available_sensors(&self, format: OutputFormat) -> Result<()> {
         let mut infos: Vec<DomainInfo> = self
             .domains
             .iter()

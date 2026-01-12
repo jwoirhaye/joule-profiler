@@ -9,11 +9,11 @@ use crate::config::Config;
 use crate::errors::JouleProfilerError;
 use crate::measure::MeasurementResult;
 use crate::source::metric::Metric;
-use crate::source::{MetricReader, MetricSource};
+use crate::source::{SourceManager};
 use crate::util::file::create_file_with_user_permissions;
 
 /// Performs a single measurement by executing the configured command.
-pub fn measure_once(config: &Config, sources: &mut [MetricSource]) -> Result<MeasurementResult> {
+pub fn measure_once(config: &Config, source_manager: &mut SourceManager) -> Result<MeasurementResult> {
     info!("Starting single measurement");
 
     if config.cmd.is_empty() {
@@ -21,9 +21,7 @@ pub fn measure_once(config: &Config, sources: &mut [MetricSource]) -> Result<Mea
         return Err(JouleProfilerError::NoCommand.into());
     }
 
-    for source in sources.iter_mut() {
-        source.measure()?;
-    }
+    source_manager.measure()?;
 
     info!("Executing command: {:?}", config.cmd);
     let start_instant = Instant::now();
@@ -46,15 +44,12 @@ pub fn measure_once(config: &Config, sources: &mut [MetricSource]) -> Result<Mea
         );
     }
 
-    for source in sources.iter_mut() {
-        source.measure()?;
-    }
+    source_manager.measure()?;
 
     let mut metrics = Vec::new();
 
-    for source in sources {
+    for source in source_manager.retrieve()? {
         let source_metrics: Vec<Metric> = source
-            .retrieve()?
             .into_iter()
             .flat_map(|snapshot| snapshot.metrics)
             .collect();
