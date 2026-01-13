@@ -118,7 +118,7 @@ impl JsonOutput {
     pub fn new(output_file: Option<String>) -> Result<Self> {
         let filename = output_file
             .clone()
-            .unwrap_or_else(|| default_iterations_filename("json"));
+            .unwrap_or(default_iterations_filename("json"));
 
         let absolute_path = get_absolute_path(&filename)?;
         info!("Creating JSON output file: {}", absolute_path);
