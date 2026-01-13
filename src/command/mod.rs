@@ -36,7 +36,7 @@ pub fn run_command(cmd: &[String], output_file: Option<String>) -> Result<(i32, 
         }
     })?;
 
-    let exit_code = status.code().unwrap_or_else(|| 1);
+    let exit_code = status.code().unwrap_or(1);
 
     Ok((exit_code, status))
 }

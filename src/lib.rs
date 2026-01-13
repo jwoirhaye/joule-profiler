@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Parser;
 use env_logger::Builder;
 use log::{LevelFilter, debug, info, trace};
-use std::io::Write;
 
 use crate::{
     cli::Cli,
@@ -44,10 +43,10 @@ impl JouleProfiler {
         let mut manager = SourceManager::new(sources);
 
         match &config.mode {
-            Command::Simple(simple_config) => run_simple(&mut manager, &simple_config),
-            Command::Phases(phases_config) => run_phases(&mut manager, &phases_config),
+            Command::Simple(simple_config) => run_simple(&mut manager, simple_config),
+            Command::Phases(phases_config) => run_phases(&mut manager, phases_config),
             Command::ListSensors(list_sensors_config) => {
-                run_list_sensors(&manager, &list_sensors_config)
+                run_list_sensors(&manager, list_sensors_config)
             }
         }
     }
@@ -55,7 +54,6 @@ impl JouleProfiler {
 
 /// Initializes the logging system based on verbosity flags.
 pub fn init_logging(level: u8) {
-    // Détermine le niveau de log à partir de `level`
     let level_filter = match level {
         0 => LevelFilter::Warn,
         1 => LevelFilter::Info,
@@ -63,9 +61,7 @@ pub fn init_logging(level: u8) {
         _ => LevelFilter::Trace,
     };
 
-    Builder::new()
-        .filter_level(level_filter)
-        .init();
+    Builder::new().filter_level(level_filter).init();
 
     match level {
         0 => {}

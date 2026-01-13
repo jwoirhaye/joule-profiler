@@ -146,8 +146,7 @@ impl SourceManager {
         let sensors = self
             .sources
             .iter()
-            .map(|source| source.get_sensors())
-            .flatten()
+            .flat_map(|source| source.get_sensors())
             .flatten()
             .collect();
         Ok(sensors)
