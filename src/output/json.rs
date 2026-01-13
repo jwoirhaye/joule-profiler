@@ -5,11 +5,11 @@ use anyhow::Result;
 use log::{info, trace};
 use serde_json::json;
 
-use crate::config::Config;
-use crate::measure::{MeasurementResult, PhasesResult};
+use crate::config::{ListSensorsConfig, PhasesConfig, SimpleConfig};
+use crate::measurement::{MeasurementResult, PhaseMeasurementResult};
+use crate::output::{OutputFormatTrait, default_iterations_filename};
+use crate::source::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
-
-use super::{OutputFormat, default_iterations_filename};
 
 /// JSON output writer to file.
 pub struct JsonOutput {
@@ -17,11 +17,106 @@ pub struct JsonOutput {
     filename: String,
 }
 
+impl OutputFormatTrait for JsonOutput {
+    fn simple_single(&mut self, config: &SimpleConfig, result: &MeasurementResult) -> Result<()> {
+        let obj = json!({
+            "command": config.cmd.join(" "),
+            "mode": "simple",
+            "metrics": result.metrics,
+            "duration_ms": result.duration_ms,
+            "exit_code": result.exit_code
+        });
+
+        self.write_json(&obj)
+    }
+
+    fn simple_iterations(
+        &mut self,
+        config: &SimpleConfig,
+        results: &[MeasurementResult],
+    ) -> Result<()> {
+        info!("Formatting {} simple iterations", results.len());
+
+        let iters: Vec<_> = results
+            .iter()
+            .enumerate()
+            .map(|(idx, res)| {
+                trace!("Formatting iteration {}", idx + 1);
+                json!({
+                    "iteration": idx + 1,
+                    "metrics": res.metrics,
+                    "duration_ms": res.duration_ms,
+                    "exit_code": res.exit_code
+                })
+            })
+            .collect();
+
+        let root = json!({
+            "command": config.cmd.join(" "),
+            "mode": "simple-iterations",
+            "iterations": iters
+        });
+
+        self.write_json(&root)
+    }
+
+    fn phases_single(
+        &mut self,
+        config: &PhasesConfig,
+        result: &PhaseMeasurementResult,
+    ) -> Result<()> {
+        let phases_value = serde_json::to_value(result.phases.clone())?;
+
+        let obj = json!({
+            "command": config.cmd.join(" "),
+            "mode": "phases",
+            "token_pattern": config.token_pattern,
+            "exit_code": result.exit_code,
+            "phases": phases_value
+        });
+
+        self.write_json(&obj)
+    }
+
+    fn phases_iterations(
+        &mut self,
+        config: &PhasesConfig,
+        results: &[PhaseMeasurementResult],
+    ) -> Result<()> {
+        info!("Formatting {} phase iterations", results.len());
+
+        let iters: Vec<_> = results
+            .iter()
+            .enumerate()
+            .map(|(idx, result)| {
+                json!({
+                    "iteration": idx + 1,
+                    "exit_code": result.exit_code,
+                    "duration": result.duration_ms,
+                    "phases": result.phases,
+                })
+            })
+            .collect();
+
+        let root = json!({
+            "command": config.cmd.join(" "),
+            "mode": "phases-iterations",
+            "token_pattern": config.token_pattern,
+            "iterations": iters
+        });
+
+        self.write_json(&root)
+    }
+
+    fn list_sensors(&mut self, _config: &ListSensorsConfig, sensors: &[Sensor]) -> Result<()> {
+        self.write_json(&serde_json::to_value(sensors)?)
+    }
+}
+
 impl JsonOutput {
     /// Creates a JSON output writer to a file.
-    pub fn new(config: &Config) -> Result<Self> {
-        let filename = config
-            .jouleit_file
+    pub fn new(output_file: Option<String>) -> Result<Self> {
+        let filename = output_file
             .clone()
             .unwrap_or_else(|| default_iterations_filename("json"));
 
@@ -45,93 +140,5 @@ impl JsonOutput {
         info!("JSON output saved to: {}", self.filename);
 
         Ok(())
-    }
-}
-
-impl OutputFormat for JsonOutput {
-    fn simple_single(&mut self, config: &Config, res: &MeasurementResult) -> Result<()> {
-        let obj = json!({
-            "command": config.cmd.join(" "),
-            "mode": "simple",
-            "metrics": res.metrics,
-            "duration_ms": res.duration_ms,
-            "exit_code": res.exit_code
-        });
-
-        self.write_json(&obj)
-    }
-
-    fn simple_iterations(
-        &mut self,
-        config: &Config,
-        results: &[(usize, MeasurementResult)],
-    ) -> Result<()> {
-        info!("Formatting {} simple iterations", results.len());
-
-        let iters: Vec<_> = results
-            .iter()
-            .map(|(idx, res)| {
-                trace!("Formatting iteration {}", idx);
-                json!({
-                    "iteration": idx,
-                    "metrics": res.metrics,
-                    "duration_ms": res.duration_ms,
-                    "exit_code": res.exit_code
-                })
-            })
-            .collect();
-
-        let root = json!({
-            "command": config.cmd.join(" "),
-            "mode": "simple-iterations",
-            "iterations": iters
-        });
-
-        self.write_json(&root)
-    }
-
-    fn phases_single(&mut self, config: &Config, phases: &PhasesResult) -> Result<()> {
-        let phases_value = serde_json::to_value(&phases.phases)?;
-
-        let obj = json!({
-            "command": config.cmd.join(" "),
-            "mode": "phases",
-            "token_pattern": config.token_pattern,
-            "phases": phases_value
-        });
-
-        self.write_json(&obj)
-    }
-
-    fn phases_iterations(
-        &mut self,
-        config: &Config,
-        results: &[(usize, PhasesResult)],
-    ) -> Result<()> {
-        info!("Formatting {} phase iterations", results.len());
-
-        let iters: Vec<_> = results
-            .iter()
-            .map(|(idx, phases)| {
-                trace!(
-                    "Formatting iteration {} ({} phases)",
-                    idx,
-                    phases.phases.len()
-                );
-                json!({
-                    "iteration": idx,
-                    "phases": phases.phases,
-                })
-            })
-            .collect();
-
-        let root = json!({
-            "command": config.cmd.join(" "),
-            "mode": "phases-iterations",
-            "token_pattern": config.token_pattern,
-            "iterations": iters
-        });
-
-        self.write_json(&root)
     }
 }
