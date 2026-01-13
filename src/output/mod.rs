@@ -1,60 +1,114 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Result;
-use log::{debug, trace, warn};
+use enum_dispatch::enum_dispatch;
+use log::error;
 
 use crate::{
-    config::Config,
-    measure::{MeasurementResult, PhasesResult},
+    config::{ListSensorsConfig, OutputFormat, PhasesConfig, SimpleConfig},
+    measurement::{MeasurementResult, PhaseMeasurementResult},
+    output::{csv::CsvOutput, json::JsonOutput, terminal::TerminalOutput},
+    source::Sensor,
 };
 
-pub mod csv;
-pub mod json;
-pub mod terminal;
+mod csv;
+mod json;
+mod terminal;
 
-pub use json::JsonOutput;
-pub use terminal::TerminalOutput;
+#[enum_dispatch]
+pub enum Displayer {
+    Terminal(TerminalOutput),
+    Json(JsonOutput),
+    Csv(CsvOutput),
+}
 
-pub trait OutputFormat {
-    fn simple_single(&mut self, _config: &Config, res: &MeasurementResult) -> Result<()>;
+impl TryFrom<&SimpleConfig> for Displayer {
+    type Error = anyhow::Error;
+
+    fn try_from(config: &SimpleConfig) -> Result<Self, Self::Error> {
+        Displayer::new(
+            &config.output_format,
+            config.jouleit_file.as_ref(),
+            config.output_file.as_ref(),
+        )
+    }
+}
+
+impl TryFrom<&PhasesConfig> for Displayer {
+    type Error = anyhow::Error;
+
+    fn try_from(config: &PhasesConfig) -> Result<Self, Self::Error> {
+        Displayer::new(
+            &config.output_format,
+            config.jouleit_file.as_ref(),
+            config.output_file.as_ref(),
+        )
+    }
+}
+
+impl TryFrom<&ListSensorsConfig> for Displayer {
+    type Error = anyhow::Error;
+
+    fn try_from(config: &ListSensorsConfig) -> Result<Self, Self::Error> {
+        Displayer::new(&config.output_format, None, None)
+    }
+}
+
+impl Displayer {
+    pub fn new(
+        output_format: &OutputFormat,
+        jouleit_file: Option<&String>,
+        output_file: Option<&String>,
+    ) -> Result<Self> {
+        Ok(match output_format {
+            OutputFormat::Terminal => Self::Terminal(TerminalOutput),
+            OutputFormat::Json => Self::Json(JsonOutput::new(jouleit_file.cloned())?),
+            OutputFormat::Csv => Self::Csv(CsvOutput::new(output_file.cloned())?),
+        })
+    }
+}
+
+#[enum_dispatch(Displayer)]
+pub trait OutputFormatTrait {
+    fn simple_single(&mut self, _config: &SimpleConfig, _result: &MeasurementResult) -> Result<()>;
 
     fn simple_iterations(
         &mut self,
-        _config: &Config,
-        _results: &[(usize, MeasurementResult)],
+        _config: &SimpleConfig,
+        _results: &[MeasurementResult],
     ) -> Result<()> {
-        warn!("Simple iterations not implemented for this output format");
+        error!("Simple iterations not implemented for this format");
         anyhow::bail!("Simple iterations not implemented for this format");
     }
 
-    fn phases_single(&mut self, _config: &Config, _phases: &PhasesResult) -> Result<()> {
-        warn!("Phases single not implemented for this output format");
+    fn phases_single(
+        &mut self,
+        _config: &PhasesConfig,
+        _result: &PhaseMeasurementResult,
+    ) -> Result<()> {
+        error!("Phases single not implemented for this format");
         anyhow::bail!("Phases single not implemented for this format");
     }
 
     fn phases_iterations(
         &mut self,
-        _config: &Config,
-        _results: &[(usize, PhasesResult)],
+        _config: &PhasesConfig,
+        _results: &[PhaseMeasurementResult],
     ) -> Result<()> {
-        warn!("Phases iterations not implemented for this output format");
+        error!("Phases iterations not implemented for this format");
         anyhow::bail!("Phases iterations not implemented for this format");
+    }
+
+    fn list_sensors(&mut self, _config: &ListSensorsConfig, _sensors: &[Sensor]) -> Result<()> {
+        error!("List sensors not implemented for this format");
+        anyhow::bail!("List sensors not implemented for this format");
     }
 }
 
-pub(crate) fn default_iterations_filename(ext: &str) -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    trace!("Generating default filename with extension: {}", ext);
-
+fn default_iterations_filename(ext: &str) -> String {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|e| {
-            warn!("System time is before UNIX_EPOCH: {}, using 0", e);
-            std::time::Duration::from_secs(0)
-        })
+        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
         .as_secs();
-
-    let filename = format!("data{}.{}", ts, ext);
-    debug!("Generated default filename: {}", filename);
-
-    filename
+    format!("data{}.{}", ts, ext)
 }

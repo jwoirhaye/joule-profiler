@@ -1,13 +1,11 @@
 use anyhow::Result;
-use log::{debug, info, trace, warn};
 
 use crate::{
-    config::Config,
-    measure::{MeasurementResult, PhasesResult},
-    source::metric::Metric,
+    config::{ListSensorsConfig, PhasesConfig, SimpleConfig},
+    measurement::{MeasurementResult, PhaseMeasurementResult},
+    output::OutputFormatTrait,
+    source::{Metric, Sensor},
 };
-
-use super::OutputFormat;
 
 /// Constants for formatting
 const BORDER_DOUBLE: &str = "═";
@@ -17,18 +15,110 @@ const BOX_WIDTH: usize = 50;
 #[derive(Debug, Clone, Default)]
 pub struct TerminalOutput;
 
-impl TerminalOutput {
-    pub fn new() -> Self {
-        debug!("Terminal output formatter initialized");
-        Self
+impl OutputFormatTrait for TerminalOutput {
+    fn simple_single(&mut self, config: &SimpleConfig, result: &MeasurementResult) -> Result<()> {
+        self.display_command(&config.cmd);
+        self.display_result(&result.metrics, "")
     }
 
+    fn simple_iterations(
+        &mut self,
+        config: &SimpleConfig,
+        results: &[MeasurementResult],
+    ) -> Result<()> {
+        self.display_command(&config.cmd);
+
+        for (idx, result) in results.iter().enumerate() {
+            self.display_iteration_header(idx, results.len());
+            self.display_result(&result.metrics, "")?;
+        }
+
+        Ok(())
+    }
+
+    fn phases_single(
+        &mut self,
+        config: &PhasesConfig,
+        result: &PhaseMeasurementResult,
+    ) -> Result<()> {
+        self.display_command(&config.cmd);
+
+        for phase in result.phases.iter() {
+            self.display_phase_header(
+                &phase.name,
+                phase.start_token.as_deref(),
+                phase.end_token.as_deref(),
+                phase.start_line,
+                phase.end_line,
+                "",
+            );
+            self.display_result(&phase.metrics, "")?;
+        }
+
+        Ok(())
+    }
+
+    fn phases_iterations(
+        &mut self,
+        config: &PhasesConfig,
+        results: &[PhaseMeasurementResult],
+    ) -> Result<()> {
+        if results.is_empty() {
+            return Ok(());
+        }
+
+        self.display_command(&config.cmd);
+
+        for (idx, iteration_results) in results.iter().enumerate() {
+            self.display_iteration_header(idx, results.len());
+
+            for phase in &iteration_results.phases {
+                self.display_phase_header(
+                    &phase.name,
+                    phase.start_token.as_deref(),
+                    phase.end_token.as_deref(),
+                    phase.start_line,
+                    phase.end_line,
+                    "  ",
+                );
+                self.display_result(&phase.metrics, "  ")?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn list_sensors(&mut self, _config: &ListSensorsConfig, sensors: &[Sensor]) -> Result<()> {
+        if sensors.is_empty() {
+            println!("No sensors available.");
+            return Ok(());
+        }
+
+        self.print_header("Available Sensors");
+
+        println!("  {:<20} | {:<10} | {:<15}", "Name", "Unit", "Source");
+        println!("  {}", BORDER_SINGLE.repeat(45));
+
+        for sensor in sensors {
+            println!(
+                "  {:<20} | {:<10} | {:<15}",
+                sensor.name, sensor.unit, sensor.source
+            );
+        }
+
+        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+
+        Ok(())
+    }
+}
+
+impl TerminalOutput {
     /// Display command header
-    fn display_command(&self, config: &Config) {
-        if !config.cmd.is_empty() {
+    fn display_command(&self, command: &[String]) {
+        if !command.is_empty() {
             println!();
             self.print_header("Command");
-            println!("  {}", config.cmd.join(" "));
+            println!("  {}", command.join(" "));
         }
     }
 
@@ -61,12 +151,8 @@ impl TerminalOutput {
 
     /// Display a single measurement result
     fn display_result(&self, metrics: &[Metric], prefix: &str) -> Result<()> {
-        trace!("Displaying measurement result with prefix: '{}'", prefix);
-
         println!();
         println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
-        // println!("{}  Metrics", prefix);
-        // println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
         let mut keys: Vec<_> = metrics.iter().map(|metric| &metric.name).cloned().collect();
         keys.sort_unstable();
@@ -78,17 +164,9 @@ impl TerminalOutput {
             );
         }
 
-        // let duration_s = Self::ms_to_s(res.duration_ms);
-
         // println!("{}  {:<20}: {:>10.6} s", prefix, "Duration", duration_s);
         // println!("{}  {:<20}: {:>10}", prefix, "Exit code", res.exit_code);
         println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
-
-        // trace!(
-        //     "Displayed {} metrics, duration: {:.3} s",
-        //     res.metrics.len(),
-        //     duration_s
-        // );
 
         Ok(())
     }
@@ -142,96 +220,5 @@ impl TerminalOutput {
             };
             println!("{}  End token  : {}", prefix, end_info);
         }
-    }
-}
-
-impl OutputFormat for TerminalOutput {
-    fn simple_single(&mut self, config: &Config, res: &MeasurementResult) -> Result<()> {
-        debug!("Formatting simple single measurement for terminal");
-        self.display_command(config);
-        self.display_result(&res.metrics, "")
-    }
-
-    fn simple_iterations(
-        &mut self,
-        config: &Config,
-        results: &[(usize, MeasurementResult)],
-    ) -> Result<()> {
-        info!(
-            "Formatting {} simple iterations for terminal",
-            results.len()
-        );
-
-        self.display_command(config);
-
-        for (idx, res) in results {
-            self.display_iteration_header(*idx, results.len());
-            self.display_result(&res.metrics, "")?;
-        }
-
-        Ok(())
-    }
-
-    fn phases_single(&mut self, config: &Config, phases: &PhasesResult) -> Result<()> {
-        debug!(
-            "Formatting phases single measurement for terminal ({} phases)",
-            phases.phases.len()
-        );
-
-        self.display_command(config);
-
-        for (i, phase) in phases.phases.iter().enumerate() {
-            trace!(
-                "Displaying phase {} / {}: {}",
-                i + 1,
-                phases.phases.len(),
-                phase.name
-            );
-            self.display_phase_header(
-                &phase.name,
-                phase.start_token.as_deref(),
-                phase.end_token.as_deref(),
-                phase.start_line,
-                phase.end_line,
-                "",
-            );
-            self.display_result(&phase.metrics, "")?;
-        }
-
-        Ok(())
-    }
-
-    fn phases_iterations(
-        &mut self,
-        config: &Config,
-        results: &[(usize, PhasesResult)],
-    ) -> Result<()> {
-        info!("Formatting {} phase iterations for terminal", results.len());
-
-        if results.is_empty() {
-            warn!("No phase iterations to display");
-            return Ok(());
-        }
-
-        self.display_command(config);
-
-        for (idx, iteration_results) in results {
-            self.display_iteration_header(*idx, results.len());
-
-            for phase in &iteration_results.phases {
-                trace!("Displaying phase '{}' for iteration {}", phase.name, idx);
-                self.display_phase_header(
-                    &phase.name,
-                    phase.start_token.as_deref(),
-                    phase.end_token.as_deref(),
-                    phase.start_line,
-                    phase.end_line,
-                    "  ",
-                );
-                self.display_result(&phase.metrics, "  ")?;
-            }
-        }
-
-        Ok(())
     }
 }
