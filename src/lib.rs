@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use env_logger::Env;
-use log::{debug, info, trace};
+use env_logger::Builder;
+use log::{LevelFilter, debug, info, trace};
+use std::io::Write;
 
 use crate::{
     cli::Cli,
@@ -54,16 +55,16 @@ impl JouleProfiler {
 
 /// Initializes the logging system based on verbosity flags.
 pub fn init_logging(level: u8) {
-    let lvl_str = match level {
-        0 => "warn",
-        1 => "info",
-        2 => "debug",
-        _ => "trace",
+    // Détermine le niveau de log à partir de `level`
+    let level_filter = match level {
+        0 => LevelFilter::Warn,
+        1 => LevelFilter::Info,
+        2 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
     };
 
-    let env = Env::default().default_filter_or(format!("joule_profiler={lvl_str}"));
-    env_logger::Builder::from_env(env)
-        .format_timestamp_millis()
+    Builder::new()
+        .filter_level(level_filter)
         .init();
 
     match level {
