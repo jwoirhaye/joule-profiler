@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
@@ -108,7 +108,7 @@ pub trait OutputFormatTrait {
 fn default_iterations_filename(ext: &str) -> String {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+        .unwrap_or(Duration::from_secs(0))
         .as_secs();
     format!("data{}.{}", ts, ext)
 }

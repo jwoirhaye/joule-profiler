@@ -130,7 +130,7 @@ fn measure_phases(
     }
 
     let status = child.wait().context("Failed to wait on child")?;
-    let exit_code = status.code().unwrap_or_else(|| 1);
+    let exit_code = status.code().unwrap_or(1);
 
     manager.measure()?;
 
