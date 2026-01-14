@@ -1,14 +1,36 @@
-use std::{collections::HashMap, fs::read_to_string, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::read_to_string,
+    time::Duration,
+};
 
 use anyhow::Result;
 use log::{debug, error, info, trace};
 
 use crate::{
-    error::JouleProfilerError, source::{Metric, MetricReader, Metrics, Sensor, SourceResult, rapl::{domain::RaplDomain, snapshot::{EnergySnapshot, compute_measurement_from_snapshots}}}, util::time::{duration_from_hz, get_timestamp}
+    error::JouleProfilerError,
+    source::{
+        Metric, MetricReader, MetricSource, Metrics, Sensor, SourceResult,
+        rapl::{
+            domain::{RaplDomain, get_domains},
+            snapshot::{EnergySnapshot, compute_measurement_from_snapshots},
+        },
+    },
+    util::time::{duration_from_hz, get_timestamp},
 };
 
 pub mod domain;
 pub mod snapshot;
+
+pub fn init_rapl(
+    rapl_path: Option<&str>,
+    sockets: Option<&HashSet<u32>>,
+    polling_rate_hz: Option<u64>,
+) -> Result<MetricSource> {
+    let domains = get_domains(rapl_path, sockets)?;
+    let rapl = Rapl::new(domains, polling_rate_hz);
+    Ok(MetricSource::Rapl(rapl))
+}
 
 #[derive(Clone, Debug)]
 pub struct Rapl {
@@ -107,7 +129,10 @@ impl MetricReader for Rapl {
             .collect();
 
         info!("Retrieved {} phases", measures.len());
-        Ok(SourceResult { measures, count: self.count })
+        Ok(SourceResult {
+            measures,
+            count: self.count,
+        })
     }
 
     fn get_sensors(&self) -> Result<Vec<Sensor>> {
@@ -133,27 +158,25 @@ impl MetricReader for Rapl {
         self.poll_interval
     }
 
-    fn set_polling_interval(&mut self, polling_interval: u64) {
-        self.poll_interval = Some(duration_from_hz(polling_interval));
-    }
-
     fn get_name(&self) -> &'static str {
         "Powercap"
     }
 }
 
 impl Rapl {
-    pub fn new(domains: Vec<RaplDomain>, poll_interval: Option<Duration>) -> Self {
+    /// Initialize an RAPL metric source.
+    pub fn new(domains: Vec<RaplDomain>, poll_interval: Option<u64>) -> Self {
         Rapl {
-            count: 0,
-            poll_interval,
             domains,
+            poll_interval: poll_interval.map(|hz| duration_from_hz(hz)),
+            count: 0,
             measures: Vec::new(),
             last_measure: None,
             measure_counters: HashMap::new(),
         }
     }
 
+    /// Read all RAPL domains energy consumption counter.
     pub fn read_snapshot(&self) -> Result<EnergySnapshot> {
         trace!(
             "Reading energy snapshot from {} domains",

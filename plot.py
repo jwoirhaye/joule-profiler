@@ -22,17 +22,13 @@ for path in glob.glob(os.path.join(RESULT_DIR, "poll_*.json")):
 
     points.append((f_req, f_real))
 
-# TRI NUMÉRIQUE PAR f_req
-points.sort(key=lambda x: x[0])
-
 f_req = [p[0] for p in points]
 f_real = [p[1] for p in points]
 
-# Graphe demandé vs réel
 plt.figure()
 plt.plot(f_req, f_real, marker="o")
 plt.xlabel("Requested polling frequency (Hz)")
 plt.ylabel("Real polling frequency (Hz)")
 plt.title("RAPL polling: requested vs real frequency")
 plt.grid(True)
-plt.show()
+plt.savefig("polling.png")
