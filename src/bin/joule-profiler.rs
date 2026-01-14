@@ -1,5 +1,6 @@
 use anyhow::Result;
 
-fn main() -> Result<()> {
-    joule_profiler::run()
+#[tokio::main]
+async fn main() -> Result<()> {
+    joule_profiler::run().await
 }

@@ -19,24 +19,24 @@ pub mod source;
 mod util;
 
 /// Initialize and run Joule Profiler.
-pub fn run() -> Result<()> {
+pub async fn run() -> Result<()> {
     let cli = Cli::try_parse()?;
     init_logging(cli.verbose);
 
     let config = Config::from(cli);
 
     info!("Joule Profiler starting");
-    JouleProfiler::run(&config)
+    JouleProfiler::run(&config).await
 }
 
 pub struct JouleProfiler;
 
 impl JouleProfiler {
     /// Run Joule Profiler.
-    pub fn run(config: &Config) -> Result<()> {
+    pub async fn run(config: &Config) -> Result<()> {
         match &config.mode {
-            Command::Simple(simple_config) => run_simple(simple_config),
-            Command::Phases(phases_config) => run_phases(phases_config),
+            Command::Simple(simple_config) => run_simple(simple_config).await,
+            Command::Phases(phases_config) => run_phases(phases_config).await,
             Command::ListSensors(list_sensors_config) => run_list_sensors(list_sensors_config),
         }
     }
