@@ -111,6 +111,8 @@ pub struct MeasurementResult {
     pub duration_ms: u128,
     /// Command exit code
     pub exit_code: i32,
+    /// The number of measures made by the sources
+    pub measure_count: u64,
 }
 
 impl MeasurementResult {

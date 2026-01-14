@@ -4,15 +4,7 @@ use anyhow::Result;
 use log::{debug, error, info, trace};
 
 use crate::{
-    error::JouleProfilerError,
-    source::{
-        Metric, MetricReader, Sensor,
-        powercap::{
-            domain::RaplDomain,
-            snapshot::{EnergySnapshot, compute_measurement_from_snapshots},
-        },
-    },
-    util::time::get_timestamp,
+    error::JouleProfilerError, source::{Metric, MetricReader, Metrics, Sensor, SourceResult, rapl::{domain::RaplDomain, snapshot::{EnergySnapshot, compute_measurement_from_snapshots}}}, util::time::{duration_from_hz, get_timestamp}
 };
 
 pub mod domain;
@@ -25,10 +17,12 @@ pub struct Rapl {
     last_measure: Option<EnergySnapshot>,
     measure_counters: HashMap<String, u64>,
     poll_interval: Option<Duration>,
+    count: u64,
 }
 
 impl MetricReader for Rapl {
     fn measure(&mut self) -> Result<()> {
+        self.count += 1;
         trace!("Starting RAPL measurement");
 
         let new_measure = match self.read_snapshot() {
@@ -62,7 +56,7 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    fn retrieve(&mut self) -> Result<Vec<Vec<Metric>>> {
+    fn retrieve(&mut self) -> Result<SourceResult> {
         info!("Retrieving all measures");
 
         let measure_counters = std::mem::take(&mut self.measure_counters);
@@ -75,7 +69,7 @@ impl MetricReader for Rapl {
             self.measures.push(measure_counters);
         }
 
-        let measures: Vec<Vec<Metric>> = self
+        let measures: Vec<Metrics> = self
             .measures
             .iter()
             .map(|measure| {
@@ -113,7 +107,7 @@ impl MetricReader for Rapl {
             .collect();
 
         info!("Retrieved {} phases", measures.len());
-        Ok(measures)
+        Ok(SourceResult { measures, count: self.count })
     }
 
     fn get_sensors(&self) -> Result<Vec<Sensor>> {
@@ -139,6 +133,10 @@ impl MetricReader for Rapl {
         self.poll_interval
     }
 
+    fn set_polling_interval(&mut self, polling_interval: u64) {
+        self.poll_interval = Some(duration_from_hz(polling_interval));
+    }
+
     fn get_name(&self) -> &'static str {
         "Powercap"
     }
@@ -147,6 +145,7 @@ impl MetricReader for Rapl {
 impl Rapl {
     pub fn new(domains: Vec<RaplDomain>, poll_interval: Option<Duration>) -> Self {
         Rapl {
+            count: 0,
             poll_interval,
             domains,
             measures: Vec::new(),

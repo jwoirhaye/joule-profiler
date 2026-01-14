@@ -24,7 +24,8 @@ impl OutputFormatTrait for JsonOutput {
             "mode": "simple",
             "metrics": result.metrics,
             "duration_ms": result.duration_ms,
-            "exit_code": result.exit_code
+            "exit_code": result.exit_code,
+            "measure_count": result.measure_count,
         });
 
         self.write_json(&obj)
@@ -40,13 +41,14 @@ impl OutputFormatTrait for JsonOutput {
         let iters: Vec<_> = results
             .iter()
             .enumerate()
-            .map(|(idx, res)| {
+            .map(|(idx, result)| {
                 trace!("Formatting iteration {}", idx + 1);
                 json!({
                     "iteration": idx + 1,
-                    "metrics": res.metrics,
-                    "duration_ms": res.duration_ms,
-                    "exit_code": res.exit_code
+                    "metrics": result.metrics,
+                    "duration_ms": result.duration_ms,
+                    "exit_code": result.exit_code,
+                    "measure_count": result.measure_count,
                 })
             })
             .collect();

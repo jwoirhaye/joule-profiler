@@ -14,6 +14,7 @@ pub fn run_simple(manager: &mut SourceManager, config: &SimpleConfig) -> Result<
     info!("Running simple mode");
     let mut results = Vec::new();
 
+
     debug!("Simple mode with {} iteration(s)", config.iterations);
     for _ in 0..config.iterations {
         manager.start_workers();
@@ -42,12 +43,15 @@ fn measure_simple(manager: &mut SourceManager, command: &[String]) -> Result<Mea
 
     let end_time = get_timestamp();
 
-    let mut metrics: Vec<Metric> = manager.join()?.into_iter().flatten().collect();
+    let result = manager.join()?;
+
+    let mut metrics: Vec<Metric> = result.measures.into_iter().flatten().collect();
     metrics.sort_by_key(|metric| metric.name.clone());
 
     Ok(MeasurementResult {
         exit_code,
         duration_ms: end_time - begin_time,
+        measure_count: result.count,
         metrics,
     })
 }
