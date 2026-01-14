@@ -13,16 +13,23 @@ use crate::{
     error::JouleProfilerError,
     measurement::{Phase, PhaseMeasurementResult, PhaseResult, PhaseToken},
     output::{Displayer, OutputFormatTrait},
-    source::SourceManager,
+    source::{SourceManager, rapl::init_rapl},
     util::{file::create_file_with_user_permissions, time::get_timestamp},
 };
 
-pub fn run_phases(manager: &mut SourceManager, config: &PhasesConfig) -> Result<()> {
+pub fn run_phases(config: &PhasesConfig) -> Result<()> {
+    let sources = vec![init_rapl(
+        config.rapl_path.as_deref(),
+        config.sockets.as_ref(),
+        config.rapl_polling,
+    )?];
+    let mut manager = SourceManager::new(sources);
+
     let mut results = Vec::new();
 
     for _ in 0..config.iterations {
         manager.start_workers();
-        results.push(measure_phases(manager, config)?);
+        results.push(measure_phases(&mut manager, config)?);
     }
 
     let mut displayer = Displayer::try_from(config)?;

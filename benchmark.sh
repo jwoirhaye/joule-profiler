@@ -10,16 +10,17 @@ DURATION=3
 OUTDIR=bench_results
 mkdir -p "$OUTDIR"
 
-for POLL in $(seq 1000 1000 50000); do
+for POLL in $(seq 1000 1000 30000); do
     echo "===> Testing polling = ${POLL} ms"
 
+    sleep 1
     START=$(date +%s.%N)
 
     sudo $BIN \
-        --rapl-polling "$POLL" \
         simple \
         --jouleit-file $OUTDIR/poll_${POLL}.json \
         --json \
+        --rapl-polling "$POLL" \
         -- \
         "$WORKLOAD" "$DURATION"
 
@@ -30,7 +31,6 @@ for POLL in $(seq 1000 1000 50000); do
 
     echo "$POLL,$EXIT_CODE,$ELAPSED" >> "$OUTDIR/results.csv"
 
-    # Stop si crash ou trop lent
     if [ "$EXIT_CODE" -ne 0 ]; then
         echo "❌ Failure at polling=$POLL"
         break

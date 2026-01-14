@@ -7,10 +7,6 @@ use crate::{
     cli::Cli,
     command::{list_sensors::run_list_sensors, phases::run_phases, simple::run_simple},
     config::{Command, Config},
-    source::{
-        MetricSource, SourceManager,
-        rapl::{Rapl, domain::get_domains},
-    }, util::time::duration_from_hz,
 };
 
 pub mod cli;
@@ -22,32 +18,26 @@ mod output;
 pub mod source;
 mod util;
 
+/// Initialize and run Joule Profiler.
 pub fn run() -> Result<()> {
     let cli = Cli::try_parse()?;
     init_logging(cli.verbose);
 
     let config = Config::from(cli);
-    let domains = get_domains(config.rapl_path.as_deref(), config.sockets.as_ref())?;
-
-    let rapl = Rapl::new(domains, config.rapl_polling.map(|hz| duration_from_hz(hz)));
-    let sources = vec![MetricSource::Rapl(rapl)];
 
     info!("Joule Profiler starting");
-    JouleProfiler::run(sources, &config)
+    JouleProfiler::run(&config)
 }
 
 pub struct JouleProfiler;
 
 impl JouleProfiler {
-    pub fn run(sources: Vec<MetricSource>, config: &Config) -> Result<()> {
-        let mut manager = SourceManager::new(sources);
-
+    /// Run Joule Profiler.
+    pub fn run(config: &Config) -> Result<()> {
         match &config.mode {
-            Command::Simple(simple_config) => run_simple(&mut manager, simple_config),
-            Command::Phases(phases_config) => run_phases(&mut manager, phases_config),
-            Command::ListSensors(list_sensors_config) => {
-                run_list_sensors(&manager, list_sensors_config)
-            }
+            Command::Simple(simple_config) => run_simple(simple_config),
+            Command::Phases(phases_config) => run_phases(phases_config),
+            Command::ListSensors(list_sensors_config) => run_list_sensors(list_sensors_config),
         }
     }
 }

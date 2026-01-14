@@ -11,6 +11,7 @@ const ROOT_UID_ENV_VAR: &str = "SUDO_UID";
 const ROOT_GID_ENV_VAR: &str = "SUDO_GID";
 const URW_GRW_OR_PERMS: u32 = 0o664;
 
+/// Create a file with user permissions in case of running with root permissions.
 pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
     let file = OpenOptions::new()
         .write(true)
@@ -33,6 +34,7 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
     Ok(file)
 }
 
+/// Get the absolute path of a file.
 pub fn get_absolute_path(filename: &str) -> Result<String> {
     let path = PathBuf::from(filename);
     let absolute_path = if path.is_absolute() {
