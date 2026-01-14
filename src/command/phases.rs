@@ -17,7 +17,7 @@ use crate::{
     util::{file::create_file_with_user_permissions, time::get_timestamp},
 };
 
-pub fn run_phases(config: &PhasesConfig) -> Result<()> {
+pub async  fn run_phases(config: &PhasesConfig) -> Result<()> {
     let sources = vec![init_rapl(
         config.rapl_path.as_deref(),
         config.sockets.as_ref(),
@@ -28,8 +28,8 @@ pub fn run_phases(config: &PhasesConfig) -> Result<()> {
     let mut results = Vec::new();
 
     for _ in 0..config.iterations {
-        manager.start_workers();
-        results.push(measure_phases(&mut manager, config)?);
+        manager.start_workers().await;
+        results.push(measure_phases(&mut manager, config).await?);
     }
 
     let mut displayer = Displayer::try_from(config)?;
@@ -42,7 +42,7 @@ pub fn run_phases(config: &PhasesConfig) -> Result<()> {
     Ok(())
 }
 
-fn measure_phases(
+async fn measure_phases(
     manager: &mut SourceManager,
     config: &PhasesConfig,
 ) -> Result<PhaseMeasurementResult> {
@@ -52,7 +52,7 @@ fn measure_phases(
 
     let mut phases = Vec::new();
 
-    manager.start()?;
+    manager.start().await?;
 
     let begin_timestamp = get_timestamp();
     phases.push(Phase {
@@ -61,7 +61,7 @@ fn measure_phases(
         line_number: None,
     });
 
-    manager.measure()?;
+    manager.measure().await?;
 
     let mut command = Command::new(&config.cmd[0]);
     if config.cmd.len() > 1 {
@@ -126,7 +126,7 @@ fn measure_phases(
 
             let phase_timestamp = get_timestamp();
 
-            manager.phase()?;
+            manager.phase().await?;
 
             phases.push(Phase {
                 token: PhaseToken::Token(token),
@@ -139,7 +139,7 @@ fn measure_phases(
     let status = child.wait().context("Failed to wait on child")?;
     let exit_code = status.code().unwrap_or(1);
 
-    manager.measure()?;
+    manager.measure().await?;
 
     let end_timestamp = get_timestamp();
     phases.push(Phase {
@@ -148,7 +148,7 @@ fn measure_phases(
         line_number: None,
     });
 
-    let sources_result = manager.join()?;
+    let sources_result = manager.join().await?;
     let mut phases_measurements = Vec::with_capacity(phases.len());
 
     for (i, phases) in phases.windows(2).enumerate() {

@@ -95,8 +95,6 @@ impl MetricReader for Rapl {
             .measures
             .iter()
             .map(|measure| {
-                let mut total_uj = 0;
-                let mut has_psys = false;
                 let mut map: Vec<Metric> = Vec::with_capacity(measure.len() + 1);
 
                 for (domain_name, value) in measure.iter() {
@@ -106,24 +104,7 @@ impl MetricReader for Rapl {
                         unit: "µJ".to_string(),
                         source: "powercap".to_string(),
                     });
-
-                    if domain_name.starts_with("PSYS") {
-                        total_uj = *value;
-                        has_psys = true;
-                    } else if !has_psys
-                        && (domain_name.starts_with("PACKAGE") || domain_name.starts_with("DRAM"))
-                    {
-                        total_uj += *value;
-                    }
                 }
-
-                map.push(Metric {
-                    name: "total_µJ".to_string(),
-                    value: total_uj,
-                    unit: "µJ".to_string(),
-                    source: "powercap".to_string(),
-                });
-
                 map
             })
             .collect();

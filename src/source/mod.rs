@@ -1,20 +1,11 @@
-use std::{
-    ffi::c_void,
-    os::fd::RawFd,
-    thread::{self, JoinHandle},
-    time::Duration,
-};
+use std::time::Duration;
 
-use anyhow::{Result, bail};
-use crossbeam_channel::{Receiver, Sender};
+use anyhow::{Result};
+use async_channel::{Receiver, Sender};
 use enum_dispatch::enum_dispatch;
-use libc::{
-    CLOCK_MONOTONIC, EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLLIN, TFD_CLOEXEC, TFD_NONBLOCK,
-    epoll_create1, epoll_ctl, epoll_event, epoll_wait, itimerspec, pipe, timerfd_create,
-    timerfd_settime, timespec,
-};
 use log::{error, info};
 use serde::Serialize;
+use tokio::{select, task::JoinHandle, time::{MissedTickBehavior, interval}};
 
 use crate::source::rapl::Rapl;
 
@@ -88,23 +79,23 @@ impl SourceManager {
     }
 
     /// Start the metrics sources worker threads.
-    pub fn start_workers(&mut self) {
+    pub async fn start_workers(&mut self) {
         let sources = self.sources.clone();
         let mut senders = Vec::new();
         let mut handles = Vec::new();
 
         for source in sources {
-            let (tx, rx) = crossbeam_channel::bounded(4);
+            let (tx, rx) = async_channel::bounded(4);
             senders.push(tx.clone());
 
-            let handle = thread::spawn(move || {
+            let handle = tokio::spawn(async move {
                 let poll_interval = source.get_polling_interval();
 
                 info!("Worker started for source {:?}", source.get_name());
 
                 match poll_interval {
-                    Some(interval) => run_worker_with_polling(source, rx, interval),
-                    None => run_worker_event_only(source, rx),
+                    Some(interval) => run_worker_with_polling(source, rx, interval).await,
+                    None => run_worker_event_only(source, rx).await,
                 }
             });
 
@@ -116,48 +107,48 @@ impl SourceManager {
     }
 
     /// Send an event to each metrics source.
-    pub fn send_event(&self, event: SourceEvent) -> Result<()> {
+    pub async fn send_event(&self, event: SourceEvent) -> Result<()> {
         for sender in &self.senders {
-            sender.send(event)?;
+            sender.send(event).await?;
         }
         Ok(())
     }
 
     /// Start the polling of a metrics source if enabled.
-    pub fn start(&self) -> Result<()> {
-        self.send_event(SourceEvent::Start)
+    pub async fn start(&self) -> Result<()> {
+        self.send_event(SourceEvent::Start).await
     }
 
     /// Measure the metrics of each metrics source.
-    pub fn measure(&self) -> Result<()> {
-        self.send_event(SourceEvent::Measure)
+    pub async fn measure(&self) -> Result<()> {
+        self.send_event(SourceEvent::Measure).await
     }
 
     /// Initialize a new phase for each metrics source.
-    pub fn phase(&self) -> Result<()> {
-        self.send_event(SourceEvent::Phase)
+    pub async fn phase(&self) -> Result<()> {
+        self.send_event(SourceEvent::Phase).await
     }
 
     /// Pause the polling of a metrics source if enabled.
-    pub fn pause(&self) -> Result<()> {
-        self.send_event(SourceEvent::Pause)
+    pub async fn pause(&self) -> Result<()> {
+        self.send_event(SourceEvent::Pause).await
     }
 
     /// Stop the worker thread of each metrics sources to join threads gracefully.
-    pub fn stop(&self) -> Result<()> {
-        self.send_event(SourceEvent::Stop)
+    pub async fn stop(&self) -> Result<()> {
+        self.send_event(SourceEvent::Stop).await
     }
 
     /// Gracefully shutdown all the workers.
-    pub fn join(&mut self) -> Result<SourceResult> {
+    pub async fn join(&mut self) -> Result<SourceResult> {
         info!("Stopping all workers");
-        self.stop()?;
+        self.stop().await?;
 
         let handles = std::mem::take(&mut self.handles);
         let mut all_phases = Vec::new();
 
         for handle in handles {
-            match handle.join() {
+            match handle.await {
                 Ok(Ok(phases)) => all_phases.push(phases),
                 Ok(Err(e)) => error!("Worker returned error: {:?}", e),
                 Err(_) => error!("Worker panicked"),
@@ -203,21 +194,21 @@ pub struct Sensor {
 }
 
 /// Start a worker without polling.
-fn run_worker_event_only<S: MetricReader>(
+async fn run_worker_event_only<S: MetricReader>(
     mut source: S,
     rx: Receiver<SourceEvent>,
 ) -> Result<SourceResult> {
     loop {
-        match rx.recv() {
+        match rx.recv().await {
             Ok(SourceEvent::Stop) => return source.retrieve(),
-            Ok(event) => handle_event(&mut source, event),
+            Ok(event) => handle_event_no_polling(&mut source, event),
             Err(_) => return source.retrieve(),
         }
     }
 }
 
 /// Handle an event for a no-polling worker (only phase and measure events supported).
-fn handle_event<S: MetricReader>(source: &mut S, event: SourceEvent) {
+fn handle_event_no_polling<S: MetricReader>(source: &mut S, event: SourceEvent) {
     match event {
         SourceEvent::Phase => {
             if let Err(e) = source.phase() {
@@ -233,114 +224,36 @@ fn handle_event<S: MetricReader>(source: &mut S, event: SourceEvent) {
     }
 }
 
-/// Run a worker with polling enabled, uses timerfd and epoll for maximum performance.
-fn run_worker_with_polling<S: MetricReader>(
+async fn run_worker_with_polling<S: MetricReader>(
     mut source: S,
     rx: Receiver<SourceEvent>,
-    interval: Duration,
+    polling_interval: Duration,
 ) -> Result<SourceResult> {
-    let timer_fd = unsafe { timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC) };
-
-    if timer_fd < 0 {
-        bail!("timerfd_create failed");
-    }
-
-    let timer_interval = itimerspec {
-        it_interval: timespec {
-            tv_sec: interval.as_secs() as i64,
-            tv_nsec: interval.subsec_nanos() as i64,
-        },
-        it_value: timespec {
-            tv_sec: interval.as_secs() as i64,
-            tv_nsec: interval.subsec_nanos() as i64,
-        },
-    };
-
-    if unsafe { timerfd_settime(timer_fd, 0, &timer_interval, std::ptr::null_mut()) } != 0 {
-        anyhow::bail!("timerfd_settime failed");
-    }
-
-    let mut pipe_fds = [0; 2];
-    unsafe {
-        if pipe(pipe_fds.as_mut_ptr()) != 0 {
-            anyhow::bail!("pipe failed");
-        }
-    }
-    let pipe_r = pipe_fds[0];
-    let pipe_w = pipe_fds[1];
+    let mut polling_active = true;
 
     let rx_clone = rx.clone();
-    thread::spawn(move || {
-        while let Ok(event) = rx_clone.recv() {
-            let byte = match event {
-                SourceEvent::Start => 1u8,
-                SourceEvent::Pause => 2u8,
-                SourceEvent::Stop => 3u8,
-                SourceEvent::Measure => 4u8,
-                SourceEvent::Phase => 5u8,
-            };
-            let _ = unsafe { libc::write(pipe_w, &byte as *const u8 as *const _, 1) };
-        }
-    });
 
-    let epfd = unsafe {
-        let fd = epoll_create1(EPOLL_CLOEXEC);
-        if fd < 0 {
-            anyhow::bail!("epoll_create1 failed");
-        }
-        fd
-    };
-
-    let mut ev = epoll_event {
-        events: EPOLLIN as u32,
-        u64: timer_fd as u64,
-    };
-    if unsafe { epoll_ctl(epfd, EPOLL_CTL_ADD, timer_fd, &mut ev) != 0 } {
-        anyhow::bail!("epoll_ctl add timer_fd failed");
-    }
-
-    let mut ev_pipe = epoll_event {
-        events: EPOLLIN as u32,
-        u64: pipe_r as u64,
-    };
-    if unsafe { epoll_ctl(epfd, EPOLL_CTL_ADD, pipe_r, &mut ev_pipe) != 0 } {
-        anyhow::bail!("epoll_ctl add pipe_r failed");
-    }
-
-    let mut polling_active = true;
-    let mut events = [epoll_event { events: 0, u64: 0 }; 10];
+    let mut reload_timer = interval(polling_interval);
+    reload_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
     loop {
-        let nfds = unsafe { epoll_wait(epfd, events.as_mut_ptr(), events.len() as i32, -1) };
-        if nfds < 0 {
-            anyhow::bail!("epoll_wait failed");
-        }
-
-        for i in 0..nfds as usize {
-            let fd = events[i].u64 as RawFd;
-
-            if fd == timer_fd && polling_active {
-                source.measure()?;
-                let mut buf: u64 = 0;
-                unsafe { libc::read(timer_fd, &mut buf as *mut u64 as *mut c_void, 8) };
+        select! {
+            Ok(event) = rx_clone.recv() => {
+                match event {
+                    SourceEvent::Start => polling_active = true,
+                    SourceEvent::Pause => polling_active = false,
+                    SourceEvent::Stop => return source.retrieve(),
+                    SourceEvent::Measure => {
+                        source.measure()?;
+                    },
+                    SourceEvent::Phase => {
+                        source.phase()?;
+                    },
+                }
             }
-
-            if fd == pipe_r {
-                let mut byte = [0u8; 1];
-                let n = unsafe { libc::read(pipe_r, byte.as_mut_ptr() as *mut _, 1) };
-                if n > 0 {
-                    match byte[0] {
-                        1 => polling_active = true,
-                        2 => polling_active = false,
-                        3 => return source.retrieve(),
-                        4 => {
-                            source.measure()?;
-                        }
-                        5 => {
-                            source.phase()?;
-                        }
-                        _ => {}
-                    }
+            _ = reload_timer.tick() => {
+                if polling_active {
+                    source.measure()?;
                 }
             }
         }
