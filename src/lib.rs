@@ -9,8 +9,8 @@ use crate::{
     config::{Command, Config},
     source::{
         MetricSource, SourceManager,
-        powercap::{Rapl, domain::get_domains},
-    },
+        rapl::{Rapl, domain::get_domains},
+    }, util::time::duration_from_hz,
 };
 
 pub mod cli;
@@ -29,7 +29,7 @@ pub fn run() -> Result<()> {
     let config = Config::from(cli);
     let domains = get_domains(config.rapl_path.as_deref(), config.sockets.as_ref())?;
 
-    let rapl = Rapl::new(domains, None);
+    let rapl = Rapl::new(domains, config.rapl_polling.map(|hz| duration_from_hz(hz)));
     let sources = vec![MetricSource::Rapl(rapl)];
 
     info!("Joule Profiler starting");

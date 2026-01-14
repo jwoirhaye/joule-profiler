@@ -141,12 +141,12 @@ fn measure_phases(
         line_number: None,
     });
 
-    let sources_phases = manager.join()?;
+    let sources_result = manager.join()?;
     let mut phases_measurements = Vec::with_capacity(phases.len());
 
     for (i, phases) in phases.windows(2).enumerate() {
         let (begin_phase, end_phase) = (&phases[0], &phases[1]);
-        let metrics = sources_phases[i].clone();
+        let metrics = sources_result.measures[i].clone();
         let duration_ms = end_phase.timestamp - begin_phase.timestamp;
 
         let phase_mesurement = PhaseResult::new(

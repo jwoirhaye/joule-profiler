@@ -26,6 +26,9 @@ pub struct Cli {
 
     #[command(subcommand)]
     pub command: ProfilerCommand,
+
+    #[arg(long="rapl-polling", help = "Polling interval in ms for RAPL counters")]
+    pub rapl_polling: Option<u64>,
 }
 
 /// Subcommands of joule-profiler
