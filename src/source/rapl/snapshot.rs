@@ -10,6 +10,7 @@ pub struct EnergySnapshot {
     pub energies_uj: HashMap<String, u64>,
     pub timestamp_us: u128,
 }
+
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
     domains: &[RaplDomain],
@@ -80,6 +81,7 @@ pub fn compute_measurement_from_snapshots(
     Ok(energy_uj)
 }
 
+/// Compute the energy difference between two measures, handle overflows with max value.
 fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
     if end >= start {
         end - start

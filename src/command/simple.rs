@@ -6,19 +6,26 @@ use crate::{
     config::SimpleConfig,
     measurement::MeasurementResult,
     output::{Displayer, OutputFormatTrait},
-    source::{Metric, SourceManager},
+    source::{Metric, SourceManager, rapl::init_rapl},
     util::time::get_timestamp,
 };
 
-pub fn run_simple(manager: &mut SourceManager, config: &SimpleConfig) -> Result<()> {
+pub fn run_simple(config: &SimpleConfig) -> Result<()> {
     info!("Running simple mode");
-    let mut results = Vec::new();
 
+    let sources = vec![init_rapl(
+        config.rapl_path.as_deref(),
+        config.sockets.as_ref(),
+        config.rapl_polling,
+    )?];
+    let mut manager = SourceManager::new(sources);
+
+    let mut results = Vec::new();
 
     debug!("Simple mode with {} iteration(s)", config.iterations);
     for _ in 0..config.iterations {
         manager.start_workers();
-        results.push(measure_simple(manager, &config.cmd)?);
+        results.push(measure_simple(&mut manager, &config.cmd)?);
     }
 
     let mut displayer = Displayer::try_from(config)?;

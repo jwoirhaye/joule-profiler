@@ -26,9 +26,6 @@ pub struct Cli {
 
     #[command(subcommand)]
     pub command: ProfilerCommand,
-
-    #[arg(long="rapl-polling", help = "Polling interval in ms for RAPL counters")]
-    pub rapl_polling: Option<u64>,
 }
 
 /// Subcommands of joule-profiler
@@ -70,6 +67,9 @@ pub struct CommonArgs {
     /// Command to execute (everything after `--`)
     #[arg(last = true)]
     pub cmd: Vec<String>,
+
+    #[arg(long = "rapl-polling")]
+    pub rapl_polling: Option<u64>,
 }
 
 /// Arguments for Simple mode

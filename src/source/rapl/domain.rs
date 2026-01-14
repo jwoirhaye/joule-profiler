@@ -34,6 +34,7 @@ pub fn check_os() -> Result<()> {
     }
 }
 
+/// Retrieve the RAPL domains on the machine, filtered with spec if one is provided.
 pub fn get_domains(
     base_path: Option<&str>,
     spec: Option<&HashSet<u32>>,
@@ -248,6 +249,7 @@ pub fn rapl_base_path(config_override: Option<&str>) -> String {
     default_path.to_string()
 }
 
+/// Filter RAPL sockets with specified spec.
 pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>) -> Vec<u32> {
     let mut sockets = discover_sockets(domains);
     if let Some(spec) = spec {
