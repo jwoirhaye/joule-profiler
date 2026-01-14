@@ -18,6 +18,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 regex = "1.12.2"
 enum_dispatch = "0.3.13"
 crossbeam-channel = "0.5.15"
+libc = "0.2.180"
 
 [dev-dependencies]
 serial_test = "3.0"

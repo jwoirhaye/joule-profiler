@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use log::{debug, error, info, trace};
 
-use crate::{error::JouleProfilerError, source::powercap::domain::RaplDomain};
+use crate::{error::JouleProfilerError, source::rapl::domain::RaplDomain};
 
 #[derive(Debug, Clone)]
 pub struct EnergySnapshot {

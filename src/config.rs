@@ -37,6 +37,7 @@ pub struct Config {
     pub rapl_path: Option<String>,
     pub sockets: Option<HashSet<u32>>,
     pub mode: Command,
+    pub rapl_polling: Option<u64>
 }
 
 impl From<Cli> for Config {
@@ -77,6 +78,7 @@ impl From<Cli> for Config {
         };
 
         Config {
+            rapl_polling: cli.rapl_polling,
             rapl_path: cli.rapl_path,
             sockets,
             mode,
