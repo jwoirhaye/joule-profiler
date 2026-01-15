@@ -5,7 +5,7 @@ use std::io::Write;
 use anyhow::Result;
 use log::{debug, info, trace, warn};
 
-use crate::config::{ListSensorsConfig, PhasesConfig, SimpleConfig};
+use crate::config::{ListSensorsConfig, ProfileConfig};
 use crate::measurement::{MeasurementResult, PhaseMeasurementResult, PhaseResult};
 use crate::output::OutputFormatTrait;
 use crate::source::Sensor;
@@ -46,7 +46,7 @@ pub struct CsvOutput {
 }
 
 impl OutputFormatTrait for CsvOutput {
-    fn simple_single(&mut self, config: &SimpleConfig, result: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, config: &ProfileConfig, result: &MeasurementResult) -> Result<()> {
         debug!("Formatting simple single measurement for CSV");
         let keys: Vec<&String> = result.metrics.iter().map(|metric| &metric.name).collect();
 
@@ -59,7 +59,7 @@ impl OutputFormatTrait for CsvOutput {
 
     fn simple_iterations(
         &mut self,
-        config: &SimpleConfig,
+        config: &ProfileConfig,
         results: &[MeasurementResult],
     ) -> Result<()> {
         info!("Formatting {} simple iterations for CSV", results.len());
@@ -86,7 +86,7 @@ impl OutputFormatTrait for CsvOutput {
 
     fn phases_single(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         result: &PhaseMeasurementResult,
     ) -> Result<()> {
         debug!(
@@ -122,7 +122,7 @@ impl OutputFormatTrait for CsvOutput {
 
     fn phases_iterations(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         results: &[PhaseMeasurementResult],
     ) -> Result<()> {
         info!("Formatting {} phase iterations for CSV", results.len());

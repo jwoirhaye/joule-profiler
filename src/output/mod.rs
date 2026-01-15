@@ -5,7 +5,7 @@ use enum_dispatch::enum_dispatch;
 use log::error;
 
 use crate::{
-    config::{ListSensorsConfig, OutputFormat, PhasesConfig, SimpleConfig},
+    config::{ListSensorsConfig, OutputFormat, ProfileConfig},
     measurement::{MeasurementResult, PhaseMeasurementResult},
     output::{csv::CsvOutput, json::JsonOutput, terminal::TerminalOutput},
     source::Sensor,
@@ -22,18 +22,10 @@ pub enum Displayer {
     Csv(CsvOutput),
 }
 
-impl TryFrom<&SimpleConfig> for Displayer {
+impl TryFrom<&ProfileConfig> for Displayer {
     type Error = anyhow::Error;
 
-    fn try_from(config: &SimpleConfig) -> Result<Self, Self::Error> {
-        Displayer::new(&config.output_format, config.jouleit_file.as_ref())
-    }
-}
-
-impl TryFrom<&PhasesConfig> for Displayer {
-    type Error = anyhow::Error;
-
-    fn try_from(config: &PhasesConfig) -> Result<Self, Self::Error> {
+    fn try_from(config: &ProfileConfig) -> Result<Self, Self::Error> {
         Displayer::new(&config.output_format, config.jouleit_file.as_ref())
     }
 }
@@ -58,11 +50,11 @@ impl Displayer {
 
 #[enum_dispatch(Displayer)]
 pub trait OutputFormatTrait {
-    fn simple_single(&mut self, _config: &SimpleConfig, _result: &MeasurementResult) -> Result<()>;
+    fn simple_single(&mut self, _config: &ProfileConfig, _result: &MeasurementResult) -> Result<()>;
 
     fn simple_iterations(
         &mut self,
-        _config: &SimpleConfig,
+        _config: &ProfileConfig,
         _results: &[MeasurementResult],
     ) -> Result<()> {
         error!("Simple iterations not implemented for this format");
@@ -71,7 +63,7 @@ pub trait OutputFormatTrait {
 
     fn phases_single(
         &mut self,
-        _config: &PhasesConfig,
+        _config: &ProfileConfig,
         _result: &PhaseMeasurementResult,
     ) -> Result<()> {
         error!("Phases single not implemented for this format");
@@ -80,7 +72,7 @@ pub trait OutputFormatTrait {
 
     fn phases_iterations(
         &mut self,
-        _config: &PhasesConfig,
+        _config: &ProfileConfig,
         _results: &[PhaseMeasurementResult],
     ) -> Result<()> {
         error!("Phases iterations not implemented for this format");

@@ -6,7 +6,7 @@ use log::{LevelFilter, debug, info, trace};
 use crate::{
     cli::Cli,
     command::{list_sensors::run_list_sensors, phases::run_phases, simple::run_simple},
-    config::{Command, Config},
+    config::{Command, Config, ProfileConfig},
 };
 
 pub mod cli;
@@ -35,9 +35,15 @@ impl JouleProfiler {
     /// Run Joule Profiler.
     pub async fn run(config: &Config) -> Result<()> {
         match &config.mode {
-            Command::Simple(simple_config) => run_simple(simple_config).await,
-            Command::Phases(phases_config) => run_phases(phases_config).await,
-            Command::ListSensors(list_sensors_config) => run_list_sensors(list_sensors_config),
+            Command::Profile(profile_config) => Self::profile(profile_config).await,
+            Command::ListSensors(list_config) => run_list_sensors(list_config),
+        }
+    }
+
+    pub async fn profile(config: &ProfileConfig) -> Result<()> {
+        match &config.mode {
+            config::Mode::SimpleMode => run_simple(config).await,
+            config::Mode::PhaseMode(phases_config) => run_phases(config, phases_config).await,
         }
     }
 }

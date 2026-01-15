@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    config::{ListSensorsConfig, PhasesConfig, SimpleConfig},
+    config::{ListSensorsConfig, ProfileConfig},
     measurement::{MeasurementResult, PhaseMeasurementResult},
     output::OutputFormatTrait,
     source::{Metric, Sensor},
@@ -16,14 +16,14 @@ const BOX_WIDTH: usize = 50;
 pub struct TerminalOutput;
 
 impl OutputFormatTrait for TerminalOutput {
-    fn simple_single(&mut self, config: &SimpleConfig, result: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, config: &ProfileConfig, result: &MeasurementResult) -> Result<()> {
         self.display_command(&config.cmd);
         self.display_result(&result.metrics, "")
     }
 
     fn simple_iterations(
         &mut self,
-        config: &SimpleConfig,
+        config: &ProfileConfig,
         results: &[MeasurementResult],
     ) -> Result<()> {
         self.display_command(&config.cmd);
@@ -38,7 +38,7 @@ impl OutputFormatTrait for TerminalOutput {
 
     fn phases_single(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         result: &PhaseMeasurementResult,
     ) -> Result<()> {
         self.display_command(&config.cmd);
@@ -60,7 +60,7 @@ impl OutputFormatTrait for TerminalOutput {
 
     fn phases_iterations(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         results: &[PhaseMeasurementResult],
     ) -> Result<()> {
         if results.is_empty() {

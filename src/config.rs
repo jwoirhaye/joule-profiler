@@ -2,7 +2,7 @@ use crate::cli::{Cli, ProfilerCommand};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
-pub struct SimpleConfig {
+pub struct ProfileConfig {
     pub iterations: usize,
     pub output_format: OutputFormat,
     pub jouleit_file: Option<String>,
@@ -11,19 +11,18 @@ pub struct SimpleConfig {
     pub sockets: Option<HashSet<u32>>,
     pub rapl_polling: Option<u64>,
     pub rapl_path: Option<String>,
+    pub mode: Mode,
+}
+
+#[derive(Debug, Clone)]
+pub enum Mode {
+    SimpleMode,
+    PhaseMode(PhasesConfig)
 }
 
 #[derive(Debug, Clone)]
 pub struct PhasesConfig {
     pub token_pattern: String,
-    pub iterations: usize,
-    pub output_format: OutputFormat,
-    pub jouleit_file: Option<String>,
-    pub output_file: Option<String>,
-    pub cmd: Vec<String>,
-    pub sockets: Option<HashSet<u32>>,
-    pub rapl_polling: Option<u64>,
-    pub rapl_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,8 +33,7 @@ pub struct ListSensorsConfig {
 
 #[derive(Debug, Clone)]
 pub enum Command {
-    Simple(SimpleConfig),
-    Phases(PhasesConfig),
+    Profile(ProfileConfig),
     ListSensors(ListSensorsConfig),
 }
 
@@ -56,7 +54,8 @@ impl From<Cli> for Config {
             ProfilerCommand::Simple(simple) => {
                 let common = simple.common;
                 let output_format = output_format(common.json, common.csv);
-                Command::Simple(SimpleConfig {
+
+                Command::Profile(ProfileConfig {
                     iterations: common.iterations.unwrap_or(1),
                     output_format,
                     jouleit_file: common.jouleit_file,
@@ -64,14 +63,15 @@ impl From<Cli> for Config {
                     cmd: common.cmd,
                     rapl_polling: common.rapl_polling,
                     rapl_path: cli.rapl_path,
+                    mode: Mode::SimpleMode,
                     sockets,
                 })
             }
             ProfilerCommand::Phases(phases) => {
+
                 let common = phases.common;
                 let output_format = output_format(common.json, common.csv);
-                Command::Phases(PhasesConfig {
-                    token_pattern: phases.token_pattern,
+                Command::Profile(ProfileConfig {
                     iterations: common.iterations.unwrap_or(1),
                     output_format,
                     jouleit_file: common.jouleit_file,
@@ -79,9 +79,11 @@ impl From<Cli> for Config {
                     cmd: common.cmd,
                     rapl_polling: common.rapl_polling,
                     rapl_path: cli.rapl_path,
+                    mode: Mode::PhaseMode(PhasesConfig { token_pattern: phases.token_pattern }),
                     sockets,
                 })
             }
+            
             ProfilerCommand::ListSensors(list) => Command::ListSensors(ListSensorsConfig {
                 output_format: output_format(list.json, list.csv),
                 rapl_path: cli.rapl_path,
