@@ -2,15 +2,10 @@ use anyhow::Result;
 use log::{debug, info};
 
 use crate::{
-    command::run_command,
-    config::SimpleConfig,
-    measurement::MeasurementResult,
-    output::{Displayer, OutputFormatTrait},
-    source::{Metric, SourceManager, rapl::init_rapl},
-    util::time::get_timestamp,
+    command::run_command, config::ProfileConfig, measurement::MeasurementResult, output::{Displayer, OutputFormatTrait}, source::{Metric, SourceManager, rapl::init_rapl}, util::time::get_timestamp
 };
 
-pub async fn run_simple(config: &SimpleConfig) -> Result<()> {
+pub async fn run_simple(config: &ProfileConfig) -> Result<()> {
     info!("Running simple mode");
 
     let sources = vec![init_rapl(
@@ -39,7 +34,7 @@ pub async fn run_simple(config: &SimpleConfig) -> Result<()> {
 
 async fn measure_simple(
     manager: &mut SourceManager,
-    config: &SimpleConfig,
+    config: &ProfileConfig,
 ) -> Result<MeasurementResult> {
     manager.start().await?;
 
