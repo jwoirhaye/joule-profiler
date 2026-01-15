@@ -9,7 +9,7 @@ pub mod phases;
 pub mod simple;
 
 /// Executes the configured command and returns its exit code and status.
-pub fn run_command(cmd: &[String], output_file: Option<String>) -> Result<(i32, ExitStatus)> {
+pub fn run_command(cmd: &[String], output_file: Option<&String>) -> Result<(i32, ExitStatus)> {
     if cmd.is_empty() {
         return Err(JouleProfilerError::NoCommand.into());
     }
