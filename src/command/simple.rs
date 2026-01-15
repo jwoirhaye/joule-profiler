@@ -25,7 +25,7 @@ pub async fn run_simple(config: &SimpleConfig) -> Result<()> {
     debug!("Simple mode with {} iteration(s)", config.iterations);
     for _ in 0..config.iterations {
         manager.start_workers().await;
-        results.push(measure_simple(&mut manager, &config.cmd).await?);
+        results.push(measure_simple(&mut manager, config).await?);
     }
 
     let mut displayer = Displayer::try_from(config)?;
@@ -37,14 +37,17 @@ pub async fn run_simple(config: &SimpleConfig) -> Result<()> {
     Ok(())
 }
 
-async fn measure_simple(manager: &mut SourceManager, command: &[String]) -> Result<MeasurementResult> {
+async fn measure_simple(
+    manager: &mut SourceManager,
+    config: &SimpleConfig,
+) -> Result<MeasurementResult> {
     manager.start().await?;
 
     let begin_time = get_timestamp();
 
     manager.measure().await?;
 
-    let (exit_code, _) = run_command(command, None)?;
+    let (exit_code, _) = run_command(&config.cmd, config.output_file.as_ref())?;
 
     manager.measure().await?;
 
@@ -54,10 +57,11 @@ async fn measure_simple(manager: &mut SourceManager, command: &[String]) -> Resu
 
     let mut metrics: Vec<Metric> = result.measures.into_iter().flatten().collect();
     metrics.sort_by_key(|metric| metric.name.clone());
+    let duration_ms = (end_time - begin_time) / 1000;
 
     Ok(MeasurementResult {
         exit_code,
-        duration_ms: end_time - begin_time,
+        duration_ms,
         measure_count: result.count,
         metrics,
     })

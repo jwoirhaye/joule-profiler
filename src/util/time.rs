@@ -11,6 +11,5 @@ pub fn get_timestamp() -> u128 {
 /// Convert a frenquency to a duration in nanos.
 pub fn duration_from_hz(hz: u64) -> Duration {
     assert!(hz > 0);
-    let nanos = (1_000_000_000.0 / hz as f64).round() as u64;
-    Duration::from_nanos(nanos)
+    Duration::from_nanos(1_000_000_000 / hz)
 }
