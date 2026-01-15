@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::Write;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use log::{info, trace};
 use serde_json::json;
 
-use crate::config::{ListSensorsConfig, PhasesConfig, SimpleConfig};
+use crate::config::{ListSensorsConfig, Mode, ProfileConfig};
 use crate::measurement::{MeasurementResult, PhaseMeasurementResult};
 use crate::output::{OutputFormatTrait, default_iterations_filename};
 use crate::source::Sensor;
@@ -18,7 +18,7 @@ pub struct JsonOutput {
 }
 
 impl OutputFormatTrait for JsonOutput {
-    fn simple_single(&mut self, config: &SimpleConfig, result: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, config: &ProfileConfig, result: &MeasurementResult) -> Result<()> {
         let obj = json!({
             "command": config.cmd.join(" "),
             "mode": "simple",
@@ -33,7 +33,7 @@ impl OutputFormatTrait for JsonOutput {
 
     fn simple_iterations(
         &mut self,
-        config: &SimpleConfig,
+        config: &ProfileConfig,
         results: &[MeasurementResult],
     ) -> Result<()> {
         info!("Formatting {} simple iterations", results.len());
@@ -64,15 +64,19 @@ impl OutputFormatTrait for JsonOutput {
 
     fn phases_single(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         result: &PhaseMeasurementResult,
     ) -> Result<()> {
         let phases_value = serde_json::to_value(result.phases.clone())?;
+        let phases_config = match &config.mode {
+            Mode::SimpleMode => bail!("Invalid configuration mode."),
+            Mode::PhaseMode(phases_config) => phases_config,
+        };
 
         let obj = json!({
             "command": config.cmd.join(" "),
             "mode": "phases",
-            "token_pattern": config.token_pattern,
+            "token_pattern": phases_config.token_pattern,
             "exit_code": result.exit_code,
             "phases": phases_value
         });
@@ -82,10 +86,14 @@ impl OutputFormatTrait for JsonOutput {
 
     fn phases_iterations(
         &mut self,
-        config: &PhasesConfig,
+        config: &ProfileConfig,
         results: &[PhaseMeasurementResult],
     ) -> Result<()> {
         info!("Formatting {} phase iterations", results.len());
+        let phases_config = match &config.mode {
+            Mode::SimpleMode => bail!("Invalid configuration mode."),
+            Mode::PhaseMode(phases_config) => phases_config,
+        };
 
         let iters: Vec<_> = results
             .iter()
@@ -103,7 +111,7 @@ impl OutputFormatTrait for JsonOutput {
         let root = json!({
             "command": config.cmd.join(" "),
             "mode": "phases-iterations",
-            "token_pattern": config.token_pattern,
+            "token_pattern": phases_config.token_pattern,
             "iterations": iters
         });
 

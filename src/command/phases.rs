@@ -9,7 +9,7 @@ use regex::Regex;
 use std::io::Write;
 
 use crate::{
-    config::PhasesConfig,
+    config::{PhasesConfig, ProfileConfig},
     error::JouleProfilerError,
     measurement::{Phase, PhaseMeasurementResult, PhaseResult, PhaseToken},
     output::{Displayer, OutputFormatTrait},
@@ -17,7 +17,7 @@ use crate::{
     util::{file::create_file_with_user_permissions, time::get_timestamp},
 };
 
-pub async fn run_phases(config: &PhasesConfig) -> Result<()> {
+pub async fn run_phases(config: &ProfileConfig, phases_config: &PhasesConfig) -> Result<()> {
     let sources = vec![init_rapl(
         config.rapl_path.as_deref(),
         config.sockets.as_ref(),
@@ -29,7 +29,7 @@ pub async fn run_phases(config: &PhasesConfig) -> Result<()> {
 
     for _ in 0..config.iterations {
         manager.start_workers().await;
-        results.push(measure_phases(&mut manager, config).await?);
+        results.push(measure_phases(&mut manager, config, phases_config).await?);
     }
 
     let mut displayer = Displayer::try_from(config)?;
@@ -44,10 +44,11 @@ pub async fn run_phases(config: &PhasesConfig) -> Result<()> {
 
 async fn measure_phases(
     manager: &mut SourceManager,
-    config: &PhasesConfig,
+    config: &ProfileConfig,
+    phases_config: &PhasesConfig,
 ) -> Result<PhaseMeasurementResult> {
-    let regex = Regex::new(&config.token_pattern).map_err(|e| {
-        JouleProfilerError::InvalidPattern(format!("{}: {}", config.token_pattern, e))
+    let regex = Regex::new(&phases_config.token_pattern).map_err(|e| {
+        JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, e))
     })?;
 
     let mut phases = Vec::new();
