@@ -17,7 +17,7 @@ use crate::{
     util::{file::create_file_with_user_permissions, time::get_timestamp},
 };
 
-pub async  fn run_phases(config: &PhasesConfig) -> Result<()> {
+pub async fn run_phases(config: &PhasesConfig) -> Result<()> {
     let sources = vec![init_rapl(
         config.rapl_path.as_deref(),
         config.sockets.as_ref(),
@@ -154,7 +154,7 @@ async fn measure_phases(
     for (i, phases) in phases.windows(2).enumerate() {
         let (begin_phase, end_phase) = (&phases[0], &phases[1]);
         let metrics = sources_result.measures[i].clone();
-        let duration_ms = end_phase.timestamp - begin_phase.timestamp;
+        let duration_ms = (end_phase.timestamp - begin_phase.timestamp) / 1000;
 
         let phase_mesurement = PhaseResult::new(
             &begin_phase.token,
@@ -167,9 +167,11 @@ async fn measure_phases(
         phases_measurements.push(phase_mesurement);
     }
 
+    let duration_ms = (end_timestamp - begin_timestamp) / 1000;
+
     Ok(PhaseMeasurementResult {
         phases: phases_measurements,
-        duration_ms: end_timestamp - begin_timestamp,
+        duration_ms,
         exit_code,
     })
 }

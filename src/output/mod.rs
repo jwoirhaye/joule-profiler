@@ -26,11 +26,7 @@ impl TryFrom<&SimpleConfig> for Displayer {
     type Error = anyhow::Error;
 
     fn try_from(config: &SimpleConfig) -> Result<Self, Self::Error> {
-        Displayer::new(
-            &config.output_format,
-            config.jouleit_file.as_ref(),
-            config.output_file.as_ref(),
-        )
+        Displayer::new(&config.output_format, config.jouleit_file.as_ref())
     }
 }
 
@@ -38,11 +34,7 @@ impl TryFrom<&PhasesConfig> for Displayer {
     type Error = anyhow::Error;
 
     fn try_from(config: &PhasesConfig) -> Result<Self, Self::Error> {
-        Displayer::new(
-            &config.output_format,
-            config.jouleit_file.as_ref(),
-            config.output_file.as_ref(),
-        )
+        Displayer::new(&config.output_format, config.jouleit_file.as_ref())
     }
 }
 
@@ -50,20 +42,16 @@ impl TryFrom<&ListSensorsConfig> for Displayer {
     type Error = anyhow::Error;
 
     fn try_from(config: &ListSensorsConfig) -> Result<Self, Self::Error> {
-        Displayer::new(&config.output_format, None, None)
+        Displayer::new(&config.output_format, None)
     }
 }
 
 impl Displayer {
-    pub fn new(
-        output_format: &OutputFormat,
-        jouleit_file: Option<&String>,
-        output_file: Option<&String>,
-    ) -> Result<Self> {
+    pub fn new(output_format: &OutputFormat, jouleit_file: Option<&String>) -> Result<Self> {
         Ok(match output_format {
             OutputFormat::Terminal => Self::Terminal(TerminalOutput),
             OutputFormat::Json => Self::Json(JsonOutput::new(jouleit_file.cloned())?),
-            OutputFormat::Csv => Self::Csv(CsvOutput::new(output_file.cloned())?),
+            OutputFormat::Csv => Self::Csv(CsvOutput::new(jouleit_file.cloned())?),
         })
     }
 }

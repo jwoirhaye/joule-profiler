@@ -1,11 +1,15 @@
 use std::time::Duration;
 
-use anyhow::{Result};
+use anyhow::Result;
 use async_channel::{Receiver, Sender};
 use enum_dispatch::enum_dispatch;
 use log::{error, info};
 use serde::Serialize;
-use tokio::{select, task::JoinHandle, time::{MissedTickBehavior, interval}};
+use tokio::{
+    select,
+    task::JoinHandle,
+    time::{MissedTickBehavior, interval},
+};
 
 use crate::source::rapl::Rapl;
 

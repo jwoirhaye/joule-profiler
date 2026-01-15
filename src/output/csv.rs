@@ -6,9 +6,9 @@ use anyhow::Result;
 use log::{debug, info, trace, warn};
 
 use crate::config::{ListSensorsConfig, PhasesConfig, SimpleConfig};
-use crate::measurement::{MeasurementResult, PhaseMeasurementResult};
+use crate::measurement::{MeasurementResult, PhaseMeasurementResult, PhaseResult};
 use crate::output::OutputFormatTrait;
-use crate::source::{Metric, Sensor};
+use crate::source::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
 use super::default_iterations_filename;
@@ -51,7 +51,7 @@ impl OutputFormatTrait for CsvOutput {
         let keys: Vec<&String> = result.metrics.iter().map(|metric| &metric.name).collect();
 
         self.write_header(&keys, false, false)?;
-        self.write_row(&config.cmd, &result.metrics, None, None)?;
+        self.write_row(&config.cmd, result, None)?;
 
         self.finalize();
         Ok(())
@@ -77,7 +77,7 @@ impl OutputFormatTrait for CsvOutput {
         self.write_header(&keys, true, false)?;
 
         for (idx, res) in results.iter().enumerate() {
-            self.write_row(&config.cmd, &res.metrics, Some(idx), None)?;
+            self.write_row(&config.cmd, &res, Some(idx))?;
         }
 
         self.finalize();
@@ -113,7 +113,7 @@ impl OutputFormatTrait for CsvOutput {
                 phase.end_line,
             );
 
-            self.write_row(&config.cmd, &phase.metrics, None, Some(&phase_data))?;
+            self.write_row_phase(&config.cmd, &phase, None, &phase_data)?;
         }
 
         self.finalize();
@@ -161,7 +161,7 @@ impl OutputFormatTrait for CsvOutput {
                     phase.end_line,
                 );
 
-                self.write_row(&config.cmd, &phase.metrics, Some(idx), Some(&phase_data))?;
+                self.write_row_phase(&config.cmd, &phase, Some(idx), &phase_data)?;
             }
         }
 
@@ -221,9 +221,9 @@ impl CsvOutput {
         }
 
         for key in keys {
-            write!(self.file, "{}_uj;", key)?;
+            write!(self.file, "{};", key)?;
         }
-        writeln!(self.file, "duration_ms;exit_code")?;
+        writeln!(self.file, "duration_ms;measure_count;exit_code")?;
 
         debug!("CSV header written");
         Ok(())
@@ -232,9 +232,8 @@ impl CsvOutput {
     fn write_row(
         &mut self,
         command: &[String],
-        metrics: &[Metric],
+        result: &MeasurementResult,
         iteration: Option<usize>,
-        phase_data: Option<&PhaseRowData>,
     ) -> Result<()> {
         write!(self.file, "'{}';", command.join(" "))?;
 
@@ -243,25 +242,52 @@ impl CsvOutput {
             write!(self.file, "{};", idx)?;
         }
 
-        if let Some(phase) = phase_data {
-            write!(self.file, "{};", phase.name)?;
-            write!(self.file, "{};", phase.start_token.unwrap_or(""))?;
-            write!(self.file, "{};", phase.end_token.unwrap_or(""))?;
-            write!(
-                self.file,
-                "{};",
-                phase.start_line.map(|l| l.to_string()).unwrap_or_default()
-            )?;
-            write!(
-                self.file,
-                "{};",
-                phase.end_line.map(|l| l.to_string()).unwrap_or_default()
-            )?;
-        }
-
-        for metric in metrics {
+        for metric in &result.metrics {
             write!(self.file, "{};", metric.value)?;
         }
+
+        write!(
+            self.file,
+            "{};{};{};",
+            result.duration_ms, result.measure_count, result.exit_code
+        )?;
+
+        Ok(())
+    }
+
+    fn write_row_phase(
+        &mut self,
+        command: &[String],
+        result: &PhaseResult,
+        iteration: Option<usize>,
+        phase: &PhaseRowData,
+    ) -> Result<()> {
+        write!(self.file, "'{}';", command.join(" "))?;
+
+        if let Some(idx) = iteration {
+            trace!("Writing CSV row for iteration {}", idx);
+            write!(self.file, "{};", idx)?;
+        }
+
+        write!(self.file, "{};", phase.name)?;
+        write!(self.file, "{};", phase.start_token.unwrap_or(""))?;
+        write!(self.file, "{};", phase.end_token.unwrap_or(""))?;
+        write!(
+            self.file,
+            "{};",
+            phase.start_line.map(|l| l.to_string()).unwrap_or_default()
+        )?;
+        write!(
+            self.file,
+            "{};",
+            phase.end_line.map(|l| l.to_string()).unwrap_or_default()
+        )?;
+
+        for metric in &result.metrics {
+            write!(self.file, "{};", metric.value)?;
+        }
+
+        write!(self.file, "{};", result.duration_ms)?;
 
         Ok(())
     }
