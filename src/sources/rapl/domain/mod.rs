@@ -4,8 +4,11 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use crate::error::JouleProfilerError;
+use crate::sources::rapl::domain::socket::parse_or_all_sockets;
 use anyhow::Result;
 use log::{debug, error, info, trace, warn};
+
+pub mod socket;
 
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]
@@ -20,31 +23,9 @@ pub struct RaplDomain {
     pub max_energy_uj: u64,
 }
 
-/// Checks if the operating system is Linux.
-pub fn check_os() -> Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        Ok(())
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        let os = std::env::consts::OS;
-        Err(JouleProfilerError::UnsupportedOS(os.to_string()).into())
-    }
-}
-
 /// Retrieve the RAPL domains on the machine, filtered with spec if one is provided.
-pub fn get_domains(
-    base_path: Option<&str>,
-    spec: Option<&HashSet<u32>>,
-) -> Result<Vec<RaplDomain>> {
-    check_os()?;
-
-    let base = rapl_base_path(base_path);
-    check_rapl(&base)?;
-
-    let domains = discover_domains(&base)?;
+pub fn get_domains(base_path: &str, spec: Option<&HashSet<u32>>) -> Result<Vec<RaplDomain>> {
+    let domains = discover_domains(base_path)?;
     let sockets = parse_or_all_sockets(&domains, spec);
 
     let filtered: Vec<RaplDomain> = domains
@@ -53,34 +34,6 @@ pub fn get_domains(
         .collect();
 
     Ok(filtered)
-}
-
-/// Checks if the RAPL interface is available at the given base path.
-pub fn check_rapl(base: &str) -> Result<()> {
-    debug!("Checking RAPL base path: {}", base);
-
-    let path = Path::new(base);
-
-    if !path.exists() {
-        error!("RAPL path does not exist: {}", base);
-        return Err(JouleProfilerError::RaplNotAvailable(base.into()).into());
-    }
-
-    if !path.is_dir() {
-        error!("RAPL path is not a directory: {}", base);
-        return Err(JouleProfilerError::InvalidRaplPath(base.into()).into());
-    }
-
-    if let Err(e) = fs::read_dir(path) {
-        if e.kind() == std::io::ErrorKind::PermissionDenied {
-            error!("Permission denied accessing RAPL path");
-            return Err(JouleProfilerError::InsufficientPermissions.into());
-        }
-        return Err(e.into());
-    }
-
-    info!("RAPL interface found at {}", base);
-    Ok(())
 }
 
 /// Discovers all available RAPL domains at the given base path.
@@ -195,16 +148,6 @@ fn extract_socket_number(path: &Path) -> Result<u32> {
     Ok(0)
 }
 
-/// Discovers all unique socket indices from the given RAPL domains.
-pub fn discover_sockets(domains: &[RaplDomain]) -> HashSet<u32> {
-    domains.iter().map(|d| d.socket).collect()
-}
-
-/// Parses a socket specification string and validates against available domains.
-pub fn filter_sockets(spec: &HashSet<u32>, sockets: &HashSet<u32>) -> HashSet<u32> {
-    spec.intersection(sockets).cloned().collect()
-}
-
 /// Reads the current energy counter value from a RAPL domain.
 pub fn read_energy(domain: &RaplDomain) -> Result<u64> {
     trace!("Reading energy for domain {}", domain.name);
@@ -247,15 +190,6 @@ pub fn rapl_base_path(config_override: Option<&str>) -> String {
 
     let default_path = "/sys/devices/virtual/powercap/intel-rapl";
     default_path.to_string()
-}
-
-/// Filter RAPL sockets with specified spec.
-pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>) -> Vec<u32> {
-    let mut sockets = discover_sockets(domains);
-    if let Some(spec) = spec {
-        sockets = filter_sockets(spec, &sockets);
-    }
-    sockets.into_iter().collect()
 }
 
 #[cfg(test)]
@@ -365,62 +299,5 @@ mod tests {
 
         let err = read_energy(&domain).unwrap_err().to_string();
         assert!(err.contains("Invalid energy value"));
-    }
-
-    // ---------- sockets utilities ----------
-
-    #[test]
-    fn discover_sockets_returns_unique_sockets() {
-        let domains = vec![
-            RaplDomain {
-                path: "a".into(),
-                name: "pkg".into(),
-                socket: 0,
-                max_energy_uj: 1,
-            },
-            RaplDomain {
-                path: "b".into(),
-                name: "pkg".into(),
-                socket: 1,
-                max_energy_uj: 1,
-            },
-        ];
-
-        let sockets = discover_sockets(&domains);
-        assert_eq!(sockets.len(), 2);
-        assert!(sockets.contains(&0));
-        assert!(sockets.contains(&1));
-    }
-
-    #[test]
-    fn filter_sockets_intersects_correctly() {
-        let available: HashSet<u32> = [0, 1, 2].into_iter().collect();
-        let spec: HashSet<u32> = [1, 3].into_iter().collect();
-
-        let filtered = filter_sockets(&spec, &available);
-
-        assert_eq!(filtered.len(), 1);
-        assert!(filtered.contains(&1));
-    }
-
-    #[test]
-    fn parse_or_all_sockets_without_spec_returns_all() {
-        let domains = vec![
-            RaplDomain {
-                path: "a".into(),
-                name: "pkg".into(),
-                socket: 0,
-                max_energy_uj: 1,
-            },
-            RaplDomain {
-                path: "b".into(),
-                name: "pkg".into(),
-                socket: 1,
-                max_energy_uj: 1,
-            },
-        ];
-
-        let sockets = parse_or_all_sockets(&domains, None);
-        assert_eq!(sockets.len(), 2);
     }
 }

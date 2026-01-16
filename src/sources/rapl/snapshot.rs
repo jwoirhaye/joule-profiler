@@ -3,19 +3,18 @@ use std::collections::HashMap;
 use anyhow::Result;
 use log::{debug, error, info, trace};
 
-use crate::{error::JouleProfilerError, source::rapl::domain::RaplDomain};
+use crate::{error::JouleProfilerError, sources::rapl::domain::RaplDomain};
 
 #[derive(Debug, Clone)]
-pub struct EnergySnapshot {
-    pub energies_uj: HashMap<String, u64>,
-    pub timestamp_us: u128,
+pub struct Snapshot {
+    pub metrics: HashMap<String, u64>,
 }
 
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
     domains: &[RaplDomain],
-    begin: &EnergySnapshot,
-    end: &EnergySnapshot,
+    begin: &Snapshot,
+    end: &Snapshot,
 ) -> Result<HashMap<String, u64>> {
     trace!(
         "Computing measurement from snapshots for {} domains",
@@ -28,7 +27,7 @@ pub fn compute_measurement_from_snapshots(
         let key = domain.path.to_string_lossy().to_string();
         trace!("Processing domain '{}'", domain.name);
 
-        let start_uj = match begin.energies_uj.get(&key) {
+        let start_uj = match begin.metrics.get(&key) {
             Some(v) => *v,
             None => {
                 error!("Missing start energy snapshot for domain '{}'", domain.name);
@@ -40,7 +39,7 @@ pub fn compute_measurement_from_snapshots(
             }
         };
 
-        let end_uj = match end.energies_uj.get(&key) {
+        let end_uj = match end.metrics.get(&key) {
             Some(v) => *v,
             None => {
                 error!("Missing end energy snapshot for domain '{}'", domain.name);
@@ -94,10 +93,9 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 mod tests {
     use super::*;
 
-    fn snapshot(values: &[(&str, u64)]) -> EnergySnapshot {
-        EnergySnapshot {
-            energies_uj: values.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
-            timestamp_us: 0,
+    fn snapshot(values: &[(&str, u64)]) -> Snapshot {
+        Snapshot {
+            metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
         }
     }
 

@@ -1,41 +1,28 @@
-use std::fmt::Display;
-
 use serde::Serialize;
 
-use crate::source::Metric;
+use crate::core::{metric::Metric, phase::PhaseToken};
 
-#[derive(Debug, Clone)]
-pub enum PhaseToken {
-    Start,
-    Token(String),
-    End,
+#[derive(Debug, Clone, Serialize)]
+pub struct MeasurementResult {
+    /// Metrics measured
+    pub metrics: Vec<Metric>,
+
+    /// Duration in milliseconds
+    pub duration_ms: u128,
+
+    /// Command exit code
+    pub exit_code: i32,
+
+    /// The number of measures made by the sources
+    pub measure_count: u64,
+
+    pub measure_delta: u128,
 }
 
-impl Display for PhaseToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PhaseToken::Start => f.write_str("START"),
-            PhaseToken::Token(token) => f.write_str(token),
-            PhaseToken::End => f.write_str("END"),
-        }
+impl MeasurementResult {
+    pub fn extract_keys(&self) -> Vec<&String> {
+        self.metrics.iter().map(|metric| &metric.name).collect()
     }
-}
-
-impl From<PhaseToken> for Option<String> {
-    fn from(token: PhaseToken) -> Self {
-        match token {
-            PhaseToken::Start | PhaseToken::End => None,
-            PhaseToken::Token(token) => Some(token),
-        }
-    }
-}
-
-/// Detected token with timestamp
-#[derive(Debug, Clone)]
-pub struct Phase {
-    pub token: PhaseToken,
-    pub timestamp: u128,
-    pub line_number: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,8 +75,10 @@ impl PhaseResult {
 pub struct PhaseMeasurementResult {
     /// The metrics of each phase
     pub phases: Vec<PhaseResult>,
+
     /// Duration in milliseconds
     pub duration_ms: u128,
+
     /// Command exit code
     pub exit_code: i32,
 }
@@ -100,25 +89,5 @@ impl PhaseMeasurementResult {
             .iter()
             .flat_map(|phase| phase.extract_keys())
             .collect()
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MeasurementResult {
-    /// Metrics measured
-    pub metrics: Vec<Metric>,
-    /// Duration in milliseconds
-    pub duration_ms: u128,
-    /// Command exit code
-    pub exit_code: i32,
-    /// The number of measures made by the sources
-    pub measure_count: u64,
-
-    pub measure_delta: u128,
-}
-
-impl MeasurementResult {
-    pub fn extract_keys(&self) -> Vec<&String> {
-        self.metrics.iter().map(|metric| &metric.name).collect()
     }
 }
