@@ -26,6 +26,7 @@ impl OutputFormatTrait for JsonOutput {
             "duration_ms": result.duration_ms,
             "exit_code": result.exit_code,
             "measure_count": result.measure_count,
+            "measure_delta": result.measure_delta,
         });
 
         self.write_json(&obj)
@@ -49,6 +50,7 @@ impl OutputFormatTrait for JsonOutput {
                     "duration_ms": result.duration_ms,
                     "exit_code": result.exit_code,
                     "measure_count": result.measure_count,
+                    "measure_delta": result.measure_delta,
                 })
             })
             .collect();

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use async_channel::{Receiver, Sender};
 use enum_dispatch::enum_dispatch;
 use log::{error, info};
 use serde::Serialize;
 use tokio::{
     select,
+    sync::mpsc::{Receiver, Sender, channel},
     task::JoinHandle,
     time::{MissedTickBehavior, interval},
 };
@@ -65,6 +65,7 @@ pub enum MetricSource {
 pub struct SourceResult {
     pub measures: Vec<Metrics>,
     pub count: u64,
+    pub measure_delta: u128,
 }
 
 pub struct SourceManager {
@@ -89,7 +90,7 @@ impl SourceManager {
         let mut handles = Vec::new();
 
         for source in sources {
-            let (tx, rx) = async_channel::bounded(4);
+            let (tx, rx) = channel(4);
             senders.push(tx.clone());
 
             let handle = tokio::spawn(async move {
@@ -169,11 +170,13 @@ impl SourceManager {
         let mut merged = Vec::with_capacity(max_phases);
 
         let mut measure_count = 0;
+        let mut measure_delta = 0;
 
         for i in 0..max_phases {
             let mut phase_metrics = Vec::new();
             for source_result in &all_phases {
                 measure_count += source_result.count;
+                measure_delta += source_result.measure_delta;
                 if let Some(measures) = source_result.measures.get(i) {
                     phase_metrics.extend(measures.clone());
                 }
@@ -181,11 +184,16 @@ impl SourceManager {
             merged.push(phase_metrics);
         }
 
+        let nb_sources = all_phases.len();
+        measure_count /= nb_sources as u64;
+        measure_delta /= nb_sources as u128;
+
         info!("Merged {} phases", merged.len());
 
         Ok(SourceResult {
             measures: merged,
             count: measure_count,
+            measure_delta,
         })
     }
 }
@@ -200,13 +208,13 @@ pub struct Sensor {
 /// Start a worker without polling.
 async fn run_worker_event_only<S: MetricReader>(
     mut source: S,
-    rx: Receiver<SourceEvent>,
+    mut rx: Receiver<SourceEvent>,
 ) -> Result<SourceResult> {
     loop {
         match rx.recv().await {
-            Ok(SourceEvent::Stop) => return source.retrieve(),
-            Ok(event) => handle_event_no_polling(&mut source, event),
-            Err(_) => return source.retrieve(),
+            Some(SourceEvent::Stop) => return source.retrieve(),
+            Some(event) => handle_event_no_polling(&mut source, event),
+            None => {}
         }
     }
 }
@@ -230,19 +238,17 @@ fn handle_event_no_polling<S: MetricReader>(source: &mut S, event: SourceEvent) 
 
 async fn run_worker_with_polling<S: MetricReader>(
     mut source: S,
-    rx: Receiver<SourceEvent>,
+    mut rx: Receiver<SourceEvent>,
     polling_interval: Duration,
 ) -> Result<SourceResult> {
     let mut polling_active = true;
-
-    let rx_clone = rx.clone();
 
     let mut reload_timer = interval(polling_interval);
     reload_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
     loop {
         select! {
-            Ok(event) = rx_clone.recv() => {
+            Some(event) = rx.recv() => {
                 match event {
                     SourceEvent::Start => polling_active = true,
                     SourceEvent::Pause => polling_active = false,

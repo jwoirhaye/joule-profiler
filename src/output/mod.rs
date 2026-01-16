@@ -50,7 +50,8 @@ impl Displayer {
 
 #[enum_dispatch(Displayer)]
 pub trait OutputFormatTrait {
-    fn simple_single(&mut self, _config: &ProfileConfig, _result: &MeasurementResult) -> Result<()>;
+    fn simple_single(&mut self, _config: &ProfileConfig, _result: &MeasurementResult)
+    -> Result<()>;
 
     fn simple_iterations(
         &mut self,

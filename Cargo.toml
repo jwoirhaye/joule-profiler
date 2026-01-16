@@ -19,7 +19,7 @@ regex = "1.12.2"
 enum_dispatch = "0.3.13"
 libc = "0.2.180"
 tokio = { version = "1", features = ["full"] }
-async-channel = "2.5.0"
 
 [dev-dependencies]
 serial_test = "3.0"
+tempfile = "3"
