@@ -7,42 +7,20 @@ use std::{
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::io::Write;
+use tokio::time::Instant;
 
 use crate::{
-    config::{PhasesConfig, ProfileConfig},
+    config::profile::{PhasesConfig, ProfileConfig},
+    core::{
+        manager::SourceManager,
+        measurement::{PhaseMeasurementResult, PhaseResult},
+        phase::{Phase, PhaseToken},
+    },
     error::JouleProfilerError,
-    measurement::{Phase, PhaseMeasurementResult, PhaseResult, PhaseToken},
-    output::{Displayer, OutputFormatTrait},
-    source::{SourceManager, rapl::init_rapl},
-    util::{file::create_file_with_user_permissions, time::get_timestamp},
+    util::file::create_file_with_user_permissions,
 };
 
-pub async fn run_phases(config: &ProfileConfig, phases_config: &PhasesConfig) -> Result<()> {
-    let sources = vec![init_rapl(
-        config.rapl_path.as_deref(),
-        config.sockets.as_ref(),
-        config.rapl_polling,
-    )?];
-    let mut manager = SourceManager::new(sources);
-
-    let mut results = Vec::new();
-
-    for _ in 0..config.iterations {
-        manager.start_workers().await;
-        results.push(measure_phases(&mut manager, config, phases_config).await?);
-    }
-
-    let mut displayer = Displayer::try_from(config)?;
-    if config.iterations > 1 {
-        displayer.phases_iterations(config, &results)?;
-    } else {
-        displayer.phases_single(config, &results[0])?;
-    }
-
-    Ok(())
-}
-
-async fn measure_phases(
+pub async fn measure_phases(
     manager: &mut SourceManager,
     config: &ProfileConfig,
     phases_config: &PhasesConfig,
@@ -55,10 +33,11 @@ async fn measure_phases(
 
     manager.start().await?;
 
-    let begin_timestamp = get_timestamp();
+    let begin_instant = Instant::now();
+
     phases.push(Phase {
         token: PhaseToken::Start,
-        timestamp: begin_timestamp,
+        timestamp: begin_instant,
         line_number: None,
     });
 
@@ -125,37 +104,38 @@ async fn measure_phases(
                 captures.get(0).unwrap().as_str().to_string()
             };
 
-            let phase_timestamp = get_timestamp();
+            let phase_instant = Instant::now();
 
             manager.phase().await?;
 
             phases.push(Phase {
                 token: PhaseToken::Token(token),
-                timestamp: phase_timestamp,
+                timestamp: phase_instant,
                 line_number: Some(line_number + 1),
             });
         }
     }
 
     let status = child.wait().context("Failed to wait on child")?;
-    let exit_code = status.code().unwrap_or(1);
+    let end_instant = Instant::now();
 
     manager.measure().await?;
 
-    let end_timestamp = get_timestamp();
+    let exit_code = status.code().unwrap_or(1);
+
     phases.push(Phase {
         token: PhaseToken::End,
-        timestamp: end_timestamp,
+        timestamp: end_instant,
         line_number: None,
     });
 
-    let sources_result = manager.join().await?;
+    let sources_result = manager.retrieve().await?;
     let mut phases_measurements = Vec::with_capacity(phases.len());
 
     for (i, phases) in phases.windows(2).enumerate() {
         let (begin_phase, end_phase) = (&phases[0], &phases[1]);
         let metrics = sources_result.measures[i].clone();
-        let duration_ms = (end_phase.timestamp - begin_phase.timestamp) / 1000;
+        let duration_ms = (end_phase.timestamp - begin_phase.timestamp).as_millis();
 
         let phase_mesurement = PhaseResult::new(
             &begin_phase.token,
@@ -168,7 +148,7 @@ async fn measure_phases(
         phases_measurements.push(phase_mesurement);
     }
 
-    let duration_ms = (end_timestamp - begin_timestamp) / 1000;
+    let duration_ms = (end_instant - begin_instant).as_millis();
 
     Ok(PhaseMeasurementResult {
         phases: phases_measurements,

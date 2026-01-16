@@ -1,9 +1,6 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use enum_dispatch::enum_dispatch;
-use log::{error, info};
-use serde::Serialize;
 use tokio::{
     select,
     sync::mpsc::{Receiver, Sender, channel},
@@ -11,62 +8,10 @@ use tokio::{
     time::{MissedTickBehavior, interval},
 };
 
-use crate::source::rapl::Rapl;
-
-pub mod rapl;
-
-#[derive(Serialize, Clone, Debug)]
-pub struct Metric {
-    pub name: String,
-    pub value: u64,
-    pub unit: String,
-    pub source: String,
-}
-
-pub type Metrics = Vec<Metric>;
-
-#[derive(Debug, Clone, Copy)]
-pub enum SourceEvent {
-    Measure,
-    Phase,
-    Start,
-    Pause,
-    Stop,
-}
-
-#[enum_dispatch]
-pub trait MetricReader {
-    /// Measure the sensors metrics.
-    fn measure(&mut self) -> Result<()>;
-
-    /// Initialize a new measure phase.
-    fn phase(&mut self) -> Result<()>;
-
-    /// Retrieve all sensors measures.
-    fn retrieve(&mut self) -> Result<SourceResult>;
-
-    /// Get all the metric source sensors.
-    fn get_sensors(&self) -> Result<Vec<Sensor>>;
-
-    /// Get the polling interval of the metric source if supported.
-    fn get_polling_interval(&self) -> Option<Duration> {
-        None
-    }
-
-    fn get_name(&self) -> &'static str;
-}
-
-#[enum_dispatch(MetricReader)]
-#[derive(Clone, Debug)]
-pub enum MetricSource {
-    Rapl(Rapl),
-}
-
-pub struct SourceResult {
-    pub measures: Vec<Metrics>,
-    pub count: u64,
-    pub measure_delta: u128,
-}
+use crate::{
+    core::source::{MetricReader, SourceEvent, SourceResult},
+    sources::MetricSource,
+};
 
 pub struct SourceManager {
     sources: Vec<MetricSource>,
@@ -96,8 +41,6 @@ impl SourceManager {
             let handle = tokio::spawn(async move {
                 let poll_interval = source.get_polling_interval();
 
-                info!("Worker started for source {:?}", source.get_name());
-
                 match poll_interval {
                     Some(interval) => run_worker_with_polling(source, rx, interval).await,
                     None => run_worker_event_only(source, rx).await,
@@ -109,14 +52,6 @@ impl SourceManager {
 
         self.handles = handles;
         self.senders = senders;
-    }
-
-    /// Send an event to each metrics source.
-    pub async fn send_event(&self, event: SourceEvent) -> Result<()> {
-        for sender in &self.senders {
-            sender.send(event).await?;
-        }
-        Ok(())
     }
 
     /// Start the polling of a metrics source if enabled.
@@ -135,32 +70,27 @@ impl SourceManager {
     }
 
     /// Pause the polling of a metrics source if enabled.
-    pub async fn pause(&self) -> Result<()> {
-        self.send_event(SourceEvent::Pause).await
-    }
-
-    /// Stop the worker thread of each metrics sources to join threads gracefully.
     pub async fn stop(&self) -> Result<()> {
         self.send_event(SourceEvent::Stop).await
     }
 
+    /// Stop the worker thread of each metrics sources to join threads gracefully.
+    pub async fn join(&self) -> Result<()> {
+        self.send_event(SourceEvent::Join).await
+    }
+
     /// Gracefully shutdown all the workers.
-    pub async fn join(&mut self) -> Result<SourceResult> {
-        info!("Stopping all workers");
-        self.stop().await?;
+    pub async fn retrieve(&mut self) -> Result<SourceResult> {
+        self.join().await?;
 
         let handles = std::mem::take(&mut self.handles);
         let mut all_phases = Vec::new();
 
         for handle in handles {
-            match handle.await {
-                Ok(Ok(phases)) => all_phases.push(phases),
-                Ok(Err(e)) => error!("Worker returned error: {:?}", e),
-                Err(_) => error!("Worker panicked"),
-            }
+            handle
+                .await?
+                .map(|source_result| all_phases.push(source_result))?;
         }
-
-        info!("All workers joined. Merging phases");
 
         let max_phases = all_phases
             .iter()
@@ -188,21 +118,20 @@ impl SourceManager {
         measure_count /= nb_sources as u64;
         measure_delta /= nb_sources as u128;
 
-        info!("Merged {} phases", merged.len());
-
         Ok(SourceResult {
             measures: merged,
             count: measure_count,
             measure_delta,
         })
     }
-}
 
-#[derive(Serialize)]
-pub struct Sensor {
-    pub name: String,
-    pub unit: String,
-    pub source: String,
+    /// Send an event to each metrics source.
+    async fn send_event(&self, event: SourceEvent) -> Result<()> {
+        for sender in &self.senders {
+            sender.send(event).await?;
+        }
+        Ok(())
+    }
 }
 
 /// Start a worker without polling.
@@ -213,27 +142,24 @@ async fn run_worker_event_only<S: MetricReader>(
     loop {
         match rx.recv().await {
             Some(SourceEvent::Stop) => return source.retrieve(),
-            Some(event) => handle_event_no_polling(&mut source, event),
-            None => {}
+            Some(event) => handle_event_no_polling(&mut source, event)?,
+            _ => {}
         }
     }
 }
 
 /// Handle an event for a no-polling worker (only phase and measure events supported).
-fn handle_event_no_polling<S: MetricReader>(source: &mut S, event: SourceEvent) {
+fn handle_event_no_polling<S: MetricReader>(source: &mut S, event: SourceEvent) -> Result<()> {
     match event {
         SourceEvent::Phase => {
-            if let Err(e) = source.phase() {
-                error!("Phase error: {:?}", e);
-            }
+            source.phase()?;
         }
         SourceEvent::Measure => {
-            if let Err(e) = source.measure() {
-                error!("Measure error: {:?}", e);
-            }
+            source.measure()?;
         }
         _ => {}
     }
+    Ok(())
 }
 
 async fn run_worker_with_polling<S: MetricReader>(
@@ -251,8 +177,8 @@ async fn run_worker_with_polling<S: MetricReader>(
             Some(event) = rx.recv() => {
                 match event {
                     SourceEvent::Start => polling_active = true,
-                    SourceEvent::Pause => polling_active = false,
-                    SourceEvent::Stop => return source.retrieve(),
+                    SourceEvent::Stop => polling_active = false,
+                    SourceEvent::Join => return source.retrieve(),
                     SourceEvent::Measure => {
                         source.measure()?;
                     },

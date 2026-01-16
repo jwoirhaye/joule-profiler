@@ -1,35 +1,14 @@
-use crate::cli::{Cli, ProfilerCommand};
-use std::collections::HashSet;
+use crate::{
+    cli::{Cli, ProfilerCommand},
+    config::{
+        list_sensors::ListSensorsConfig,
+        profile::{Mode, PhasesConfig, ProfileConfig},
+    },
+    output::output_format,
+};
 
-#[derive(Debug, Clone)]
-pub struct ProfileConfig {
-    pub iterations: usize,
-    pub output_format: OutputFormat,
-    pub jouleit_file: Option<String>,
-    pub output_file: Option<String>,
-    pub cmd: Vec<String>,
-    pub sockets: Option<HashSet<u32>>,
-    pub rapl_polling: Option<f64>,
-    pub rapl_path: Option<String>,
-    pub mode: Mode,
-}
-
-#[derive(Debug, Clone)]
-pub enum Mode {
-    SimpleMode,
-    PhaseMode(PhasesConfig),
-}
-
-#[derive(Debug, Clone)]
-pub struct PhasesConfig {
-    pub token_pattern: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ListSensorsConfig {
-    pub output_format: OutputFormat,
-    pub rapl_path: Option<String>,
-}
+pub mod list_sensors;
+pub mod profile;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -92,22 +71,5 @@ impl From<Cli> for Config {
         };
 
         Config { mode }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum OutputFormat {
-    Terminal,
-    Json,
-    Csv,
-}
-
-fn output_format(json: bool, csv: bool) -> OutputFormat {
-    if json {
-        OutputFormat::Json
-    } else if csv {
-        OutputFormat::Csv
-    } else {
-        OutputFormat::Terminal
     }
 }

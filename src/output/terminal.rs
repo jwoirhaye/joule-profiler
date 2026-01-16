@@ -1,10 +1,10 @@
 use anyhow::Result;
 
-use crate::{
-    config::{ListSensorsConfig, ProfileConfig},
+use crate::core::{
+    displayer::{ListSensorsDisplayer, ProfilerDisplayer},
     measurement::{MeasurementResult, PhaseMeasurementResult},
-    output::OutputFormatTrait,
-    source::{Metric, Sensor},
+    metric::Metric,
+    sensor::Sensor,
 };
 
 /// Constants for formatting
@@ -15,18 +15,14 @@ const BOX_WIDTH: usize = 50;
 #[derive(Debug, Clone, Default)]
 pub struct TerminalOutput;
 
-impl OutputFormatTrait for TerminalOutput {
-    fn simple_single(&mut self, config: &ProfileConfig, result: &MeasurementResult) -> Result<()> {
-        self.display_command(&config.cmd);
+impl ProfilerDisplayer for TerminalOutput {
+    fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
+        self.display_command(cmd);
         self.display_result(&result.metrics, "")
     }
 
-    fn simple_iterations(
-        &mut self,
-        config: &ProfileConfig,
-        results: &[MeasurementResult],
-    ) -> Result<()> {
-        self.display_command(&config.cmd);
+    fn simple_iterations(&mut self, cmd: &[String], results: &[MeasurementResult]) -> Result<()> {
+        self.display_command(cmd);
 
         for (idx, result) in results.iter().enumerate() {
             self.display_iteration_header(idx, results.len());
@@ -38,10 +34,11 @@ impl OutputFormatTrait for TerminalOutput {
 
     fn phases_single(
         &mut self,
-        config: &ProfileConfig,
+        cmd: &[String],
+        _token_pattern: &str,
         result: &PhaseMeasurementResult,
     ) -> Result<()> {
-        self.display_command(&config.cmd);
+        self.display_command(cmd);
 
         for phase in result.phases.iter() {
             self.display_phase_header(
@@ -60,14 +57,15 @@ impl OutputFormatTrait for TerminalOutput {
 
     fn phases_iterations(
         &mut self,
-        config: &ProfileConfig,
+        cmd: &[String],
+        _token_pattern: &str,
         results: &[PhaseMeasurementResult],
     ) -> Result<()> {
         if results.is_empty() {
             return Ok(());
         }
 
-        self.display_command(&config.cmd);
+        self.display_command(cmd);
 
         for (idx, iteration_results) in results.iter().enumerate() {
             self.display_iteration_header(idx, results.len());
@@ -87,8 +85,10 @@ impl OutputFormatTrait for TerminalOutput {
 
         Ok(())
     }
+}
 
-    fn list_sensors(&mut self, _config: &ListSensorsConfig, sensors: &[Sensor]) -> Result<()> {
+impl ListSensorsDisplayer for TerminalOutput {
+    fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
         if sensors.is_empty() {
             println!("No sensors available.");
             return Ok(());

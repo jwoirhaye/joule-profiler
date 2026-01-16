@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs::read_to_string,
+    fs::{self},
+    path::Path,
     time::Duration,
 };
 
@@ -9,15 +10,20 @@ use log::{debug, error, info, trace};
 use tokio::time::Instant;
 
 use crate::{
+    core::{
+        metric::{Metric, Metrics},
+        sensor::Sensor,
+        source::{MetricReader, SourceResult},
+    },
     error::JouleProfilerError,
-    source::{
-        Metric, MetricReader, MetricSource, Metrics, Sensor, SourceResult,
+    sources::{
+        MetricSource,
         rapl::{
-            domain::{RaplDomain, get_domains},
-            snapshot::{EnergySnapshot, compute_measurement_from_snapshots},
+            domain::{RaplDomain, get_domains, rapl_base_path, read_energy},
+            snapshot::{Snapshot, compute_measurement_from_snapshots},
         },
     },
-    util::time::get_timestamp,
+    util::platform::check_os,
 };
 
 pub mod domain;
@@ -28,16 +34,49 @@ pub fn init_rapl(
     sockets: Option<&HashSet<u32>>,
     polling_rate_s: Option<f64>,
 ) -> Result<MetricSource> {
-    let domains = get_domains(rapl_path, sockets)?;
+    check_os()?;
+
+    let base_path = rapl_base_path(rapl_path);
+    check_rapl(&base_path)?;
+
+    let domains = get_domains(&base_path, sockets)?;
     let rapl = Rapl::new(domains, polling_rate_s);
     Ok(MetricSource::Rapl(rapl))
+}
+
+/// Checks if the RAPL interface is available at the given base path.
+pub fn check_rapl(base: &str) -> Result<()> {
+    debug!("Checking RAPL base path: {}", base);
+
+    let path = Path::new(base);
+
+    if !path.exists() {
+        error!("RAPL path does not exist: {}", base);
+        return Err(JouleProfilerError::RaplNotAvailable(base.into()).into());
+    }
+
+    if !path.is_dir() {
+        error!("RAPL path is not a directory: {}", base);
+        return Err(JouleProfilerError::InvalidRaplPath(base.into()).into());
+    }
+
+    if let Err(e) = fs::read_dir(path) {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            error!("Permission denied accessing RAPL path");
+            return Err(JouleProfilerError::InsufficientPermissions.into());
+        }
+        return Err(e.into());
+    }
+
+    info!("RAPL interface found at {}", base);
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
     measures: Vec<HashMap<String, u64>>,
-    last_measure: Option<EnergySnapshot>,
+    last_measure: Option<Snapshot>,
     measure_counters: HashMap<String, u64>,
     poll_interval: Option<Duration>,
 
@@ -150,10 +189,6 @@ impl MetricReader for Rapl {
     fn get_polling_interval(&self) -> Option<Duration> {
         self.poll_interval
     }
-
-    fn get_name(&self) -> &'static str {
-        "Powercap"
-    }
 }
 
 impl Rapl {
@@ -170,7 +205,7 @@ impl Rapl {
         }
     }
 
-    pub fn read_snapshot(&self) -> Result<EnergySnapshot> {
+    pub fn read_snapshot(&self) -> Result<Snapshot> {
         trace!(
             "Reading energy snapshot from {} domains",
             self.domains.len()
@@ -179,37 +214,11 @@ impl Rapl {
         let mut map = HashMap::with_capacity(self.domains.len());
 
         for domain in &self.domains {
-            let val_str = read_to_string(&domain.path).map_err(|e| {
-                error!("Failed to read energy from {}: {:?}", domain.name, e);
-                if e.kind() == std::io::ErrorKind::PermissionDenied {
-                    JouleProfilerError::InsufficientPermissions
-                } else {
-                    JouleProfilerError::RaplReadError(e.to_string())
-                }
-            })?;
-
-            let val_uj: u64 = val_str.trim().parse().map_err(|e| {
-                error!(
-                    "Invalid energy value '{}' in domain '{}': {:?}",
-                    val_str.trim(),
-                    domain.name,
-                    e
-                );
-                JouleProfilerError::ParseEnergyError(format!(
-                    "Invalid energy value '{}' in domain '{}': {}",
-                    val_str.trim(),
-                    domain.name,
-                    e
-                ))
-            })?;
-
+            let val_uj = read_energy(&domain)?;
             map.insert(domain.path.to_string_lossy().to_string(), val_uj);
         }
 
-        Ok(EnergySnapshot {
-            energies_uj: map,
-            timestamp_us: get_timestamp(),
-        })
+        Ok(Snapshot { metrics: map })
     }
 }
 
@@ -239,9 +248,8 @@ mod tests {
 
         let snapshot = rapl.read_snapshot().unwrap();
 
-        assert_eq!(snapshot.energies_uj.len(), 1);
-        assert_eq!(*snapshot.energies_uj.values().next().unwrap(), 12345);
-        assert!(snapshot.timestamp_us > 0);
+        assert_eq!(snapshot.metrics.len(), 1);
+        assert_eq!(*snapshot.metrics.values().next().unwrap(), 12345);
     }
 
     #[test]
