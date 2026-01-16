@@ -257,3 +257,170 @@ pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>)
     }
     sockets.into_iter().collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{create_dir_all, write};
+    use tempfile::tempdir;
+
+    fn make_domain_dir(
+        base: &std::path::Path,
+        name: &str,
+        socket: u32,
+        energy: u64,
+        max_energy: u64,
+    ) -> std::path::PathBuf {
+        let dir = base.join(format!("intel-rapl:{}", socket));
+        create_dir_all(&dir).unwrap();
+
+        write(dir.join("name"), name).unwrap();
+        write(dir.join("energy_uj"), energy.to_string()).unwrap();
+        write(dir.join("max_energy_range_uj"), max_energy.to_string()).unwrap();
+
+        dir
+    }
+
+    #[test]
+    fn rapl_base_path_uses_override() {
+        let path = rapl_base_path(Some("/custom/path"));
+        assert_eq!(path, "/custom/path");
+    }
+
+    #[test]
+    fn extract_socket_number_from_path() {
+        let path = std::path::Path::new("/sys/devices/intel-rapl:2/intel-rapl:2:0");
+        let socket = extract_socket_number(path).unwrap();
+        assert_eq!(socket, 2);
+    }
+
+    #[test]
+    fn extract_socket_number_defaults_to_zero() {
+        let path = std::path::Path::new("/weird/path/no-socket");
+        let socket = extract_socket_number(path).unwrap();
+        assert_eq!(socket, 0);
+    }
+
+    #[test]
+    fn discover_domains_finds_valid_domain() {
+        let dir = tempdir().unwrap();
+        let base = dir.path();
+
+        make_domain_dir(base, "package", 0, 100, 1_000);
+
+        let domains = discover_domains(base.to_str().unwrap()).unwrap();
+
+        assert_eq!(domains.len(), 1);
+        let d = &domains[0];
+        assert_eq!(d.name, "package");
+        assert_eq!(d.socket, 0);
+        assert_eq!(d.max_energy_uj, 1_000);
+    }
+
+    #[test]
+    fn discover_domains_ignores_missing_max_energy() {
+        let dir = tempdir().unwrap();
+        let base = dir.path();
+
+        let domain = base.join("intel-rapl:0");
+        create_dir_all(&domain).unwrap();
+        write(domain.join("energy_uj"), "100").unwrap();
+
+        let err = discover_domains(base.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("No RAPL domains found"));
+    }
+
+    #[test]
+    fn read_energy_reads_valid_value() {
+        let dir = tempdir().unwrap();
+        let energy_file = dir.path().join("energy_uj");
+        write(&energy_file, "12345").unwrap();
+
+        let domain = RaplDomain {
+            path: energy_file,
+            name: "package".to_string(),
+            socket: 0,
+            max_energy_uj: 1_000,
+        };
+
+        let energy = read_energy(&domain).unwrap();
+        assert_eq!(energy, 12345);
+    }
+
+    #[test]
+    fn read_energy_invalid_value_fails() {
+        let dir = tempdir().unwrap();
+        let energy_file = dir.path().join("energy_uj");
+        write(&energy_file, "abc").unwrap();
+
+        let domain = RaplDomain {
+            path: energy_file,
+            name: "package".to_string(),
+            socket: 0,
+            max_energy_uj: 1_000,
+        };
+
+        let err = read_energy(&domain).unwrap_err().to_string();
+        assert!(err.contains("Invalid energy value"));
+    }
+
+    // ---------- sockets utilities ----------
+
+    #[test]
+    fn discover_sockets_returns_unique_sockets() {
+        let domains = vec![
+            RaplDomain {
+                path: "a".into(),
+                name: "pkg".into(),
+                socket: 0,
+                max_energy_uj: 1,
+            },
+            RaplDomain {
+                path: "b".into(),
+                name: "pkg".into(),
+                socket: 1,
+                max_energy_uj: 1,
+            },
+        ];
+
+        let sockets = discover_sockets(&domains);
+        assert_eq!(sockets.len(), 2);
+        assert!(sockets.contains(&0));
+        assert!(sockets.contains(&1));
+    }
+
+    #[test]
+    fn filter_sockets_intersects_correctly() {
+        let available: HashSet<u32> = [0, 1, 2].into_iter().collect();
+        let spec: HashSet<u32> = [1, 3].into_iter().collect();
+
+        let filtered = filter_sockets(&spec, &available);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered.contains(&1));
+    }
+
+    #[test]
+    fn parse_or_all_sockets_without_spec_returns_all() {
+        let domains = vec![
+            RaplDomain {
+                path: "a".into(),
+                name: "pkg".into(),
+                socket: 0,
+                max_energy_uj: 1,
+            },
+            RaplDomain {
+                path: "b".into(),
+                name: "pkg".into(),
+                socket: 1,
+                max_energy_uj: 1,
+            },
+        ];
+
+        let sockets = parse_or_all_sockets(&domains, None);
+        assert_eq!(sockets.len(), 2);
+    }
+}

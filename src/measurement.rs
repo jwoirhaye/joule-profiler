@@ -113,6 +113,8 @@ pub struct MeasurementResult {
     pub exit_code: i32,
     /// The number of measures made by the sources
     pub measure_count: u64,
+
+    pub measure_delta: u128,
 }
 
 impl MeasurementResult {
