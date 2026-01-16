@@ -14,7 +14,7 @@ use crate::{
     core::{
         manager::SourceManager,
         measurement::{PhaseMeasurementResult, PhaseResult},
-        phase::{Phase, PhaseToken},
+        phase::{PhaseInfo, PhaseToken},
     },
     error::JouleProfilerError,
     util::file::create_file_with_user_permissions,
@@ -35,7 +35,7 @@ pub async fn measure_phases(
 
     let begin_instant = Instant::now();
 
-    phases.push(Phase {
+    phases.push(PhaseInfo {
         token: PhaseToken::Start,
         timestamp: begin_instant,
         line_number: None,
@@ -108,7 +108,7 @@ pub async fn measure_phases(
 
             manager.phase().await?;
 
-            phases.push(Phase {
+            phases.push(PhaseInfo {
                 token: PhaseToken::Token(token),
                 timestamp: phase_instant,
                 line_number: Some(line_number + 1),
@@ -123,7 +123,7 @@ pub async fn measure_phases(
 
     let exit_code = status.code().unwrap_or(1);
 
-    phases.push(Phase {
+    phases.push(PhaseInfo {
         token: PhaseToken::End,
         timestamp: end_instant,
         line_number: None,

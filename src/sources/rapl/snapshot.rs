@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::{AddAssign}};
 
 use anyhow::Result;
 use log::{debug, error, info, trace};
@@ -8,6 +8,18 @@ use crate::{error::JouleProfilerError, sources::rapl::domain::RaplDomain};
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     pub metrics: HashMap<String, u64>,
+}
+
+impl AddAssign<Snapshot> for Snapshot {    
+    fn add_assign(&mut self, rhs: Snapshot) {
+        self.metrics = rhs.metrics.into_iter().map(|(domain, value)| {
+            if let Some(v) = self.metrics.get(&domain) {
+                (domain, value + v)
+            } else {
+                (domain, value)
+            }
+        }).collect();
+    }
 }
 
 /// Compute one measurement from two energy snapshots.
@@ -94,9 +106,7 @@ mod tests {
     use super::*;
 
     fn snapshot(values: &[(&str, u64)]) -> Snapshot {
-        Snapshot {
-            metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
-        }
+        Snapshot { metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect() }
     }
 
     fn domain(name: &str, socket: u32, path: &str, max_energy_uj: u64) -> RaplDomain {
