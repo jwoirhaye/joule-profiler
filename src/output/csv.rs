@@ -223,7 +223,10 @@ impl CsvOutput {
         for key in keys {
             write!(self.file, "{};", key)?;
         }
-        writeln!(self.file, "duration_ms;measure_count;exit_code")?;
+        writeln!(
+            self.file,
+            "duration_ms;measure_count;measure_delta;exit_code"
+        )?;
 
         debug!("CSV header written");
         Ok(())
@@ -248,8 +251,8 @@ impl CsvOutput {
 
         write!(
             self.file,
-            "{};{};{};",
-            result.duration_ms, result.measure_count, result.exit_code
+            "{};{};{};{};",
+            result.duration_ms, result.measure_count, result.measure_delta, result.exit_code
         )?;
 
         Ok(())

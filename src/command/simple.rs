@@ -2,7 +2,12 @@ use anyhow::Result;
 use log::{debug, info};
 
 use crate::{
-    command::run_command, config::ProfileConfig, measurement::MeasurementResult, output::{Displayer, OutputFormatTrait}, source::{Metric, SourceManager, rapl::init_rapl}, util::time::get_timestamp
+    command::run_command,
+    config::ProfileConfig,
+    measurement::MeasurementResult,
+    output::{Displayer, OutputFormatTrait},
+    source::{Metric, SourceManager, rapl::init_rapl},
+    util::time::get_timestamp,
 };
 
 pub async fn run_simple(config: &ProfileConfig) -> Result<()> {
@@ -59,5 +64,6 @@ async fn measure_simple(
         duration_ms,
         measure_count: result.count,
         metrics,
+        measure_delta: result.measure_delta,
     })
 }

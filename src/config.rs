@@ -9,7 +9,7 @@ pub struct ProfileConfig {
     pub output_file: Option<String>,
     pub cmd: Vec<String>,
     pub sockets: Option<HashSet<u32>>,
-    pub rapl_polling: Option<u64>,
+    pub rapl_polling: Option<f64>,
     pub rapl_path: Option<String>,
     pub mode: Mode,
 }
@@ -17,7 +17,7 @@ pub struct ProfileConfig {
 #[derive(Debug, Clone)]
 pub enum Mode {
     SimpleMode,
-    PhaseMode(PhasesConfig)
+    PhaseMode(PhasesConfig),
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +68,6 @@ impl From<Cli> for Config {
                 })
             }
             ProfilerCommand::Phases(phases) => {
-
                 let common = phases.common;
                 let output_format = output_format(common.json, common.csv);
                 Command::Profile(ProfileConfig {
@@ -79,11 +78,13 @@ impl From<Cli> for Config {
                     cmd: common.cmd,
                     rapl_polling: common.rapl_polling,
                     rapl_path: cli.rapl_path,
-                    mode: Mode::PhaseMode(PhasesConfig { token_pattern: phases.token_pattern }),
+                    mode: Mode::PhaseMode(PhasesConfig {
+                        token_pattern: phases.token_pattern,
+                    }),
                     sockets,
                 })
             }
-            
+
             ProfilerCommand::ListSensors(list) => Command::ListSensors(ListSensorsConfig {
                 output_format: output_format(list.json, list.csv),
                 rapl_path: cli.rapl_path,

@@ -69,7 +69,7 @@ pub struct CommonArgs {
     pub cmd: Vec<String>,
 
     #[arg(long = "rapl-polling")]
-    pub rapl_polling: Option<u64>,
+    pub rapl_polling: Option<f64>,
 }
 
 /// Arguments for Simple mode
