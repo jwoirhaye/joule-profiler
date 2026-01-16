@@ -1,26 +1,22 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use tokio::{
-    select,
-    sync::mpsc::{Receiver, Sender, channel},
+    sync::mpsc::{Sender, channel},
     task::JoinHandle,
-    time::{MissedTickBehavior, interval},
 };
 
 use crate::{
-    core::source::{MetricReader, SourceEvent, SourceResult},
-    sources::MetricSource,
+    core::source::{MetricReader, MetricSource, SourceEvent, SourceResult},
+    sources::MetricSourceType,
 };
 
 pub struct SourceManager {
-    sources: Vec<MetricSource>,
+    sources: Vec<MetricSourceType>,
     senders: Vec<Sender<SourceEvent>>,
     handles: Vec<JoinHandle<Result<SourceResult>>>,
 }
 
 impl SourceManager {
-    pub fn new(sources: Vec<MetricSource>) -> Self {
+    pub fn new(sources: Vec<MetricSourceType>) -> Self {
         Self {
             sources,
             senders: Vec::new(),
@@ -30,22 +26,22 @@ impl SourceManager {
 
     /// Start the metrics sources worker threads.
     pub async fn start_workers(&mut self) {
-        let sources = self.sources.clone();
+        // let sources = self
+        //     .sources
+        //     .iter()
+        //     .cloned()
+        //     .map(|source| MetricSource::new(source.into()));
+
+        // MetricSource::new(self.sources[0].into());
+
         let mut senders = Vec::new();
         let mut handles = Vec::new();
 
-        for source in sources {
+        for mut source in self.sources {
             let (tx, rx) = channel(4);
             senders.push(tx.clone());
 
-            let handle = tokio::spawn(async move {
-                let poll_interval = source.get_polling_interval();
-
-                match poll_interval {
-                    Some(interval) => run_worker_with_polling(source, rx, interval).await,
-                    None => run_worker_event_only(source, rx).await,
-                }
-            });
+            let handle = tokio::spawn(async move { MetricSourceType::into(source).run_worker(rx).await });
 
             handles.push(handle);
         }
@@ -131,67 +127,5 @@ impl SourceManager {
             sender.send(event).await?;
         }
         Ok(())
-    }
-}
-
-/// Start a worker without polling.
-async fn run_worker_event_only<S: MetricReader>(
-    mut source: S,
-    mut rx: Receiver<SourceEvent>,
-) -> Result<SourceResult> {
-    loop {
-        match rx.recv().await {
-            Some(SourceEvent::Stop) => return source.retrieve(),
-            Some(event) => handle_event_no_polling(&mut source, event)?,
-            _ => {}
-        }
-    }
-}
-
-/// Handle an event for a no-polling worker (only phase and measure events supported).
-fn handle_event_no_polling<S: MetricReader>(source: &mut S, event: SourceEvent) -> Result<()> {
-    match event {
-        SourceEvent::Phase => {
-            source.phase()?;
-        }
-        SourceEvent::Measure => {
-            source.measure()?;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-async fn run_worker_with_polling<S: MetricReader>(
-    mut source: S,
-    mut rx: Receiver<SourceEvent>,
-    polling_interval: Duration,
-) -> Result<SourceResult> {
-    let mut polling_active = true;
-
-    let mut reload_timer = interval(polling_interval);
-    reload_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
-    loop {
-        select! {
-            Some(event) = rx.recv() => {
-                match event {
-                    SourceEvent::Start => polling_active = true,
-                    SourceEvent::Stop => polling_active = false,
-                    SourceEvent::Join => return source.retrieve(),
-                    SourceEvent::Measure => {
-                        source.measure()?;
-                    },
-                    SourceEvent::Phase => {
-                        source.phase()?;
-                    },
-                }
-            }
-            _ = reload_timer.tick() => {
-                if polling_active {
-                    source.measure()?;
-                }
-            }
-        }
     }
 }

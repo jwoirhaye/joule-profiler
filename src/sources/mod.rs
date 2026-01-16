@@ -9,10 +9,13 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use crate::core::{sensor::Sensor, source::SourceResult};
+use crate::core::metric::Metrics;
+use std::collections::HashMap;
+
+use crate::core::sensor::Sensor;
 
 #[enum_dispatch(MetricReader)]
 #[derive(Clone, Debug)]
-pub enum MetricSource {
+pub enum MetricSourceType {
     Rapl(Rapl),
 }

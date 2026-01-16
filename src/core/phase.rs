@@ -30,7 +30,7 @@ impl From<PhaseToken> for Option<String> {
 
 /// Detected token with timestamp
 #[derive(Debug, Clone)]
-pub struct Phase {
+pub struct PhaseInfo {
     pub token: PhaseToken,
     pub timestamp: Instant,
     pub line_number: Option<usize>,
