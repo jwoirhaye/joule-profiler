@@ -1,0 +1,34 @@
+use clap::{ArgAction, Parser};
+
+pub use commands::ProfilerCommand;
+
+mod commands;
+
+/// joule-profiler: measure program energy consumption using Intel RAPL
+#[derive(Parser, Debug)]
+#[command(name = "joule-profiler")]
+#[command(version, about = "Measure program energy consumption using Intel RAPL")]
+pub struct Cli {
+    /// Verbosity (-v, -vv, -vvv)
+    #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
+    pub verbose: u8,
+
+    /// Override the base path used to read Intel RAPL counters.
+    ///
+    /// By default, the profiler reads from:
+    ///   /sys/devices/virtual/powercap/intel-rapl
+    ///
+    /// If not provided, the profiler uses (by priority):
+    ///   1. $JOULE_PROFILER_RAPL_PATH (if set)
+    ///   2. /sys/devices/virtual/powercap/intel-rapl
+    #[arg(long = "rapl-path")]
+    pub rapl_path: Option<String>,
+
+    /// Sockets to measure (e.g. 0 or 0,1)
+    #[arg(short = 's', long = "sockets")]
+    pub sockets: Option<String>,
+
+    /// The command to execute
+    #[command(subcommand)]
+    pub command: ProfilerCommand,
+}

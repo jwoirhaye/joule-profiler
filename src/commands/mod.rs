@@ -6,7 +6,6 @@ use crate::{error::JouleProfilerError, util::file::create_file_with_user_permiss
 
 pub mod list_sensors;
 pub mod phases;
-pub mod simple;
 
 /// Executes the configured command and returns its exit code and status.
 pub fn run_command(cmd: &[String], output_file: Option<&String>) -> Result<(i32, ExitStatus)> {

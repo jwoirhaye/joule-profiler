@@ -3,15 +3,13 @@ use std::fs::File;
 use std::io::Write;
 
 use anyhow::Result;
-use log::{debug, info, trace, warn};
 
-use crate::config::{ListSensorsConfig, ProfileConfig};
-use crate::measurement::{MeasurementResult, PhaseMeasurementResult, PhaseResult};
-use crate::output::OutputFormatTrait;
-use crate::source::Sensor;
+use crate::core::displayer::{
+    ListSensorsDisplayer, ProfilerDisplayer, default_iterations_filename,
+};
+use crate::core::measurement::{MeasurementResult, PhaseMeasurementResult, PhaseResult};
+use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
-
-use super::default_iterations_filename;
 
 /// Data for a phase row in CSV output
 struct PhaseRowData<'a> {
@@ -45,39 +43,29 @@ pub struct CsvOutput {
     filename: String,
 }
 
-impl OutputFormatTrait for CsvOutput {
-    fn simple_single(&mut self, config: &ProfileConfig, result: &MeasurementResult) -> Result<()> {
-        debug!("Formatting simple single measurement for CSV");
+impl ProfilerDisplayer for CsvOutput {
+    fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
         let keys: Vec<&String> = result.metrics.iter().map(|metric| &metric.name).collect();
 
         self.write_header(&keys, false, false)?;
-        self.write_row(&config.cmd, result, None)?;
+        self.write_row(cmd, result, None)?;
 
         self.finalize();
         Ok(())
     }
 
-    fn simple_iterations(
-        &mut self,
-        config: &ProfileConfig,
-        results: &[MeasurementResult],
-    ) -> Result<()> {
-        info!("Formatting {} simple iterations for CSV", results.len());
-
+    fn simple_iterations(&mut self, cmd: &[String], results: &[MeasurementResult]) -> Result<()> {
         if results.is_empty() {
-            warn!("No iterations to write to CSV");
             return Ok(());
         }
 
         let first = &results[0];
         let keys: Vec<&String> = first.extract_keys();
 
-        debug!("CSV will contain {} metrics", first.metrics.len());
-
         self.write_header(&keys, true, false)?;
 
-        for (idx, res) in results.iter().enumerate() {
-            self.write_row(&config.cmd, &res, Some(idx))?;
+        for (idx, result) in results.iter().enumerate() {
+            self.write_row(cmd, result, Some(idx))?;
         }
 
         self.finalize();
@@ -86,34 +74,27 @@ impl OutputFormatTrait for CsvOutput {
 
     fn phases_single(
         &mut self,
-        config: &ProfileConfig,
+        cmd: &[String],
+        _token_pattern: &str,
         result: &PhaseMeasurementResult,
     ) -> Result<()> {
-        debug!(
-            "Formatting phases single measurement for CSV ({} phases)",
-            result.phases.len()
-        );
-
         if result.phases.is_empty() {
-            warn!("No phases to write to CSV");
             return Ok(());
         }
 
         let keys: Vec<&String> = result.extract_keys();
         self.write_header(&keys, false, true)?;
 
-        for phase in &result.phases {
-            trace!("Writing phase: {}", phase.name);
-
+        for phase_result in &result.phases {
             let phase_data = PhaseRowData::new(
-                &phase.name,
-                phase.start_token.as_deref(),
-                phase.end_token.as_deref(),
-                phase.start_line,
-                phase.end_line,
+                &phase_result.name,
+                phase_result.start_token.as_deref(),
+                phase_result.end_token.as_deref(),
+                phase_result.start_line,
+                phase_result.end_line,
             );
 
-            self.write_row_phase(&config.cmd, &phase, None, &phase_data)?;
+            self.write_row_phase(cmd, phase_result, None, &phase_data)?;
         }
 
         self.finalize();
@@ -122,20 +103,17 @@ impl OutputFormatTrait for CsvOutput {
 
     fn phases_iterations(
         &mut self,
-        config: &ProfileConfig,
+        cmd: &[String],
+        _token_pattern: &str,
         results: &[PhaseMeasurementResult],
     ) -> Result<()> {
-        info!("Formatting {} phase iterations for CSV", results.len());
-
         if results.is_empty() {
-            warn!("No phase iterations to write to CSV");
             return Ok(());
         }
 
         let first_result = &results[0];
 
         if first_result.phases.is_empty() {
-            warn!("No phases to write to CSV");
             return Ok(());
         }
 
@@ -145,31 +123,29 @@ impl OutputFormatTrait for CsvOutput {
         }
         let keys_vec: Vec<&String> = keys.into_iter().collect();
 
-        debug!("CSV will contain {} metrics", keys_vec.len());
-
         self.write_header(&keys_vec, true, true)?;
 
         for (idx, iteration_results) in results.iter().enumerate() {
-            for phase in &iteration_results.phases {
-                trace!("Writing iteration {} phase: {}", idx + 1, phase.name);
-
+            for phase_result in &iteration_results.phases {
                 let phase_data = PhaseRowData::new(
-                    &phase.name,
-                    phase.start_token.as_deref(),
-                    phase.end_token.as_deref(),
-                    phase.start_line,
-                    phase.end_line,
+                    &phase_result.name,
+                    phase_result.start_token.as_deref(),
+                    phase_result.end_token.as_deref(),
+                    phase_result.start_line,
+                    phase_result.end_line,
                 );
 
-                self.write_row_phase(&config.cmd, &phase, Some(idx), &phase_data)?;
+                self.write_row_phase(cmd, phase_result, Some(idx), &phase_data)?;
             }
         }
 
         self.finalize();
         Ok(())
     }
+}
 
-    fn list_sensors(&mut self, _config: &ListSensorsConfig, sensors: &[Sensor]) -> Result<()> {
+impl ListSensorsDisplayer for CsvOutput {
+    fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
         write!(self.file, "sensor;unit;source")?;
         for sensor in sensors {
             write!(
@@ -189,7 +165,6 @@ impl CsvOutput {
             .unwrap_or(default_iterations_filename("csv"));
 
         let absolute_path = get_absolute_path(&filename)?;
-        info!("Creating CSV output file: {}", absolute_path);
 
         let file = create_file_with_user_permissions(&absolute_path)?;
 
@@ -205,8 +180,6 @@ impl CsvOutput {
         include_iteration: bool,
         include_phase: bool,
     ) -> Result<()> {
-        trace!("Writing CSV header with {} metrics", keys.len());
-
         write!(self.file, "command;")?;
 
         if include_iteration {
@@ -228,7 +201,6 @@ impl CsvOutput {
             "duration_ms;measure_count;measure_delta;exit_code"
         )?;
 
-        debug!("CSV header written");
         Ok(())
     }
 
@@ -241,7 +213,6 @@ impl CsvOutput {
         write!(self.file, "'{}';", command.join(" "))?;
 
         if let Some(idx) = iteration {
-            trace!("Writing CSV row for iteration {}", idx);
             write!(self.file, "{};", idx)?;
         }
 
@@ -268,7 +239,6 @@ impl CsvOutput {
         write!(self.file, "'{}';", command.join(" "))?;
 
         if let Some(idx) = iteration {
-            trace!("Writing CSV row for iteration {}", idx);
             write!(self.file, "{};", idx)?;
         }
 
@@ -297,6 +267,5 @@ impl CsvOutput {
 
     fn finalize(&self) {
         println!("✔ CSV written to: {}", self.filename);
-        info!("CSV output saved to: {}", self.filename);
     }
 }
