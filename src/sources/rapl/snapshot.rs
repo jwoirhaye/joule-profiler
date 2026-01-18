@@ -46,7 +46,7 @@ impl From<Snapshot> for Metrics {
 }
 
 impl Snapshot {
-    pub fn new(metrics: HashMap<String, u64>) -> Self {
+    pub fn try_new(metrics: HashMap<String, u64>) -> Self {
         Self { metrics }
     }
 }

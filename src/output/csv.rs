@@ -155,7 +155,7 @@ impl Displayer for CsvOutput {
 }
 
 impl CsvOutput {
-    pub fn new(output_file: Option<String>) -> Result<Self> {
+    pub fn try_new(output_file: Option<String>) -> Result<Self> {
         let filename = output_file
             .clone()
             .unwrap_or(default_iterations_filename("csv"));
