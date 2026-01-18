@@ -34,18 +34,6 @@ const POWERCAP_SOURCE_NAME: &str = "Powercap";
 pub struct Rapl {
     domains: Vec<RaplDomain>,
     ticker: Option<Interval>,
-    poll_interval: Option<Duration>,
-}
-
-/// Ticker have to be None because it is not clonable, that's why we need init method.
-impl Clone for Rapl {
-    fn clone(&self) -> Self {
-        Self {
-            domains: self.domains.clone(),
-            ticker: None,
-            poll_interval: self.poll_interval,
-        }
-    }
 }
 
 impl TryFrom<&Config> for Rapl {
@@ -85,17 +73,6 @@ impl GetSensorsTrait for Rapl {
 impl MetricReader for Rapl {
     type Type = Snapshot;
 
-    fn init(&mut self) -> Result<()> {
-        let ticker = if let Some(duration) = self.poll_interval {
-            let timerfd_interval = Interval::new_interval(duration)?;
-            Some(timerfd_interval)
-        } else {
-            None
-        };
-        self.ticker = ticker;
-        Ok(())
-    }
-
     fn measure(&self) -> Result<Self::Type> {
         trace!("Starting RAPL measurement");
         self.read_snapshot()
@@ -131,7 +108,14 @@ impl Rapl {
         let domains = get_domains(&base_path, sockets)?;
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
-        let rapl = Rapl::new(domains, poll_interval);
+        let ticker = if let Some(duration) = poll_interval {
+            let timerfd_interval = Interval::new_interval(duration)?;
+            Some(timerfd_interval)
+        } else {
+            None
+        };
+
+        let rapl = Rapl::new(domains, ticker);
         Ok(rapl)
     }
 
@@ -151,11 +135,10 @@ impl Rapl {
         Ok(Snapshot { metrics: map })
     }
 
-    fn new(domains: Vec<RaplDomain>, poll_interval: Option<Duration>) -> Self {
+    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
         Self {
             domains,
-            ticker: None,
-            poll_interval,
+            ticker,
         }
     }
 }
