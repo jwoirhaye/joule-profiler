@@ -4,9 +4,7 @@ use std::io::Write;
 use anyhow::Result;
 use serde_json::json;
 
-use crate::core::displayer::{
-    ListSensorsDisplayer, ProfilerDisplayer, default_iterations_filename,
-};
+use crate::core::displayer::{Displayer, default_iterations_filename};
 use crate::core::measurement::{MeasurementResult, PhaseMeasurementResult};
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
@@ -17,7 +15,7 @@ pub struct JsonOutput {
     filename: String,
 }
 
-impl ProfilerDisplayer for JsonOutput {
+impl Displayer for JsonOutput {
     fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
         let obj = json!({
             "command": cmd.join(" "),
@@ -104,9 +102,7 @@ impl ProfilerDisplayer for JsonOutput {
 
         self.write_json(&root)
     }
-}
 
-impl ListSensorsDisplayer for JsonOutput {
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
         self.write_json(&serde_json::to_value(sensors)?)
     }

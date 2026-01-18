@@ -1,96 +1,165 @@
-use std::{marker::PhantomData, ops::{AddAssign}, time::Duration};
+use std::{
+    ops::{Add, AddAssign},
+    pin::Pin,
+    time::Duration,
+};
 
 use anyhow::Result;
-use enum_dispatch::enum_dispatch;
-use tokio::{
-    select,
-    sync::mpsc::Receiver,
-    time::{Instant, MissedTickBehavior, interval},
-};
+use futures::StreamExt;
+use tokio::{select, sync::mpsc::Receiver, time::Instant};
+use tokio_timerfd::Interval;
 
 use crate::core::{
     metric::{Metric, Metrics},
-    sensor::Sensor,
+    sensor::Sensors,
 };
 
-#[derive(Default)]
-struct Iteration {
-    pub phases: Vec<Phase>,
+#[derive(Default, Debug)]
+pub struct SensorIteration {
+    pub phases: Vec<SensorPhase>,
 }
 
-#[derive(Default)]
+impl AddAssign for SensorPhase {
+    fn add_assign(&mut self, rhs: Self) {
+        self.metrics.extend(rhs.metrics);
+    }
+}
 
-struct Phase {
+impl AddAssign for SensorIteration {
+    fn add_assign(&mut self, rhs: Self) {
+        self.phases
+            .iter_mut()
+            .zip(rhs.phases)
+            .for_each(|(self_phase, rhs_phase)| *self_phase += rhs_phase);
+    }
+}
+
+impl Add for SensorIteration {
+    type Output = SensorIteration;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+#[derive(Default, Debug)]
+
+pub struct SensorPhase {
     pub metrics: Vec<Metric>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SourceEvent {
     Measure,
-    Phase,
-    Start,
-    Stop,
+    NewPhase,
+    NewIteration,
+    StartPolling,
+    StopPolling,
     Join,
 }
 
-pub struct SourceResult {
-    pub iterations: Vec<Iteration>,
+#[derive(Debug)]
+pub struct SensorResult {
+    pub iterations: Vec<SensorIteration>,
     pub count: u64,
-    pub measure_delta: u128,
+    pub measure_delta: u64,
 }
 
-#[enum_dispatch]
-pub trait MetricReader<V> {
-    /// Measure the sensors metrics.
-    fn measure(&mut self) -> Result<V>;
+impl Add for SensorResult {
+    type Output = SensorResult;
 
-    /// Get all the metric source sensors.
-    fn get_sensors(&self) -> Result<Vec<Sensor>>;
+    fn add(self, rhs: Self) -> Self::Output {
+        let count = self.count + rhs.count;
+        let measure_delta = self.measure_delta + rhs.measure_delta;
+        let iterations = self
+            .iterations
+            .into_iter()
+            .zip(rhs.iterations)
+            .map(|(self_iter, rhs_iter)| self_iter + rhs_iter)
+            .collect();
+        Self::Output {
+            iterations,
+            count,
+            measure_delta,
+        }
+    }
+}
+
+impl SensorResult {
+    pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
+        results.into_iter().reduce(|acc, result| acc + result)
+    }
+}
+
+pub trait MetricReader {
+    type Type: Into<Metrics> + AddAssign<Self::Type> + Default + Clone + PartialEq;
+
+    /// Measure the sensors metrics.
+    fn measure(&mut self) -> Result<Self::Type>;
 
     /// Get the polling interval of the metric source if supported.
     fn get_polling_interval(&self) -> Option<Duration> {
         None
     }
 
-    fn compute_measures(&self, new: V, old: V) -> Result<V>;
+    fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
 }
 
-#[derive(Default)]
+pub trait GetSensorsTrait: Send {
+    fn get_sensors(&self) -> Result<Sensors>;
+}
+
+#[derive(Default, Clone)]
 struct SourceIteration<V> {
     pub phases: Vec<SourcePhase<V>>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 
 struct SourcePhase<V> {
     pub metrics: V,
 }
 
-impl<V> From<SourcePhase<V>> for Phase where V: Into<Metrics> {
+impl<V> SourcePhase<V> {
+    pub fn new(metrics: V) -> Self {
+        Self { metrics }
+    }
+}
+
+impl<V> From<SourcePhase<V>> for SensorPhase
+where
+    V: Into<Metrics>,
+{
     fn from(phase: SourcePhase<V>) -> Self {
-        Phase { metrics: phase.metrics.into() }
+        SensorPhase {
+            metrics: phase.metrics.into(),
+        }
     }
 }
 
-impl<V: Into<Metrics>> From<SourceIteration<V>> for Iteration {
+impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
     fn from(iteration: SourceIteration<V>) -> Self {
-        let phases = iteration.phases.into_iter().map(|phase| phase.into()).collect();
-        Iteration { phases }
+        let phases = iteration
+            .phases
+            .into_iter()
+            .map(|phase| phase.into())
+            .collect();
+        SensorIteration { phases }
     }
 }
 
-pub struct MetricSource<V, T: MetricReader<V>> {
+#[derive(Clone)]
+pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
     metric_reader: T,
 
-    _result_type: PhantomData<V>,
+    iterations: Vec<SourceIteration<T::Type>>,
 
-    iterations: Vec<SourceIteration<V>>,
+    current_iteration: SourceIteration<T::Type>,
 
-    current_iteration: SourceIteration<V>,
+    last_measure: Option<T::Type>,
 
-    last_measure: Option<V>,
-
-    current_counter: V,
+    current_counters: T::Type,
 
     /// Number of snapshots taken
     count: u64,
@@ -102,18 +171,16 @@ pub struct MetricSource<V, T: MetricReader<V>> {
     last_instant: Option<Instant>,
 }
 
-impl<V, T> MetricSource<V, T>
+impl<T> MetricSource<T>
 where
-    T: MetricReader<V>,
-    V: Into<Metrics> + AddAssign<V> + Default,
+    T: MetricReader + GetSensorsTrait,
 {
     pub fn new(reader: T) -> Self {
         Self {
             metric_reader: reader,
-            _result_type: PhantomData,
             iterations: Vec::new(),
             current_iteration: SourceIteration::default(),
-            current_counter: V::default(),
+            current_counters: T::Type::default(),
             last_measure: None,
             count: 0,
             total_elapsed: Duration::ZERO,
@@ -127,46 +194,55 @@ where
         if let Some(last) = self.last_instant {
             self.total_elapsed += now.duration_since(last);
         }
+
         self.last_instant = Some(now);
         self.count += 1;
         let measure = self.metric_reader.measure()?;
 
         if let Some(old) = self.last_measure.take() {
-            let diff = self.metric_reader.compute_measures(measure, old)?;
-            self.current_counter += diff;
+            self.current_counters += self.metric_reader.compute_measures(&measure, old)?;
         }
+
+        self.last_measure = Some(measure);
 
         Ok(())
     }
 
     /// Initialize a new measure phase.
-    pub fn phase(&mut self) -> Result<()> {
-        self.measure()?;
-        let phase_counters = std::mem::take(&mut self.current_counter);
-        // let iteration = std::mem::take(&mut self.current_iteration);
-        self.current_iteration.phases.push(SourcePhase { metrics: phase_counters });
+    pub fn new_phase(&mut self) -> Result<()> {
+        if self.current_counters != T::Type::default() {
+            let phase_counters = std::mem::take(&mut self.current_counters);
+            self.current_iteration
+                .phases
+                .push(SourcePhase::new(phase_counters));
+        }
         Ok(())
     }
 
-    pub fn iteration(&mut self) -> Result<()> {
-        self.phase()?;
-        let iteration = std::mem::take(&mut self.current_iteration);
-        self.iterations.push(iteration);
+    /// Initialize a new iteration.
+    pub fn new_iteration(&mut self) -> Result<()> {
+        if let Some(_) = self.last_measure.take() {
+            let iteration = std::mem::take(&mut self.current_iteration);
+            self.iterations.push(iteration);
+        }
         Ok(())
     }
 
     /// Retrieve all sensors measures.
-    pub fn retrieve(&mut self) -> Result<SourceResult> {
+    pub fn retrieve(&mut self) -> Result<SensorResult> {
         let avg_delta_us = if self.count > 1 {
-            self.total_elapsed.as_micros() / (self.count - 1) as u128
+            (self.total_elapsed.as_micros() / (self.count - 1) as u128) as u64
         } else {
             0
         };
-        
-        let source_iterations = std::mem::take(&mut self.iterations);
-        let iterations = source_iterations.into_iter().map(|iteration| iteration.into()).collect();
 
-        Ok(SourceResult {
+        let source_iterations = std::mem::take(&mut self.iterations);
+        let iterations = source_iterations
+            .into_iter()
+            .map(|iteration| iteration.into())
+            .collect();
+
+        Ok(SensorResult {
             count: self.count,
             measure_delta: avg_delta_us,
             iterations,
@@ -174,21 +250,25 @@ where
     }
 
     /// Start a worker thread to measure the source.
-    pub async fn run_worker(&mut self, rx: Receiver<SourceEvent>) -> Result<SourceResult> {
+    pub async fn run_worker(&mut self, rx: Receiver<SourceEvent>) -> Result<SensorResult> {
         match self.metric_reader.get_polling_interval() {
             Some(polling_interval) => self.run_worker_with_polling(rx, polling_interval).await,
             None => self.run_worker_event_only(rx).await,
         }
     }
 
+    pub fn get_sensors(&self) -> Result<Sensors> {
+        self.metric_reader.get_sensors()
+    }
+
     /// Start a worker without polling.
     pub async fn run_worker_event_only(
         &mut self,
         mut rx: Receiver<SourceEvent>,
-    ) -> Result<SourceResult> {
+    ) -> Result<SensorResult> {
         loop {
             match rx.recv().await {
-                Some(SourceEvent::Stop) => return self.retrieve(),
+                Some(SourceEvent::Join) => return self.retrieve(),
                 Some(event) => self.handle_event_no_polling(event)?,
                 _ => {}
             }
@@ -200,28 +280,29 @@ where
         &mut self,
         mut rx: Receiver<SourceEvent>,
         polling_interval: Duration,
-    ) -> Result<SourceResult> {
+    ) -> Result<SensorResult> {
         let mut polling_active = true;
-
-        let mut reload_timer = interval(polling_interval);
-        reload_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut polling_timer = Interval::new_interval(polling_interval)?;
 
         loop {
             select! {
                 Some(event) = rx.recv() => {
                     match event {
-                        SourceEvent::Start => polling_active = true,
-                        SourceEvent::Stop => polling_active = false,
+                        SourceEvent::StartPolling => polling_active = true,
+                        SourceEvent::StopPolling => polling_active = false,
                         SourceEvent::Join => return self.retrieve(),
                         SourceEvent::Measure => {
                             self.measure()?;
                         },
-                        SourceEvent::Phase => {
-                            self.phase()?;
+                        SourceEvent::NewPhase => {
+                            self.new_phase()?;
                         },
+                        SourceEvent::NewIteration => {
+                            self.new_iteration()?;
+                        }
                     }
                 }
-                _ = reload_timer.tick() => {
+                _ = polling_timer.next() => {
                     if polling_active {
                         self.measure()?;
                     }
@@ -230,17 +311,71 @@ where
         }
     }
 
-    /// Handle an event for a no-polling worker (only phase and measure events supported).
+    /// Handle an event for a no-polling worker.
     fn handle_event_no_polling(&mut self, event: SourceEvent) -> Result<()> {
         match event {
-            SourceEvent::Phase => {
-                self.phase()?;
+            SourceEvent::NewPhase => {
+                self.new_phase()?;
             }
             SourceEvent::Measure => {
                 self.measure()?;
             }
+            SourceEvent::NewIteration => {
+                self.new_iteration()?;
+            }
             _ => {}
         }
         Ok(())
+    }
+}
+
+pub trait MetricSourceWorker: Send {
+    fn run(
+        self: Box<Self>,
+        rx: Receiver<SourceEvent>,
+    ) -> Pin<Box<dyn Future<Output = Result<SensorResult>> + Send>>;
+
+    fn list_sensors(&self) -> Result<Sensors>;
+
+    fn clone_box(&self) -> Box<dyn MetricSourceWorker>;
+}
+
+impl<T> From<T> for Box<dyn MetricSourceWorker>
+where
+    T: MetricReader + GetSensorsTrait + Send + 'static,
+    MetricSource<T>: Clone,
+    T::Type: Send,
+{
+    fn from(reader: T) -> Self {
+        let source = MetricSource::new(reader);
+        Box::new(source)
+    }
+}
+
+impl<T> MetricSourceWorker for MetricSource<T>
+where
+    MetricSource<T>: Clone,
+    T: MetricReader + GetSensorsTrait + Send + 'static,
+    T::Type: Send,
+{
+    fn run(
+        mut self: Box<Self>,
+        rx: Receiver<SourceEvent>,
+    ) -> Pin<Box<dyn Future<Output = Result<SensorResult>> + Send>> {
+        Box::pin(async move { self.run_worker(rx).await })
+    }
+
+    fn list_sensors(&self) -> Result<Sensors> {
+        self.get_sensors()
+    }
+
+    fn clone_box(&self) -> Box<dyn MetricSourceWorker> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn MetricSourceWorker> {
+    fn clone(&self) -> Self {
+        self.clone_box()
     }
 }

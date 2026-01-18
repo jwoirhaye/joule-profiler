@@ -1,24 +1,53 @@
-use std::{collections::HashMap, ops::{AddAssign}};
+use std::{collections::HashMap, ops::AddAssign};
 
 use anyhow::Result;
 use log::{debug, error, info, trace};
 
-use crate::{error::JouleProfilerError, sources::rapl::domain::RaplDomain};
+use crate::{
+    core::metric::{Metric, Metrics},
+    error::JouleProfilerError,
+    sources::rapl::domain::RaplDomain,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
     pub metrics: HashMap<String, u64>,
 }
 
-impl AddAssign<Snapshot> for Snapshot {    
+impl AddAssign<Snapshot> for Snapshot {
     fn add_assign(&mut self, rhs: Snapshot) {
-        self.metrics = rhs.metrics.into_iter().map(|(domain, value)| {
-            if let Some(v) = self.metrics.get(&domain) {
-                (domain, value + v)
-            } else {
-                (domain, value)
-            }
-        }).collect();
+        self.metrics = rhs
+            .metrics
+            .into_iter()
+            .map(|(domain, value)| {
+                if let Some(v) = self.metrics.get(&domain) {
+                    (domain, value + v)
+                } else {
+                    (domain, value)
+                }
+            })
+            .collect();
+    }
+}
+
+impl From<Snapshot> for Metrics {
+    fn from(snapshot: Snapshot) -> Self {
+        snapshot
+            .metrics
+            .into_iter()
+            .map(|(domain, value)| Metric {
+                name: domain,
+                source: "powercap".to_string(),
+                unit: "uj".to_string(),
+                value,
+            })
+            .collect()
+    }
+}
+
+impl Snapshot {
+    pub fn new(metrics: HashMap<String, u64>) -> Self {
+        Self { metrics }
     }
 }
 
@@ -106,7 +135,9 @@ mod tests {
     use super::*;
 
     fn snapshot(values: &[(&str, u64)]) -> Snapshot {
-        Snapshot { metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect() }
+        Snapshot {
+            metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+        }
     }
 
     fn domain(name: &str, socket: u32, path: &str, max_energy_uj: u64) -> RaplDomain {
