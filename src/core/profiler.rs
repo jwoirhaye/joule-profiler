@@ -240,7 +240,6 @@ impl JouleProfiler {
                 )| {
                     let mut phases: Vec<_> = detected_phases
                         .windows(2)
-                        .into_iter()
                         .zip(&iteration.phases)
                         .map(|(window, real_phase)| {
                             let (d1, d2) = (&window[0], &window[1]);
@@ -258,7 +257,7 @@ impl JouleProfiler {
                         .collect();
 
                     if phases.is_empty()
-                        && let Some(end_phase) = iteration.phases.into_iter().last().take()
+                        && let Some(end_phase) = iteration.phases.into_iter().last()
                     {
                         phases.push(Phase::new(
                             end_phase.metrics,
