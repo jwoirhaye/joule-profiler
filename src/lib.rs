@@ -7,7 +7,6 @@ use crate::{cli::Cli, config::Config, util::logging::init_logging};
 pub use core::profiler::JouleProfiler;
 
 pub mod cli;
-mod commands;
 mod config;
 mod core;
 pub mod error;
@@ -23,5 +22,6 @@ pub async fn run() -> Result<()> {
     let config = Config::from(cli);
 
     info!("Joule Profiler starting");
-    JouleProfiler::run(&config).await
+    let mut profiler = JouleProfiler::try_from(config)?;
+    profiler.run().await
 }

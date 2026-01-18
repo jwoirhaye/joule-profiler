@@ -28,6 +28,14 @@ pub struct Cli {
     #[arg(short = 's', long = "sockets")]
     pub sockets: Option<String>,
 
+    /// Export results as JSON instead of pretty terminal output
+    #[arg(long, conflicts_with = "csv")]
+    pub json: bool,
+
+    /// Export results as CSV (semicolon-separated values)
+    #[arg(long, conflicts_with = "json")]
+    pub csv: bool,
+
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,

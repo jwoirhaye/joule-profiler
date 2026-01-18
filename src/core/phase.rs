@@ -1,12 +1,21 @@
 use std::fmt::Display;
 
-use tokio::time::Instant;
+use serde::Serialize;
 
 #[derive(Debug, Clone)]
 pub enum PhaseToken {
     Start,
     Token(String),
     End,
+}
+
+impl Serialize for PhaseToken {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 impl Display for PhaseToken {
@@ -32,6 +41,23 @@ impl From<PhaseToken> for Option<String> {
 #[derive(Debug, Clone)]
 pub struct PhaseInfo {
     pub token: PhaseToken,
-    pub timestamp: Instant,
+    pub timestamp: u128,
+    pub duration_ms: u128,
     pub line_number: Option<usize>,
+}
+
+impl PhaseInfo {
+    pub fn new(
+        token: PhaseToken,
+        timestamp: u128,
+        duration_ms: u128,
+        line_number: Option<usize>,
+    ) -> Self {
+        Self {
+            token,
+            timestamp,
+            duration_ms,
+            line_number,
+        }
+    }
 }

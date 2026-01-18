@@ -22,14 +22,6 @@ pub enum ProfilerCommand {
 /// Fields common to both Simple and Phases modes
 #[derive(Parser, Debug)]
 pub struct CommonArgs {
-    /// Export results as JSON instead of pretty terminal output
-    #[arg(long, conflicts_with = "csv")]
-    pub json: bool,
-
-    /// Export results as CSV (semicolon-separated values)
-    #[arg(long, conflicts_with = "json")]
-    pub csv: bool,
-
     /// Number of iterations (>=1)
     #[arg(short = 'n', long = "iterations")]
     pub iterations: Option<usize>,

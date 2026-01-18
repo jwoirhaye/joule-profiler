@@ -9,18 +9,15 @@ use anyhow::Result;
 use log::{debug, error, info, trace};
 
 use crate::{
+    config::{Command, Config},
     core::{
-        metric::{Metric, Metrics},
-        sensor::Sensor,
-        source::MetricReader,
+        sensor::{Sensor, Sensors},
+        source::{GetSensorsTrait, MetricReader},
     },
     error::JouleProfilerError,
-    sources::{
-        MetricSourceType,
-        rapl::{
-            domain::{RaplDomain, get_domains, rapl_base_path, read_energy},
-            snapshot::{Snapshot, compute_measurement_from_snapshots},
-        },
+    sources::rapl::{
+        domain::{RaplDomain, get_domains, rapl_base_path, read_energy},
+        snapshot::{Snapshot, compute_measurement_from_snapshots},
     },
     util::platform::check_os,
 };
@@ -32,7 +29,7 @@ pub fn init_rapl(
     rapl_path: Option<&str>,
     sockets: Option<&HashSet<u32>>,
     polling_rate_s: Option<f64>,
-) -> Result<MetricSourceType> {
+) -> Result<Rapl> {
     check_os()?;
 
     let base_path = rapl_base_path(rapl_path);
@@ -40,7 +37,7 @@ pub fn init_rapl(
 
     let domains = get_domains(&base_path, sockets)?;
     let rapl = Rapl::new(domains, polling_rate_s);
-    Ok(MetricSourceType::Rapl(rapl))
+    Ok(rapl)
 }
 
 /// Checks if the RAPL interface is available at the given base path.
@@ -71,35 +68,30 @@ pub fn check_rapl(base: &str) -> Result<()> {
     Ok(())
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
-    measures: Vec<HashMap<String, u64>>,
-    last_measure: Option<Snapshot>,
-    measure_counters: HashMap<String, u64>,
     poll_interval: Option<Duration>,
 }
 
-impl MetricReader<Snapshot> for Rapl {
-    fn measure(&mut self) -> Result<Snapshot> {
-        trace!("Starting RAPL measurement");
+impl TryFrom<&Config> for Rapl {
+    type Error = anyhow::Error;
 
-        let new_measure = self.read_snapshot()?;
+    fn try_from(config: &Config) -> Result<Self, Self::Error> {
+        let (sockets, rapl_polling) = match &config.mode {
+            Command::Profile(profile_config) => {
+                (profile_config.sockets.as_ref(), profile_config.rapl_polling)
+            }
+            Command::ListSensors(_) => (None, None),
+        };
 
-        // if let Some(old) = self.last_measure.take() {
-        //     let diff = compute_measurement_from_snapshots(&self.domains, &old, &new_measure)?;
-        //     for (k, v) in diff.iter() {
-        //         *self.measure_counters.entry(k.clone()).or_insert(0) += *v;
-        //         debug!("Updated counter {} = {}", k, self.measure_counters[k]);
-        //     }
-        // }
-
-        
-        trace!("Measurement complete");
-        Ok(new_measure)
+        let rapl = init_rapl(config.rapl_path.as_deref(), sockets, rapl_polling)?;
+        Ok(rapl)
     }
+}
 
-    fn get_sensors(&self) -> Result<Vec<Sensor>> {
+impl GetSensorsTrait for Rapl {
+    fn get_sensors(&self) -> Result<Sensors> {
         let sensors = self
             .domains
             .iter()
@@ -115,14 +107,23 @@ impl MetricReader<Snapshot> for Rapl {
 
         Ok(sensors)
     }
+}
+
+impl MetricReader for Rapl {
+    type Type = Snapshot;
+
+    fn measure(&mut self) -> Result<Snapshot> {
+        trace!("Starting RAPL measurement");
+        Ok(self.read_snapshot()?)
+    }
 
     fn get_polling_interval(&self) -> Option<Duration> {
         self.poll_interval
     }
-    
-    fn compute_measures(&self, new: Snapshot, old: Snapshot) -> Result<Snapshot> {
-        let metrics = compute_measurement_from_snapshots(&self.domains, &old, &new)?;
-        let snapshot = Snapshot { metrics };
+
+    fn compute_measures(&self, new: &Snapshot, old: Snapshot) -> Result<Snapshot> {
+        let metrics = compute_measurement_from_snapshots(&self.domains, &old, new)?;
+        let snapshot = Snapshot::new(metrics);
         Ok(snapshot)
     }
 }
@@ -132,9 +133,6 @@ impl Rapl {
         Rapl {
             domains,
             poll_interval: polling_rate_s.map(Duration::from_secs_f64),
-            measures: Vec::new(),
-            last_measure: None,
-            measure_counters: HashMap::new(),
         }
     }
 
@@ -183,73 +181,5 @@ mod tests {
 
         assert_eq!(snapshot.metrics.len(), 1);
         assert_eq!(*snapshot.metrics.values().next().unwrap(), 12345);
-    }
-
-    #[test]
-    fn measure_accumulates_energy_diff() {
-        let dir = tempdir().unwrap();
-        let energy_file = dir.path().join("energy_uj");
-
-        write(&energy_file, "100").unwrap();
-        let domain = make_domain("package", 0, &energy_file);
-        let mut rapl = Rapl::new(vec![domain], None);
-
-        rapl.measure().unwrap();
-        assert!(rapl.measure_counters.is_empty());
-
-        write(&energy_file, "250").unwrap();
-        rapl.measure().unwrap();
-
-        let value = rapl.measure_counters.values().next().unwrap();
-        assert_eq!(*value, 150);
-    }
-
-    #[test]
-    fn phase_stores_and_resets_counters() {
-        let dir = tempdir().unwrap();
-        let energy_file = dir.path().join("energy_uj");
-
-        write(&energy_file, "10").unwrap();
-        let domain = make_domain("package", 0, &energy_file);
-        let mut rapl = Rapl::new(vec![domain], None);
-
-        rapl.measure().unwrap();
-        write(&energy_file, "60").unwrap();
-
-        assert_eq!(rapl.measures.len(), 1);
-        assert!(rapl.measure_counters.is_empty());
-
-        let phase = &rapl.measures[0];
-        assert_eq!(*phase.values().next().unwrap(), 50);
-    }
-
-    #[test]
-    fn measure_handles_energy_counter_overflow() {
-        use std::fs::write;
-        use tempfile::tempdir;
-
-        let dir = tempdir().unwrap();
-        let energy_file = dir.path().join("energy_uj");
-
-        let max_energy_range_uj = 1_000;
-
-        write(&energy_file, "900").unwrap();
-
-        let domain = RaplDomain {
-            name: "package".to_string(),
-            socket: 0,
-            path: energy_file.clone(),
-            max_energy_uj: max_energy_range_uj,
-        };
-
-        let mut rapl = Rapl::new(vec![domain], None);
-
-        rapl.measure().unwrap();
-
-        write(&energy_file, "100").unwrap();
-        rapl.measure().unwrap();
-
-        let value = rapl.measure_counters.values().next().unwrap();
-        assert_eq!(*value, 200);
     }
 }
