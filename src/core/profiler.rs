@@ -173,7 +173,7 @@ impl JouleProfiler {
 
         let (sources_results, sources) = self.orchestrator.retrieve().await?;
         self.sources = sources;
-        
+
         let results: Vec<Iteration> = command_results
             .into_iter()
             .zip(sources_results.iterations.into_iter().enumerate())
