@@ -5,11 +5,18 @@ use tokio::{
 };
 
 use crate::{
-    core::source::{MetricSourceWorker, SensorResult, SourceEvent},
+    core::{
+        sensor::Sensors,
+        source::{
+            GetSensorsTrait, MetricReader, MetricSource, MetricSourceWorker, SensorResult,
+            SourceEvent,
+        },
+    },
     error::JouleProfilerError,
 };
 
 pub struct SourceOrchestrator {
+    sources: Vec<Box<dyn MetricSourceWorker>>,
     senders: Vec<Sender<SourceEvent>>,
     handles: Vec<JoinHandle<Result<SensorResult>>>,
 }
@@ -17,15 +24,18 @@ pub struct SourceOrchestrator {
 impl SourceOrchestrator {
     pub fn new() -> Self {
         Self {
+            sources: Vec::new(),
             senders: Vec::new(),
             handles: Vec::new(),
         }
     }
 
     /// Start the metrics sources worker threads.
-    pub async fn start(&mut self, sources: Vec<Box<dyn MetricSourceWorker>>) {
+    pub async fn start(&mut self) {
         let mut senders = Vec::new();
         let mut handles = Vec::new();
+
+        let sources = std::mem::take(&mut self.sources);
 
         for source in sources {
             let (tx, rx) = channel(4);
@@ -37,6 +47,27 @@ impl SourceOrchestrator {
 
         self.handles = handles;
         self.senders = senders;
+    }
+
+    pub fn list_sensors(&self) -> Result<Sensors> {
+        let sensors = self
+            .sources
+            .iter()
+            .map(|source| source.list_sensors())
+            .collect::<Result<Vec<Sensors>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+        Ok(sensors)
+    }
+
+    pub fn add_source<T>(&mut self, reader: T)
+    where
+        T: MetricReader + GetSensorsTrait + Send + 'static,
+        T::Type: Send,
+    {
+        let source = MetricSource::new(reader);
+        self.sources.push(Box::new(source));
     }
 
     /// Start the polling of a metrics source if enabled.
