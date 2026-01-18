@@ -27,8 +27,8 @@ pub struct CommonArgs {
     pub iterations: Option<usize>,
 
     /// Redirect profiled program stdout to this file
-    #[arg(short = 'o', long = "output-file")]
-    pub output_file: Option<String>,
+    #[arg(short = 'o', long = "stdout-file")]
+    pub stdout_file: Option<String>,
 
     /// Command to execute (everything after `--`)
     #[arg(last = true)]

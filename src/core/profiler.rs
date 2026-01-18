@@ -304,7 +304,7 @@ impl JouleProfiler {
 
         let begin_timestamp = get_timestamp();
 
-        let (exit_code, _) = run_command(&config.cmd, config.output_file.as_ref())?;
+        let (exit_code, _) = run_command(&config.cmd, config.stdout_file.as_ref())?;
 
         let end_timestamp = get_timestamp();
 
@@ -360,7 +360,7 @@ impl JouleProfiler {
 
         let reader = BufReader::new(stdout);
 
-        let mut output_file: Option<File> = if let Some(path) = &config.output_file {
+        let mut output_file: Option<File> = if let Some(path) = &config.stdout_file {
             let file = create_file_with_user_permissions(path).map_err(|e| {
                 JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, e))
             })?;
@@ -398,6 +398,7 @@ impl JouleProfiler {
                 let token = if let Some(capture) = captures.get(1) {
                     capture.as_str().to_string()
                 } else {
+                    // Safe unwrap because if regex captures is some then it always has the full matching group
                     captures.get(0).unwrap().as_str().to_string()
                 };
 
