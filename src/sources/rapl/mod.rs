@@ -97,7 +97,7 @@ impl MetricReader for Rapl {
 
     fn measure(&self) -> Result<Self::Type> {
         trace!("Starting RAPL measurement");
-        Ok(self.read_snapshot()?)
+        self.read_snapshot()
     }
 
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type> {
@@ -143,7 +143,7 @@ impl Rapl {
         let mut map = HashMap::with_capacity(self.domains.len());
 
         for domain in &self.domains {
-            let val_uj = read_energy(&domain)?;
+            let val_uj = read_energy(domain)?;
             map.insert(domain.path.to_string_lossy().to_string(), val_uj);
         }
 
