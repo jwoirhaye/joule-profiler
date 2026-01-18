@@ -26,7 +26,7 @@ mod test {
     use std::collections::HashSet;
 
     use crate::sources::rapl::domain::{
-        RaplDomain,
+        RaplDomain, RaplDomainType,
         socket::{discover_sockets, filter_sockets, parse_or_all_sockets},
     };
 
@@ -35,13 +35,13 @@ mod test {
         let domains = vec![
             RaplDomain {
                 path: "a".into(),
-                name: "pkg".into(),
+                domain_type: RaplDomainType::Package,
                 socket: 0,
                 max_energy_uj: 1,
             },
             RaplDomain {
                 path: "b".into(),
-                name: "pkg".into(),
+                domain_type: RaplDomainType::Package,
                 socket: 1,
                 max_energy_uj: 1,
             },
@@ -69,13 +69,13 @@ mod test {
         let domains = vec![
             RaplDomain {
                 path: "a".into(),
-                name: "pkg".into(),
+                domain_type: RaplDomainType::Package,
                 socket: 0,
                 max_energy_uj: 1,
             },
             RaplDomain {
                 path: "b".into(),
-                name: "pkg".into(),
+                domain_type: RaplDomainType::Package,
                 socket: 1,
                 max_energy_uj: 1,
             },

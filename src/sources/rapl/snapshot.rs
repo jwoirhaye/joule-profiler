@@ -6,12 +6,12 @@ use log::{debug, error, info, trace};
 use crate::{
     core::metric::{Metric, Metrics},
     error::JouleProfilerError,
-    sources::rapl::domain::RaplDomain,
+    sources::rapl::domain::{RaplDomain, RaplDomainType},
 };
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
-    pub metrics: HashMap<String, u64>,
+    pub metrics: HashMap<(RaplDomainType, u32), u64>,
 }
 
 impl AddAssign<Snapshot> for Snapshot {
@@ -35,8 +35,8 @@ impl From<Snapshot> for Metrics {
         snapshot
             .metrics
             .into_iter()
-            .map(|(domain, value)| Metric {
-                name: domain,
+            .map(|((domain, socket), value)| Metric {
+                name: domain.to_string_socket(socket),
                 source: "powercap".to_string(),
                 unit: "uj".to_string(),
                 value,
@@ -46,7 +46,7 @@ impl From<Snapshot> for Metrics {
 }
 
 impl Snapshot {
-    pub fn try_new(metrics: HashMap<String, u64>) -> Self {
+    pub fn try_new(metrics: HashMap<(RaplDomainType, u32), u64>) -> Self {
         Self { metrics }
     }
 }
@@ -56,37 +56,42 @@ pub fn compute_measurement_from_snapshots(
     domains: &[RaplDomain],
     begin: &Snapshot,
     end: &Snapshot,
-) -> Result<HashMap<String, u64>> {
+) -> Result<HashMap<(RaplDomainType, u32), u64>> {
     trace!(
         "Computing measurement from snapshots for {} domains",
         domains.len()
     );
 
-    let mut per_domain_socket: HashMap<(String, u32), u64> = HashMap::new();
+    let mut per_domain_energy: HashMap<(RaplDomainType, u32), u64> = HashMap::new();
 
     for domain in domains {
-        let key = domain.path.to_string_lossy().to_string();
-        trace!("Processing domain '{}'", domain.name);
+        trace!("Processing domain '{}'", domain.get_name());
 
-        let start_uj = match begin.metrics.get(&key) {
+        let start_uj = match begin.metrics.get(&(domain.domain_type, domain.socket)) {
             Some(v) => *v,
             None => {
-                error!("Missing start energy snapshot for domain '{}'", domain.name);
+                error!(
+                    "Missing start energy snapshot for domain '{}'",
+                    domain.get_name()
+                );
                 return Err(JouleProfilerError::RaplReadError(format!(
                     "Missing start energy snapshot for domain '{}'",
-                    domain.name
+                    domain.get_name()
                 ))
                 .into());
             }
         };
 
-        let end_uj = match end.metrics.get(&key) {
+        let end_uj = match end.metrics.get(&(domain.domain_type, domain.socket)) {
             Some(v) => *v,
             None => {
-                error!("Missing end energy snapshot for domain '{}'", domain.name);
+                error!(
+                    "Missing end energy snapshot for domain '{}'",
+                    domain.get_name()
+                );
                 return Err(JouleProfilerError::RaplReadError(format!(
                     "Missing end energy snapshot for domain '{}'",
-                    domain.name
+                    domain.get_name()
                 ))
                 .into());
             }
@@ -95,30 +100,26 @@ pub fn compute_measurement_from_snapshots(
         let max_uj = domain.max_energy_uj;
         let diff_uj = energy_diff(start_uj, end_uj, max_uj);
         debug!(
-            "Domain '{}', socket {}: start={} µJ, end={} µJ, diff={} µJ, max={}",
-            domain.name, domain.socket, start_uj, end_uj, diff_uj, max_uj
+            "Domain '{}': start={} µJ, end={} µJ, diff={} µJ, max={}",
+            domain.get_name(),
+            start_uj,
+            end_uj,
+            diff_uj,
+            max_uj
         );
 
-        per_domain_socket
-            .entry((domain.name.clone(), domain.socket))
+        per_domain_energy
+            .entry((domain.domain_type, domain.socket))
             .and_modify(|v| *v += diff_uj)
             .or_insert(diff_uj);
     }
 
-    let mut energy_uj: HashMap<String, u64> = HashMap::new();
-
-    for ((name, socket), val_uj) in per_domain_socket {
-        let key = format!("{}_{}", name.to_uppercase(), socket);
-        energy_uj.insert(key.clone(), val_uj);
-        trace!("Final energy for {} = {} µJ", key, val_uj);
-    }
-
     info!(
         "Computed energy measurement for {} domains",
-        energy_uj.len()
+        per_domain_energy.len()
     );
 
-    Ok(energy_uj)
+    Ok(per_domain_energy)
 }
 
 /// Compute the energy difference between two measures, handle overflows with max value.
@@ -132,18 +133,28 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::sources::rapl::domain::RaplDomainType;
+
     use super::*;
 
-    fn snapshot(values: &[(&str, u64)]) -> Snapshot {
+    fn snapshot(values: &[(RaplDomainType, u32, u64)]) -> Snapshot {
         Snapshot {
-            metrics: values.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            metrics: values
+                .iter()
+                .map(|(domain_type, socket, v)| ((*domain_type, *socket), *v))
+                .collect(),
         }
     }
 
-    fn domain(name: &str, socket: u32, path: &str, max_energy_uj: u64) -> RaplDomain {
+    fn domain(
+        domain_type: RaplDomainType,
+        socket: u32,
+        path: &str,
+        max_energy_uj: u64,
+    ) -> RaplDomain {
         RaplDomain {
-            name: name.to_string(),
             socket,
+            domain_type,
             path: path.into(),
             max_energy_uj,
         }
@@ -169,69 +180,89 @@ mod tests {
 
     #[test]
     fn compute_single_domain_single_socket() {
-        let domains = vec![domain("package", 0, "/sys/powercap/package0", 1_000)];
+        let domains = vec![domain(
+            RaplDomainType::Package,
+            0,
+            "/sys/powercap/package0",
+            1_000,
+        )];
 
-        let begin = snapshot(&[("/sys/powercap/package0", 100)]);
-        let end = snapshot(&[("/sys/powercap/package0", 250)]);
+        let begin = snapshot(&[(RaplDomainType::Package, 0, 100)]);
+        let end = snapshot(&[(RaplDomainType::Package, 0, 250)]);
 
         let result = compute_measurement_from_snapshots(&domains, &begin, &end).unwrap();
 
         assert_eq!(result.len(), 1);
-        assert_eq!(result["PACKAGE_0"], 150);
+        assert_eq!(result[&(RaplDomainType::Package, 0)], 150);
     }
 
     #[test]
     fn compute_handles_overflow() {
-        let domains = vec![domain("package", 0, "/sys/powercap/package0", 1_000)];
+        let domains = vec![domain(
+            RaplDomainType::Package,
+            0,
+            "/sys/powercap/package0",
+            1_000,
+        )];
 
-        let begin = snapshot(&[("/sys/powercap/package0", 900)]);
-        let end = snapshot(&[("/sys/powercap/package0", 100)]);
+        let begin = snapshot(&[(RaplDomainType::Package, 0, 900)]);
+        let end = snapshot(&[(RaplDomainType::Package, 0, 100)]);
 
         let result = compute_measurement_from_snapshots(&domains, &begin, &end).unwrap();
 
-        assert_eq!(result["PACKAGE_0"], 200);
+        assert_eq!(result[&(RaplDomainType::Package, 0)], 200);
     }
 
     #[test]
     fn compute_aggregates_same_domain_same_socket() {
         let domains = vec![
-            domain("core", 0, "/core0", 1_000),
-            domain("core", 0, "/core1", 1_000),
+            domain(RaplDomainType::Core, 0, "/core0", 1_000),
+            domain(RaplDomainType::Core, 0, "/core1", 1_000),
         ];
 
-        let begin = snapshot(&[("/core0", 100), ("/core1", 200)]);
-
-        let end = snapshot(&[("/core0", 300), ("/core1", 500)]);
+        let begin = snapshot(&[
+            (RaplDomainType::Core, 0, 100),
+            (RaplDomainType::Package, 1, 200),
+        ]);
+        let end = snapshot(&[
+            (RaplDomainType::Core, 0, 300),
+            (RaplDomainType::Package, 2, 500),
+        ]);
 
         let result = compute_measurement_from_snapshots(&domains, &begin, &end).unwrap();
 
-        // (300-100) + (500-200) = 200 + 300 = 500
-        assert_eq!(result["CORE_0"], 500);
+        assert_eq!(result[&(RaplDomainType::Core, 0)], 400);
     }
 
     #[test]
     fn compute_separates_sockets() {
         let domains = vec![
-            domain("package", 0, "/pkg0", 1_000),
-            domain("package", 1, "/pkg1", 1_000),
+            domain(RaplDomainType::Package, 0, "/pkg0", 1_000),
+            domain(RaplDomainType::Package, 1, "/pkg1", 1_000),
         ];
 
-        let begin = snapshot(&[("/pkg0", 100), ("/pkg1", 400)]);
+        let begin = snapshot(&[
+            (RaplDomainType::Package, 0, 100),
+            (RaplDomainType::Package, 1, 400),
+        ]);
 
-        let end = snapshot(&[("/pkg0", 200), ("/pkg1", 700)]);
+        let end = snapshot(&[
+            (RaplDomainType::Package, 0, 200),
+            (RaplDomainType::Package, 1, 700),
+        ]);
 
         let result = compute_measurement_from_snapshots(&domains, &begin, &end).unwrap();
 
-        assert_eq!(result["PACKAGE_0"], 100);
-        assert_eq!(result["PACKAGE_1"], 300);
+        assert_eq!(result[&(RaplDomainType::Package, 0)], 100);
+        assert_eq!(result[&(RaplDomainType::Package, 1)], 300);
     }
 
     #[test]
     fn error_when_start_snapshot_missing() {
-        let domains = vec![domain("package", 0, "/pkg0", 1_000)];
+        let domains = vec![domain(RaplDomainType::Package, 0, "/pkg0", 1_000)];
 
         let begin = snapshot(&[]);
-        let end = snapshot(&[("/pkg0", 100)]);
+        let end = snapshot(&[(RaplDomainType::Package, 0, 100)]);
 
         let err = compute_measurement_from_snapshots(&domains, &begin, &end)
             .unwrap_err()
@@ -242,9 +273,9 @@ mod tests {
 
     #[test]
     fn error_when_end_snapshot_missing() {
-        let domains = vec![domain("package", 0, "/pkg0", 1_000)];
+        let domains = vec![domain(RaplDomainType::Package, 0, "/pkg0", 1_000)];
 
-        let begin = snapshot(&[("/pkg0", 100)]);
+        let begin = snapshot(&[(RaplDomainType::Package, 0, 100)]);
         let end = snapshot(&[]);
 
         let err = compute_measurement_from_snapshots(&domains, &begin, &end)
