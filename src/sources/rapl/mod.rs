@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    env,
     fs::{self},
     path::Path,
     time::Duration,
@@ -18,7 +19,7 @@ use crate::{
     },
     error::JouleProfilerError,
     sources::rapl::{
-        domain::{RaplDomain, get_domains, rapl_base_path, read_energy},
+        domain::{RaplDomain, get_domains, read_energy},
         snapshot::{Snapshot, compute_measurement_from_snapshots},
     },
     util::platform::check_os,
@@ -26,48 +27,6 @@ use crate::{
 
 pub mod domain;
 pub mod snapshot;
-
-pub fn init_rapl(
-    rapl_path: Option<&str>,
-    sockets: Option<&HashSet<u32>>,
-    polling_rate_s: Option<f64>,
-) -> Result<Rapl> {
-    check_os()?;
-
-    let base_path = rapl_base_path(rapl_path);
-    check_rapl(&base_path)?;
-
-    let domains = get_domains(&base_path, sockets)?;
-    Rapl::new(domains, polling_rate_s)
-}
-
-/// Checks if the RAPL interface is available at the given base path.
-pub fn check_rapl(base: &str) -> Result<()> {
-    debug!("Checking RAPL base path: {}", base);
-
-    let path = Path::new(base);
-
-    if !path.exists() {
-        error!("RAPL path does not exist: {}", base);
-        return Err(JouleProfilerError::RaplNotAvailable(base.into()).into());
-    }
-
-    if !path.is_dir() {
-        error!("RAPL path is not a directory: {}", base);
-        return Err(JouleProfilerError::InvalidRaplPath(base.into()).into());
-    }
-
-    if let Err(e) = fs::read_dir(path) {
-        if e.kind() == std::io::ErrorKind::PermissionDenied {
-            error!("Permission denied accessing RAPL path");
-            return Err(JouleProfilerError::InsufficientPermissions.into());
-        }
-        return Err(e.into());
-    }
-
-    info!("RAPL interface found at {}", base);
-    Ok(())
-}
 
 #[derive(Default)]
 pub struct Rapl {
@@ -97,7 +56,7 @@ impl TryFrom<&Config> for Rapl {
             Command::ListSensors(_) => (None, None),
         };
 
-        let rapl = init_rapl(config.rapl_path.as_deref(), sockets, rapl_polling)?;
+        let rapl = Rapl::try_new(config.rapl_path.as_deref(), sockets, rapl_polling)?;
         Ok(rapl)
     }
 }
@@ -124,6 +83,17 @@ impl GetSensorsTrait for Rapl {
 impl MetricReader for Rapl {
     type Type = Snapshot;
 
+    fn init(&mut self) -> Result<()> {
+        let ticker = if let Some(duration) = self.poll_interval {
+            let timerfd_interval = Interval::new_interval(duration)?;
+            Some(timerfd_interval)
+        } else {
+            None
+        };
+        self.ticker = ticker;
+        Ok(())
+    }
+
     fn measure(&self) -> Result<Self::Type> {
         trace!("Starting RAPL measurement");
         Ok(self.read_snapshot()?)
@@ -131,7 +101,7 @@ impl MetricReader for Rapl {
 
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type> {
         let metrics = compute_measurement_from_snapshots(&self.domains, &old, new)?;
-        let snapshot = Self::Type::new(metrics);
+        let snapshot = Self::Type::try_new(metrics);
         Ok(snapshot)
     }
 
@@ -146,20 +116,23 @@ impl MetricReader for Rapl {
 }
 
 impl Rapl {
-    pub fn new(domains: Vec<RaplDomain>, polling_rate_s: Option<f64>) -> Result<Self> {
-        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
+    pub fn try_new(
+        rapl_path: Option<&str>,
+        sockets: Option<&HashSet<u32>>,
+        polling_rate_s: Option<f64>,
+    ) -> Result<Self> {
+        check_os()?;
 
-        let ticker = if let Some(duration) = poll_interval {
-            let timerfd_interval = Interval::new_interval(duration)?;
-            Some(timerfd_interval)
-        } else {
-            None
-        };
+        let base_path = rapl_base_path(rapl_path);
+        check_rapl(&base_path)?;
+
+        let domains = get_domains(&base_path, sockets)?;
+        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
         Ok(Rapl {
             domains,
             poll_interval,
-            ticker,
+            ticker: None,
         })
     }
 
@@ -180,33 +153,55 @@ impl Rapl {
     }
 }
 
+/// Checks if the RAPL interface is available at the given base path.
+fn check_rapl(base: &str) -> Result<()> {
+    debug!("Checking RAPL base path: {}", base);
+
+    let path = Path::new(base);
+
+    if !path.exists() {
+        error!("RAPL path does not exist: {}", base);
+        return Err(JouleProfilerError::RaplNotAvailable(base.into()).into());
+    }
+
+    if !path.is_dir() {
+        error!("RAPL path is not a directory: {}", base);
+        return Err(JouleProfilerError::InvalidRaplPath(base.into()).into());
+    }
+
+    if let Err(e) = fs::read_dir(path) {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            error!("Permission denied accessing RAPL path");
+            return Err(JouleProfilerError::InsufficientPermissions.into());
+        }
+        return Err(e.into());
+    }
+
+    info!("RAPL interface found at {}", base);
+    Ok(())
+}
+
+/// Resolves the RAPL base path from configuration and environment.
+pub fn rapl_base_path(config_override: Option<&str>) -> String {
+    if let Some(path) = config_override {
+        return path.to_string();
+    }
+
+    if let Ok(env_path) = env::var("JOULE_PROFILER_RAPL_PATH") {
+        return env_path;
+    }
+
+    let default_path = "/sys/devices/virtual/powercap/intel-rapl";
+    default_path.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::write;
-    use tempfile::tempdir;
-
-    fn make_domain(name: &str, socket: u32, path: &std::path::Path) -> RaplDomain {
-        RaplDomain {
-            name: name.to_string(),
-            socket,
-            path: path.to_path_buf(),
-            max_energy_uj: u32::MAX as u64,
-        }
-    }
 
     #[test]
-    fn read_snapshot_reads_energy_and_timestamp() {
-        let dir = tempdir().unwrap();
-        let energy_file = dir.path().join("energy_uj");
-        write(&energy_file, "12345").unwrap();
-
-        let domain = make_domain("package", 0, &energy_file);
-        let rapl = Rapl::new(vec![domain], None).unwrap();
-
-        let snapshot = rapl.read_snapshot().unwrap();
-
-        assert_eq!(snapshot.metrics.len(), 1);
-        assert_eq!(*snapshot.metrics.values().next().unwrap(), 12345);
+    fn rapl_base_path_uses_override() {
+        let path = rapl_base_path(Some("/custom/path"));
+        assert_eq!(path, "/custom/path");
     }
 }

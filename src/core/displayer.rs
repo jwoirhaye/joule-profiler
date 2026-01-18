@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    config::Config,
+    config::{Command, Config},
     core::{
         measurement::{MeasurementResult, PhaseMeasurementResult},
         sensor::Sensor,
@@ -43,19 +43,25 @@ pub trait Displayer {
 impl TryFrom<&Config> for Box<dyn Displayer> {
     type Error = anyhow::Error;
 
-    fn try_from(config: &Config) -> std::result::Result<Self, Self::Error> {
+    fn try_from(config: &Config) -> Result<Self, Self::Error> {
         let output_file = match &config.mode {
-            crate::config::Command::Profile(profile_config) => profile_config.output_file.clone(),
-            crate::config::Command::ListSensors(_) => None,
+            Command::Profile(profile_config) => profile_config.output_file.clone(),
+            Command::ListSensors(_) => None,
         };
 
-        let displayer: Box<dyn Displayer> = match config.output_format {
-            OutputFormat::Terminal => Box::new(TerminalOutput),
-            OutputFormat::Json => Box::new(JsonOutput::new(output_file)?),
-            OutputFormat::Csv => Box::new(CsvOutput::new(output_file)?),
+        let displayer = match config.output_format {
+            OutputFormat::Terminal => TerminalOutput.into(),
+            OutputFormat::Json => JsonOutput::new(output_file)?.into(),
+            OutputFormat::Csv => CsvOutput::try_new(output_file)?.into(),
         };
 
         Ok(displayer)
+    }
+}
+
+impl<T: Displayer + 'static> From<T> for Box<dyn Displayer> {
+    fn from(displayer: T) -> Self {
+        Box::new(displayer)
     }
 }
 

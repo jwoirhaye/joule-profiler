@@ -92,6 +92,8 @@ impl SensorResult {
 pub trait MetricReader {
     type Type: Into<Metrics> + AddAssign<Self::Type> + Default + Clone + PartialEq;
 
+    fn init(&mut self) -> Result<()>;
+
     /// Measure the sensors metrics.
     fn measure(&self) -> Result<Self::Type>;
 
@@ -248,8 +250,13 @@ where
 
     /// Start a worker thread to measure the source.
     pub async fn run_worker(&mut self, mut rx: Receiver<SourceEvent>) -> Result<SensorResult> {
+        self.metric_reader.init()?;
         loop {
             select! {
+                Some(poll) = self.metric_reader.poll(), if self.polling_active => {
+                    poll?;
+                    self.measure()?;
+                }
                 Some(event) = rx.recv() => {
                     match event {
                         SourceEvent::Measure => self.measure()?,
@@ -260,10 +267,6 @@ where
                         SourceEvent::JoinWorker => return self.retrieve(),
                     }
                 },
-                Some(poll) = self.metric_reader.poll(), if self.polling_active => {
-                    poll?;
-                    self.measure()?;
-                }
             }
         }
     }
