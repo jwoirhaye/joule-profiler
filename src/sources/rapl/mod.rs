@@ -68,10 +68,16 @@ pub fn check_rapl(base: &str) -> Result<()> {
     Ok(())
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
     poll_interval: Option<Duration>,
+}
+
+impl From<Rapl> for Box<dyn GetSensorsTrait> {
+    fn from(rapl: Rapl) -> Self {
+        Box::new(rapl)
+    }
 }
 
 impl TryFrom<&Config> for Rapl {
