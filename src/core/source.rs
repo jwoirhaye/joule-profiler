@@ -110,12 +110,12 @@ pub trait GetSensorsTrait: Send {
     fn get_sensors(&self) -> Result<Sensors>;
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 struct SourceIteration<V> {
     pub phases: Vec<SourcePhase<V>>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 
 struct SourcePhase<V> {
     pub metrics: V,
@@ -149,7 +149,6 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
     }
 }
 
-#[derive(Clone)]
 pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
     metric_reader: T,
 
@@ -336,25 +335,10 @@ pub trait MetricSourceWorker: Send {
     ) -> Pin<Box<dyn Future<Output = Result<SensorResult>> + Send>>;
 
     fn list_sensors(&self) -> Result<Sensors>;
-
-    fn clone_box(&self) -> Box<dyn MetricSourceWorker>;
-}
-
-impl<T> From<T> for Box<dyn MetricSourceWorker>
-where
-    T: MetricReader + GetSensorsTrait + Send + 'static,
-    MetricSource<T>: Clone,
-    T::Type: Send,
-{
-    fn from(reader: T) -> Self {
-        let source = MetricSource::new(reader);
-        Box::new(source)
-    }
 }
 
 impl<T> MetricSourceWorker for MetricSource<T>
 where
-    MetricSource<T>: Clone,
     T: MetricReader + GetSensorsTrait + Send + 'static,
     T::Type: Send,
 {
@@ -367,15 +351,5 @@ where
 
     fn list_sensors(&self) -> Result<Sensors> {
         self.get_sensors()
-    }
-
-    fn clone_box(&self) -> Box<dyn MetricSourceWorker> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn MetricSourceWorker> {
-    fn clone(&self) -> Self {
-        self.clone_box()
     }
 }
