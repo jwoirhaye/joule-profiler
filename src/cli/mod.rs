@@ -37,8 +37,8 @@ pub struct Cli {
     pub csv: bool,
 
     /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
-    #[arg(long = "jouleit-file")]
-    pub jouleit_file: Option<String>,
+    #[arg(short = 'o', long = "output-file")]
+    pub output_file: Option<String>,
 
     /// The command to execute
     #[command(subcommand)]
