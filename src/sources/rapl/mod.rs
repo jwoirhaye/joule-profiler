@@ -6,7 +6,9 @@ use std::{
 };
 
 use anyhow::Result;
+use futures::StreamExt;
 use log::{debug, error, info, trace};
+use tokio_timerfd::Interval;
 
 use crate::{
     config::{Command, Config},
@@ -36,8 +38,7 @@ pub fn init_rapl(
     check_rapl(&base_path)?;
 
     let domains = get_domains(&base_path, sockets)?;
-    let rapl = Rapl::new(domains, polling_rate_s);
-    Ok(rapl)
+    Rapl::new(domains, polling_rate_s)
 }
 
 /// Checks if the RAPL interface is available at the given base path.
@@ -68,10 +69,21 @@ pub fn check_rapl(base: &str) -> Result<()> {
     Ok(())
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Default)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
+    ticker: Option<Interval>,
     poll_interval: Option<Duration>,
+}
+
+impl Clone for Rapl {
+    fn clone(&self) -> Self {
+        Self {
+            domains: self.domains.clone(),
+            ticker: None,
+            poll_interval: self.poll_interval,
+        }
+    }
 }
 
 impl TryFrom<&Config> for Rapl {
@@ -112,28 +124,43 @@ impl GetSensorsTrait for Rapl {
 impl MetricReader for Rapl {
     type Type = Snapshot;
 
-    fn measure(&mut self) -> Result<Snapshot> {
+    fn measure(&self) -> Result<Self::Type> {
         trace!("Starting RAPL measurement");
         Ok(self.read_snapshot()?)
     }
 
-    fn get_polling_interval(&self) -> Option<Duration> {
-        self.poll_interval
+    fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type> {
+        let metrics = compute_measurement_from_snapshots(&self.domains, &old, new)?;
+        let snapshot = Self::Type::new(metrics);
+        Ok(snapshot)
     }
 
-    fn compute_measures(&self, new: &Snapshot, old: Snapshot) -> Result<Snapshot> {
-        let metrics = compute_measurement_from_snapshots(&self.domains, &old, new)?;
-        let snapshot = Snapshot::new(metrics);
-        Ok(snapshot)
+    async fn poll_loop(&mut self) -> Option<Result<()>> {
+        if let Some(ticker) = &mut self.ticker {
+            let _ = ticker.next().await?;
+            Some(Ok(()))
+        } else {
+            None
+        }
     }
 }
 
 impl Rapl {
-    pub fn new(domains: Vec<RaplDomain>, polling_rate_s: Option<f64>) -> Self {
-        Rapl {
+    pub fn new(domains: Vec<RaplDomain>, polling_rate_s: Option<f64>) -> Result<Self> {
+        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
+
+        let ticker = if let Some(duration) = poll_interval {
+            let timerfd_interval = Interval::new_interval(duration)?;
+            Some(timerfd_interval)
+        } else {
+            None
+        };
+
+        Ok(Rapl {
             domains,
-            poll_interval: polling_rate_s.map(Duration::from_secs_f64),
-        }
+            poll_interval,
+            ticker,
+        })
     }
 
     pub fn read_snapshot(&self) -> Result<Snapshot> {
@@ -175,7 +202,7 @@ mod tests {
         write(&energy_file, "12345").unwrap();
 
         let domain = make_domain("package", 0, &energy_file);
-        let rapl = Rapl::new(vec![domain], None);
+        let rapl = Rapl::new(vec![domain], None).unwrap();
 
         let snapshot = rapl.read_snapshot().unwrap();
 

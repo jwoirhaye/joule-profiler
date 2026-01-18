@@ -5,9 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use futures::StreamExt;
 use tokio::{select, sync::mpsc::Receiver, time::Instant};
-use tokio_timerfd::Interval;
 
 use crate::core::{
     metric::{Metric, Metrics},
@@ -56,7 +54,7 @@ pub enum SourceEvent {
     NewIteration,
     StartPolling,
     StopPolling,
-    Join,
+    JoinWorker,
 }
 
 #[derive(Debug)]
@@ -91,12 +89,11 @@ impl SensorResult {
         results.into_iter().reduce(|acc, result| acc + result)
     }
 }
-
 pub trait MetricReader {
     type Type: Into<Metrics> + AddAssign<Self::Type> + Default + Clone + PartialEq;
 
     /// Measure the sensors metrics.
-    fn measure(&mut self) -> Result<Self::Type>;
+    fn measure(&self) -> Result<Self::Type>;
 
     /// Get the polling interval of the metric source if supported.
     fn get_polling_interval(&self) -> Option<Duration> {
@@ -104,6 +101,8 @@ pub trait MetricReader {
     }
 
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
+
+    fn poll_loop(&mut self) -> impl Future<Output = Option<Result<()>>> + Send + '_;
 }
 
 pub trait GetSensorsTrait: Send {
@@ -169,6 +168,8 @@ pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
 
     /// Monotonic timestamp of last snapshot
     last_instant: Option<Instant>,
+
+    polling_active: bool,
 }
 
 impl<T> MetricSource<T>
@@ -185,6 +186,7 @@ where
             count: 0,
             total_elapsed: Duration::ZERO,
             last_instant: None,
+            polling_active: false,
         }
     }
 
@@ -250,82 +252,29 @@ where
     }
 
     /// Start a worker thread to measure the source.
-    pub async fn run_worker(&mut self, rx: Receiver<SourceEvent>) -> Result<SensorResult> {
-        match self.metric_reader.get_polling_interval() {
-            Some(polling_interval) => self.run_worker_with_polling(rx, polling_interval).await,
-            None => self.run_worker_event_only(rx).await,
+    pub async fn run_worker(&mut self, mut rx: Receiver<SourceEvent>) -> Result<SensorResult> {
+        loop {
+            select! {
+                Some(event) = rx.recv() => {
+                    match event {
+                        SourceEvent::Measure => self.measure()?,
+                        SourceEvent::NewPhase => self.new_phase()?,
+                        SourceEvent::NewIteration => self.new_iteration()?,
+                        SourceEvent::StartPolling => self.polling_active = true,
+                        SourceEvent::StopPolling => self.polling_active = false,
+                        SourceEvent::JoinWorker => return self.retrieve(),
+                    }
+                },
+                Some(poll) = self.metric_reader.poll_loop(), if self.polling_active => {
+                    poll?;
+                    self.measure()?;
+                }
+            }
         }
     }
 
     pub fn get_sensors(&self) -> Result<Sensors> {
         self.metric_reader.get_sensors()
-    }
-
-    /// Start a worker without polling.
-    pub async fn run_worker_event_only(
-        &mut self,
-        mut rx: Receiver<SourceEvent>,
-    ) -> Result<SensorResult> {
-        loop {
-            match rx.recv().await {
-                Some(SourceEvent::Join) => return self.retrieve(),
-                Some(event) => self.handle_event_no_polling(event)?,
-                _ => {}
-            }
-        }
-    }
-
-    /// Start a worker with polling.
-    pub async fn run_worker_with_polling(
-        &mut self,
-        mut rx: Receiver<SourceEvent>,
-        polling_interval: Duration,
-    ) -> Result<SensorResult> {
-        let mut polling_active = true;
-        let mut polling_timer = Interval::new_interval(polling_interval)?;
-
-        loop {
-            select! {
-                Some(event) = rx.recv() => {
-                    match event {
-                        SourceEvent::StartPolling => polling_active = true,
-                        SourceEvent::StopPolling => polling_active = false,
-                        SourceEvent::Join => return self.retrieve(),
-                        SourceEvent::Measure => {
-                            self.measure()?;
-                        },
-                        SourceEvent::NewPhase => {
-                            self.new_phase()?;
-                        },
-                        SourceEvent::NewIteration => {
-                            self.new_iteration()?;
-                        }
-                    }
-                }
-                _ = polling_timer.next() => {
-                    if polling_active {
-                        self.measure()?;
-                    }
-                }
-            }
-        }
-    }
-
-    /// Handle an event for a no-polling worker.
-    fn handle_event_no_polling(&mut self, event: SourceEvent) -> Result<()> {
-        match event {
-            SourceEvent::NewPhase => {
-                self.new_phase()?;
-            }
-            SourceEvent::Measure => {
-                self.measure()?;
-            }
-            SourceEvent::NewIteration => {
-                self.new_iteration()?;
-            }
-            _ => {}
-        }
-        Ok(())
     }
 }
 
@@ -358,6 +307,7 @@ where
     T: MetricReader + GetSensorsTrait + Send + 'static,
     T::Type: Send,
 {
+    #[inline]
     fn run(
         mut self: Box<Self>,
         rx: Receiver<SourceEvent>,
@@ -365,10 +315,12 @@ where
         Box::pin(async move { self.run_worker(rx).await })
     }
 
+    #[inline]
     fn list_sensors(&self) -> Result<Sensors> {
         self.get_sensors()
     }
 
+    #[inline]
     fn clone_box(&self) -> Box<dyn MetricSourceWorker> {
         Box::new(self.clone())
     }
