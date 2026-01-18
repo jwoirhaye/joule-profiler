@@ -4,9 +4,7 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::core::displayer::{
-    ListSensorsDisplayer, ProfilerDisplayer, default_iterations_filename,
-};
+use crate::core::displayer::{Displayer, default_iterations_filename};
 use crate::core::measurement::{MeasurementResult, PhaseMeasurementResult, PhaseResult};
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
@@ -43,7 +41,7 @@ pub struct CsvOutput {
     filename: String,
 }
 
-impl ProfilerDisplayer for CsvOutput {
+impl Displayer for CsvOutput {
     fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
         let keys: Vec<&String> = result.metrics.iter().map(|metric| &metric.name).collect();
 
@@ -142,9 +140,7 @@ impl ProfilerDisplayer for CsvOutput {
         self.finalize();
         Ok(())
     }
-}
 
-impl ListSensorsDisplayer for CsvOutput {
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
         write!(self.file, "sensor;unit;source")?;
         for sensor in sensors {

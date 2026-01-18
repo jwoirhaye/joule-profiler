@@ -4,9 +4,6 @@ use anyhow::Result;
 
 use crate::{error::JouleProfilerError, util::file::create_file_with_user_permissions};
 
-pub mod list_sensors;
-pub mod phases;
-
 /// Executes the configured command and returns its exit code and status.
 pub fn run_command(cmd: &[String], output_file: Option<&String>) -> Result<(i32, ExitStatus)> {
     if cmd.is_empty() {

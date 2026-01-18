@@ -6,3 +6,5 @@ pub struct Sensor {
     pub unit: String,
     pub source: String,
 }
+
+pub type Sensors = Vec<Sensor>;

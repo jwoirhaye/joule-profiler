@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::core::{
-    displayer::{ListSensorsDisplayer, ProfilerDisplayer},
+    displayer::Displayer,
     measurement::{MeasurementResult, PhaseMeasurementResult},
     metric::Metric,
     sensor::Sensor,
@@ -15,7 +15,7 @@ const BOX_WIDTH: usize = 50;
 #[derive(Debug, Clone, Default)]
 pub struct TerminalOutput;
 
-impl ProfilerDisplayer for TerminalOutput {
+impl Displayer for TerminalOutput {
     fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
         self.display_command(cmd);
         self.display_result(&result.metrics, "")
@@ -85,9 +85,7 @@ impl ProfilerDisplayer for TerminalOutput {
 
         Ok(())
     }
-}
 
-impl ListSensorsDisplayer for TerminalOutput {
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
         if sensors.is_empty() {
             println!("No sensors available.");
