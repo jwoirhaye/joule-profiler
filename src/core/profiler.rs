@@ -66,8 +66,8 @@ pub struct Iteration {
     pub timestamp: u128,
     pub duration_ms: u128,
     pub exit_code: i32,
-    pub mean_measure_count: u64,
-    pub mean_measure_delta: u64,
+    pub measure_count: u64,
+    pub measure_delta: u64,
     pub phases: Vec<Phase>,
 }
 
@@ -78,8 +78,8 @@ impl Iteration {
         timestamp: u128,
         duration_ms: u128,
         exit_code: i32,
-        mean_measure_count: u64,
-        mean_measure_delta: u64,
+        measure_count: u64,
+        measure_delta: u64,
     ) -> Self {
         Self {
             phases,
@@ -87,8 +87,8 @@ impl Iteration {
             timestamp,
             duration_ms,
             exit_code,
-            mean_measure_count,
-            mean_measure_delta,
+            measure_count,
+            measure_delta,
         }
     }
 }
@@ -172,9 +172,6 @@ impl JouleProfiler {
 
         let sources_results = self.orchestrator.retrieve().await?;
 
-        let mean_count = sources_results.count;
-        let mean_measure_delta = sources_results.measure_delta;
-
         let results: Vec<Iteration> = command_results
             .into_iter()
             .zip(sources_results.iterations.into_iter().enumerate())
@@ -202,23 +199,18 @@ impl JouleProfiler {
                         begin_timestamp,
                         duration_ms,
                         exit_code,
-                        mean_count,
-                        mean_measure_delta,
+                        iteration.measure_count,
+                        iteration.measure_delta,
                     )
                 },
             )
             .collect();
 
-        // let mut displayer: Box<dyn ProfilerDisplayer> = config.try_into()?;
-
-        let json = serde_json::to_string_pretty(&results)?;
-        println!("{}", json);
-
-        // if config.iterations > 1 {
-        //     displayer.simple_iterations(&config.cmd, &results)?;
-        // } else {
-        //     displayer.simple_single(&config.cmd, &results[0])?;
-        // }
+        if config.iterations > 1 {
+            self.displayer.simple_iterations(&config.cmd, &results)?;
+        } else {
+            self.displayer.simple_single(&config.cmd, &results[0])?;
+        }
         Ok(())
     }
 
@@ -237,9 +229,6 @@ impl JouleProfiler {
         }
 
         let sources_results = self.orchestrator.retrieve().await?;
-
-        let mean_count = sources_results.count;
-        let mean_measure_delta = sources_results.measure_delta;
 
         let results: Vec<Iteration> = command_results
             .into_iter()
@@ -287,24 +276,23 @@ impl JouleProfiler {
                         begin_timestamp,
                         duration_ms,
                         exit_code,
-                        mean_count,
-                        mean_measure_delta,
+                        iteration.measure_count,
+                        iteration.measure_delta,
                     )
                 },
             )
             .collect();
 
-        let s = serde_json::to_string_pretty(&results)?;
-        println!("{}", s);
-
-        // let mut displayer: Box<dyn ProfilerDisplayer> = config.try_into()?;
-
-        // if config.iterations > 1 {
-        //     displayer.phases_iterations(&config.cmd, &phases_config.token_pattern, &results)?;
-        // } else {
-        //     displayer.phases_single(&config.cmd, &phases_config.token_pattern, &results[0])?;
-        // }
-
+        if config.iterations > 1 {
+            self.displayer.phases_iterations(
+                &config.cmd,
+                &phases_config.token_pattern,
+                &results,
+            )?;
+        } else {
+            self.displayer
+                .phases_single(&config.cmd, &phases_config.token_pattern, &results[0])?;
+        }
         Ok(())
     }
 
@@ -441,11 +429,11 @@ impl JouleProfiler {
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
 
-        detected_phases.push(PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None));
+        let phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
+        detected_phases.push(phase_info);
 
         let status = child.wait().context("Failed to wait on child")?;
         let exit_code = status.code().unwrap_or(1);
-
         let duration_ms = end_timestamp - begin_timestamp;
 
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))

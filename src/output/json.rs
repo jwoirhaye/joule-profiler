@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_json::json;
 
 use crate::core::displayer::{Displayer, default_iterations_filename};
-use crate::core::measurement::{MeasurementResult, PhaseMeasurementResult};
+use crate::core::profiler::Iteration;
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
@@ -16,61 +16,44 @@ pub struct JsonOutput {
 }
 
 impl Displayer for JsonOutput {
-    fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
+        let phase = &result.phases[0];
         let obj = json!({
             "command": cmd.join(" "),
             "mode": "simple",
-            "metrics": result.metrics,
-            "duration_ms": result.duration_ms,
+            "metrics": phase.metrics,
+            "duration_ms": phase.duration_ms,
             "exit_code": result.exit_code,
             "measure_count": result.measure_count,
             "measure_delta": result.measure_delta,
         });
-
         self.write_json(&obj)
     }
 
-    fn simple_iterations(&mut self, cmd: &[String], results: &[MeasurementResult]) -> Result<()> {
-        let iters: Vec<_> = results
-            .iter()
-            .enumerate()
-            .map(|(idx, result)| {
-                json!({
-                    "iteration": idx + 1,
-                    "metrics": result.metrics,
-                    "duration_ms": result.duration_ms,
-                    "exit_code": result.exit_code,
-                    "measure_count": result.measure_count,
-                    "measure_delta": result.measure_delta,
-                })
-            })
-            .collect();
-
-        let root = json!({
+    fn simple_iterations(&mut self, cmd: &[String], iterations: &[Iteration]) -> Result<()> {
+        let obj = json!({
             "command": cmd.join(" "),
             "mode": "simple-iterations",
-            "iterations": iters
+            "nb_iterations": iterations.len(),
+            "iterations": iterations
         });
 
-        self.write_json(&root)
+        self.write_json(&obj)
     }
 
     fn phases_single(
         &mut self,
         cmd: &[String],
         token_pattern: &str,
-        result: &PhaseMeasurementResult,
+        result: &Iteration,
     ) -> Result<()> {
-        let phases_value = serde_json::to_value(result.phases.clone())?;
-
         let obj = json!({
             "command": cmd.join(" "),
             "mode": "phases",
             "token_pattern": token_pattern,
             "exit_code": result.exit_code,
-            "phases": phases_value
+            "phases": result.phases
         });
-
         self.write_json(&obj)
     }
 
@@ -78,28 +61,15 @@ impl Displayer for JsonOutput {
         &mut self,
         cmd: &[String],
         token_pattern: &str,
-        results: &[PhaseMeasurementResult],
+        iterations: &[Iteration],
     ) -> Result<()> {
-        let iters: Vec<_> = results
-            .iter()
-            .enumerate()
-            .map(|(idx, result)| {
-                json!({
-                    "iteration": idx + 1,
-                    "exit_code": result.exit_code,
-                    "duration": result.duration_ms,
-                    "phases": result.phases,
-                })
-            })
-            .collect();
-
         let root = json!({
             "command": cmd.join(" "),
             "mode": "phases-iterations",
             "token_pattern": token_pattern,
-            "iterations": iters
+            "nb_iterations": iterations.len(),
+            "iterations": iterations
         });
-
         self.write_json(&root)
     }
 

@@ -36,6 +36,10 @@ pub struct Cli {
     #[arg(long, conflicts_with = "json")]
     pub csv: bool,
 
+    /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
+    #[arg(long = "jouleit-file")]
+    pub jouleit_file: Option<String>,
+
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,
