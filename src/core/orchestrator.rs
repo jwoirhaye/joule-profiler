@@ -5,7 +5,7 @@ use tokio::{
 };
 
 use crate::{
-    core::source::{MetricSourceWorker, SensorResult, SourceEvent},
+    core::{sensor::SensorResult, source::{MetricSourceWorker, SourceEvent}},
     error::JouleProfilerError,
 };
 

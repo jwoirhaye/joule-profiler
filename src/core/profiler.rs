@@ -17,7 +17,7 @@ use crate::{
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
         sensor::{Sensor, Sensors},
-        source::{GetSensorsTrait, MetricReader, MetricSource, MetricSourceWorker},
+        source::{MetricReaderBound, MetricSource, MetricSourceWorker},
     },
     error::JouleProfilerError,
     sources::rapl::Rapl,
@@ -129,7 +129,7 @@ impl JouleProfiler {
 
     pub fn add_source<T>(&mut self, reader: T)
     where
-        T: MetricReader + GetSensorsTrait + Send + 'static,
+        T: MetricReaderBound,
         MetricSource<T>: Clone,
         T::Type: Send,
     {
