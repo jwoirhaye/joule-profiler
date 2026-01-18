@@ -28,6 +28,8 @@ use crate::{
 pub mod domain;
 pub mod snapshot;
 
+const POWERCAP_SOURCE_NAME: &str = "Powercap";
+
 #[derive(Default)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
@@ -68,12 +70,11 @@ impl GetSensorsTrait for Rapl {
             .domains
             .iter()
             .map(|domain| {
-                let name = format!("{}_{}", domain.name.to_uppercase(), domain.socket);
-                Sensor {
-                    name,
-                    source: "powercap".to_string(),
-                    unit: "µJ".to_string(),
-                }
+                Sensor::new(
+                    domain.get_name(),
+                    "µJ".to_string(),
+                    POWERCAP_SOURCE_NAME.to_lowercase(),
+                )
             })
             .collect();
 
@@ -144,7 +145,7 @@ impl Rapl {
 
         for domain in &self.domains {
             let val_uj = read_energy(domain)?;
-            map.insert(domain.path.to_string_lossy().to_string(), val_uj);
+            map.insert((domain.domain_type, domain.socket), val_uj);
         }
 
         Ok(Snapshot { metrics: map })
