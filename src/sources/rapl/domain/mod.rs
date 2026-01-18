@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
+use std::fmt::Display;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
@@ -11,14 +12,60 @@ use log::{debug, error, info, trace, warn};
 
 pub mod socket;
 
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+pub enum RaplDomainType {
+    Package,
+    Core,
+    Dram,
+    Psys,
+}
+
+impl Display for RaplDomainType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let domain_type = match self {
+            RaplDomainType::Package => "PACKAGE",
+            RaplDomainType::Core => "CORE",
+            RaplDomainType::Dram => "DRAM",
+            RaplDomainType::Psys => "PSYS",
+        };
+        f.write_str(domain_type)
+    }
+}
+
+impl TryInto<RaplDomainType> for String {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<RaplDomainType> {
+        let lowercase = self.to_lowercase();
+        let domain_type = if lowercase.starts_with("package") {
+            RaplDomainType::Package
+        } else if lowercase.starts_with("core") {
+            RaplDomainType::Core
+        } else if lowercase.starts_with("dram") {
+            RaplDomainType::Dram
+        } else if lowercase.starts_with("psys") {
+            RaplDomainType::Psys
+        } else {
+            bail!("Unknown RAPL domain: {}", self);
+        };
+        Ok(domain_type)
+    }
+}
+
+impl RaplDomainType {
+    pub fn to_string_socket(self, socket: u32) -> String {
+        format!("{}-{}", self, socket)
+    }
+}
+
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]
 pub struct RaplDomain {
     /// Path to the energy_uj file for reading current energy counter
     pub path: PathBuf,
 
-    /// Logical name of the domain (e.g., "package-0", "core", "dram")
-    pub name: String,
+    /// Type of the domain (e.g., "package", "core", "dram", "psys")
+    pub domain_type: RaplDomainType,
 
     /// CPU socket index this domain belongs to
     pub socket: u32,
@@ -28,13 +75,18 @@ pub struct RaplDomain {
 }
 
 impl RaplDomain {
-    pub fn new(path: PathBuf, name: String, socket: u32, max_energy_uj: u64) -> Self {
-        Self {
+    pub fn try_new(path: PathBuf, name: String, socket: u32, max_energy_uj: u64) -> Result<Self> {
+        let domain = Self {
             path,
-            name,
+            domain_type: name.try_into()?,
             socket,
             max_energy_uj,
-        }
+        };
+        Ok(domain)
+    }
+
+    pub fn get_name(&self) -> String {
+        self.domain_type.to_string_socket(self.socket)
     }
 }
 
@@ -135,7 +187,7 @@ fn add_domain_if_energy(dir: &Path, out: &mut Vec<RaplDomain>) -> Result<()> {
             name, socket, max_energy_uj
         );
 
-        let domain = RaplDomain::new(path, name, socket, max_energy_uj);
+        let domain = RaplDomain::try_new(path, name, socket, max_energy_uj)?;
         out.push(domain);
     } else {
         warn!("Domain {:?} missing max_energy_range_uj", dir);
@@ -161,14 +213,17 @@ fn extract_socket_number(path: &Path) -> Result<u32> {
 
 /// Reads the current energy counter value from a RAPL domain.
 pub fn read_energy(domain: &RaplDomain) -> Result<u64> {
-    trace!("Reading energy for domain {}", domain.name);
+    trace!("Reading energy for domain {}", domain.domain_type);
 
     let content = fs::read_to_string(&domain.path).map_err(|e| {
-        error!("Failed to read energy for {}: {}", domain.name, e);
+        error!("Failed to read energy for {}: {}", domain.domain_type, e);
         if e.kind() == ErrorKind::PermissionDenied {
             JouleProfilerError::InsufficientPermissions
         } else {
-            JouleProfilerError::RaplReadError(format!("Failed to read {}: {}", domain.name, e))
+            JouleProfilerError::RaplReadError(format!(
+                "Failed to read {}: {}",
+                domain.domain_type, e
+            ))
         }
     })?;
 
@@ -176,16 +231,16 @@ pub fn read_energy(domain: &RaplDomain) -> Result<u64> {
         error!(
             "Invalid energy value '{}' in {}",
             content.trim(),
-            domain.name
+            domain.get_name()
         );
         JouleProfilerError::ParseEnergyError(format!(
             "Invalid energy value '{}' in domain {}",
             content.trim(),
-            domain.name
+            domain.get_name()
         ))
     })?;
 
-    trace!("Energy {} = {} µJ", domain.name, energy);
+    trace!("Energy {} = {} µJ", domain.get_name(), energy);
     Ok(energy)
 }
 
@@ -237,7 +292,7 @@ mod tests {
 
         assert_eq!(domains.len(), 1);
         let d = &domains[0];
-        assert_eq!(d.name, "package");
+        assert_eq!(d.get_name(), "PACKAGE-0");
         assert_eq!(d.socket, 0);
         assert_eq!(d.max_energy_uj, 1_000);
     }
@@ -266,7 +321,7 @@ mod tests {
 
         let domain = RaplDomain {
             path: energy_file,
-            name: "package".to_string(),
+            domain_type: RaplDomainType::Package,
             socket: 0,
             max_energy_uj: 1_000,
         };
@@ -283,7 +338,7 @@ mod tests {
 
         let domain = RaplDomain {
             path: energy_file,
-            name: "package".to_string(),
+            domain_type: RaplDomainType::Package,
             socket: 0,
             max_energy_uj: 1_000,
         };

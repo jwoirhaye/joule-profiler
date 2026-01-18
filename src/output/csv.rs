@@ -118,7 +118,7 @@ impl Displayer for CsvOutput {
                 sensor.name, sensor.unit, sensor.source
             )?;
         }
-        
+
         self.finalize();
         Ok(())
     }

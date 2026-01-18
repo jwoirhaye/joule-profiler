@@ -7,4 +7,10 @@ pub struct Sensor {
     pub source: String,
 }
 
+impl Sensor {
+    pub fn new(name: String, unit: String, source: String) -> Self {
+        Self { name, unit, source }
+    }
+}
+
 pub type Sensors = Vec<Sensor>;
