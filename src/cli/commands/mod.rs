@@ -26,10 +26,6 @@ pub struct CommonArgs {
     #[arg(short = 'n', long = "iterations")]
     pub iterations: Option<usize>,
 
-    /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
-    #[arg(long = "jouleit-file")]
-    pub jouleit_file: Option<String>,
-
     /// Redirect profiled program stdout to this file
     #[arg(short = 'o', long = "output-file")]
     pub output_file: Option<String>,

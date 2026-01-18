@@ -16,6 +16,7 @@ pub struct Config {
     pub mode: Command,
     pub rapl_path: Option<String>,
     pub output_format: OutputFormat,
+    pub jouleit_file: Option<String>,
 }
 
 impl From<Cli> for Config {
@@ -31,7 +32,6 @@ impl From<Cli> for Config {
                 let common = simple.common;
                 Command::Profile(ProfileConfig {
                     iterations: common.iterations.unwrap_or(1),
-                    jouleit_file: common.jouleit_file,
                     output_file: common.output_file,
                     cmd: common.cmd,
                     rapl_polling: common.rapl_polling,
@@ -43,7 +43,6 @@ impl From<Cli> for Config {
                 let common = phases.common;
                 Command::Profile(ProfileConfig {
                     iterations: common.iterations.unwrap_or(1),
-                    jouleit_file: common.jouleit_file,
                     output_file: common.output_file,
                     cmd: common.cmd,
                     rapl_polling: common.rapl_polling,
@@ -63,6 +62,7 @@ impl From<Cli> for Config {
             mode,
             rapl_path: cli.rapl_path,
             output_format: output_format(cli.json, cli.csv),
+            jouleit_file: cli.jouleit_file,
         }
     }
 }
@@ -70,7 +70,6 @@ impl From<Cli> for Config {
 #[derive(Debug, Clone)]
 pub struct ProfileConfig {
     pub iterations: usize,
-    pub jouleit_file: Option<String>,
     pub output_file: Option<String>,
     pub cmd: Vec<String>,
     pub sockets: Option<HashSet<u32>>,
