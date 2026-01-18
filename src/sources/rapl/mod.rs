@@ -136,10 +136,7 @@ impl Rapl {
     }
 
     fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
-        Self {
-            domains,
-            ticker,
-        }
+        Self { domains, ticker }
     }
 }
 

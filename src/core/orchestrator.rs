@@ -5,13 +5,18 @@ use tokio::{
 };
 
 use crate::{
-    core::{sensor::SensorResult, source::{MetricSourceWorker, SourceEvent}},
+    core::{
+        sensor::SensorResult,
+        source::{MetricSourceWorker, SourceEvent},
+    },
     error::JouleProfilerError,
 };
 
+type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSourceWorker>)>>;
+
 pub struct SourceOrchestrator {
     senders: Vec<Sender<SourceEvent>>,
-    handles: Vec<JoinHandle<Result<(SensorResult, Box<dyn MetricSourceWorker>)>>>,
+    handles: Vec<Handle>,
 }
 
 impl SourceOrchestrator {
@@ -81,12 +86,10 @@ impl SourceOrchestrator {
         let mut sources = Vec::with_capacity(nb_handles);
 
         for handle in handles {
-            handle
-                .await?
-                .map(|(source_result, source)| {
-                    sources_results.push(source_result);
-                    sources.push(source);
-                })?;
+            handle.await?.map(|(source_result, source)| {
+                sources_results.push(source_result);
+                sources.push(source);
+            })?;
         }
 
         let merged_results =
