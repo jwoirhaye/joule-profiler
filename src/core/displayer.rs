@@ -41,7 +41,7 @@ impl TryFrom<&Config> for Box<dyn Displayer> {
     type Error = anyhow::Error;
 
     fn try_from(config: &Config) -> Result<Self, Self::Error> {
-        let output_file = config.jouleit_file.clone();
+        let output_file = config.output_file.clone();
         let displayer = match config.output_format {
             OutputFormat::Terminal => TerminalOutput.into(),
             OutputFormat::Json => JsonOutput::new(output_file)?.into(),
