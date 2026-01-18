@@ -73,11 +73,11 @@ pub trait MetricReaderBound: MetricReader + GetSensorsTrait + Send + 'static {}
 impl<T> MetricReaderBound for T where T: GetSensorsTrait + MetricReader + Send + 'static {}
 
 pub trait MetricReaderTypeBound<T>:
-    Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static
+    Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send
 {
 }
 impl<T> MetricReaderTypeBound<T> for T where
-    T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static
+    T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send
 {
 }
 
