@@ -15,6 +15,8 @@ use crate::core::{
 #[derive(Default, Debug)]
 pub struct SensorIteration {
     pub phases: Vec<SensorPhase>,
+    pub measure_delta: u64,
+    pub measure_count: u64,
 }
 
 impl AddAssign for SensorPhase {
@@ -41,6 +43,16 @@ impl Add for SensorIteration {
     }
 }
 
+impl SensorIteration {
+    pub fn new(phases: Vec<SensorPhase>, measure_delta: u64, measure_count: u64) -> Self {
+        Self {
+            phases,
+            measure_delta,
+            measure_count,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 
 pub struct SensorPhase {
@@ -60,31 +72,27 @@ pub enum SourceEvent {
 #[derive(Debug)]
 pub struct SensorResult {
     pub iterations: Vec<SensorIteration>,
-    pub count: u64,
-    pub measure_delta: u64,
 }
 
 impl Add for SensorResult {
     type Output = SensorResult;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let count = self.count + rhs.count;
-        let measure_delta = self.measure_delta + rhs.measure_delta;
         let iterations = self
             .iterations
             .into_iter()
             .zip(rhs.iterations)
             .map(|(self_iter, rhs_iter)| self_iter + rhs_iter)
             .collect();
-        Self::Output {
-            iterations,
-            count,
-            measure_delta,
-        }
+        Self::Output { iterations }
     }
 }
 
 impl SensorResult {
+    pub fn new(iterations: Vec<SensorIteration>) -> Self {
+        Self { iterations }
+    }
+
     pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
         results.into_iter().reduce(|acc, result| acc + result)
     }
@@ -109,6 +117,8 @@ pub trait GetSensorsTrait: Send {
 #[derive(Default, Clone)]
 struct SourceIteration<V> {
     pub phases: Vec<SourcePhase<V>>,
+    pub total_elapsed: Duration,
+    pub measure_count: u64,
 }
 
 #[derive(Default, Clone)]
@@ -141,7 +151,14 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
             .into_iter()
             .map(|phase| phase.into())
             .collect();
-        SensorIteration { phases }
+
+        let measure_delta = if iteration.measure_count > 1 {
+            (iteration.total_elapsed.as_micros() / (iteration.measure_count - 1) as u128) as u64
+        } else {
+            0
+        };
+
+        SensorIteration::new(phases, measure_delta, iteration.measure_count)
     }
 }
 
@@ -156,12 +173,6 @@ pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
     last_measure: Option<T::Type>,
 
     current_counters: T::Type,
-
-    /// Number of snapshots taken
-    count: u64,
-
-    /// Total elapsed time between snapshots
-    total_elapsed: Duration,
 
     /// Monotonic timestamp of last snapshot
     last_instant: Option<Instant>,
@@ -180,8 +191,6 @@ where
             current_iteration: SourceIteration::default(),
             current_counters: T::Type::default(),
             last_measure: None,
-            count: 0,
-            total_elapsed: Duration::ZERO,
             last_instant: None,
             polling_active: false,
         }
@@ -191,11 +200,11 @@ where
     pub fn measure(&mut self) -> Result<()> {
         let now = Instant::now();
         if let Some(last) = self.last_instant {
-            self.total_elapsed += now.duration_since(last);
+            self.current_iteration.total_elapsed += now.duration_since(last);
         }
 
         self.last_instant = Some(now);
-        self.count += 1;
+        self.current_iteration.measure_count += 1;
         let measure = self.metric_reader.measure()?;
 
         if let Some(old) = self.last_measure.take() {
@@ -222,6 +231,10 @@ where
     pub fn new_iteration(&mut self) -> Result<()> {
         if let Some(_) = self.last_measure.take() {
             let iteration = std::mem::take(&mut self.current_iteration);
+            self.current_iteration.measure_count = 0;
+            self.current_iteration.total_elapsed = Duration::ZERO;
+            self.last_instant = None;
+            self.last_measure = None;
             self.iterations.push(iteration);
         }
         Ok(())
@@ -229,23 +242,13 @@ where
 
     /// Retrieve all sensors measures.
     pub fn retrieve(&mut self) -> Result<SensorResult> {
-        let avg_delta_us = if self.count > 1 {
-            (self.total_elapsed.as_micros() / (self.count - 1) as u128) as u64
-        } else {
-            0
-        };
-
         let source_iterations = std::mem::take(&mut self.iterations);
         let iterations = source_iterations
             .into_iter()
             .map(|iteration| iteration.into())
             .collect();
-
-        Ok(SensorResult {
-            count: self.count,
-            measure_delta: avg_delta_us,
-            iterations,
-        })
+        let result = SensorResult::new(iterations);
+        Ok(result)
     }
 
     /// Start a worker thread to measure the source.

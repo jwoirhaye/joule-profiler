@@ -1,10 +1,7 @@
 use anyhow::Result;
 
 use crate::core::{
-    displayer::Displayer,
-    measurement::{MeasurementResult, PhaseMeasurementResult},
-    metric::Metric,
-    sensor::Sensor,
+    displayer::Displayer, metric::Metric, phase::PhaseToken, profiler::Iteration, sensor::Sensor,
 };
 
 /// Constants for formatting
@@ -16,17 +13,18 @@ const BOX_WIDTH: usize = 50;
 pub struct TerminalOutput;
 
 impl Displayer for TerminalOutput {
-    fn simple_single(&mut self, cmd: &[String], result: &MeasurementResult) -> Result<()> {
+    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
         self.display_command(cmd);
-        self.display_result(&result.metrics, "")
+        self.display_result(&result.phases[0].metrics, "")?;
+        Ok(())
     }
 
-    fn simple_iterations(&mut self, cmd: &[String], results: &[MeasurementResult]) -> Result<()> {
+    fn simple_iterations(&mut self, cmd: &[String], results: &[Iteration]) -> Result<()> {
         self.display_command(cmd);
 
         for (idx, result) in results.iter().enumerate() {
             self.display_iteration_header(idx, results.len());
-            self.display_result(&result.metrics, "")?;
+            self.display_result(&result.phases[0].metrics, "")?;
         }
 
         Ok(())
@@ -36,19 +34,12 @@ impl Displayer for TerminalOutput {
         &mut self,
         cmd: &[String],
         _token_pattern: &str,
-        result: &PhaseMeasurementResult,
+        iteration: &Iteration,
     ) -> Result<()> {
         self.display_command(cmd);
 
-        for phase in result.phases.iter() {
-            self.display_phase_header(
-                &phase.name,
-                phase.start_token.as_deref(),
-                phase.end_token.as_deref(),
-                phase.start_line,
-                phase.end_line,
-                "",
-            );
+        for phase in &iteration.phases {
+            self.display_phase_header(&phase.start_token, &phase.end_token, phase.line_number, "");
             self.display_result(&phase.metrics, "")?;
         }
 
@@ -59,24 +50,19 @@ impl Displayer for TerminalOutput {
         &mut self,
         cmd: &[String],
         _token_pattern: &str,
-        results: &[PhaseMeasurementResult],
+        iterations: &[Iteration],
     ) -> Result<()> {
-        if results.is_empty() {
-            return Ok(());
-        }
-
         self.display_command(cmd);
+        let nb_iterations = iterations.len();
 
-        for (idx, iteration_results) in results.iter().enumerate() {
-            self.display_iteration_header(idx, results.len());
+        for (idx, iteration_results) in iterations.iter().enumerate() {
+            self.display_iteration_header(idx, nb_iterations);
 
             for phase in &iteration_results.phases {
                 self.display_phase_header(
-                    &phase.name,
-                    phase.start_token.as_deref(),
-                    phase.end_token.as_deref(),
-                    phase.start_line,
-                    phase.end_line,
+                    &phase.start_token,
+                    &phase.end_token,
+                    phase.line_number,
                     "  ",
                 );
                 self.display_result(&phase.metrics, "  ")?;
@@ -91,7 +77,6 @@ impl Displayer for TerminalOutput {
             println!("No sensors available.");
             return Ok(());
         }
-
         self.print_header("Available Sensors");
 
         println!("  {:<20} | {:<10} | {:<15}", "Name", "Unit", "Source");
@@ -105,7 +90,6 @@ impl Displayer for TerminalOutput {
         }
 
         println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
-
         Ok(())
     }
 }
@@ -184,13 +168,13 @@ impl TerminalOutput {
     /// Display phase header with token information
     fn display_phase_header(
         &self,
-        phase_name: &str,
-        start_token: Option<&str>,
-        end_token: Option<&str>,
+        start_token: &PhaseToken,
+        end_token: &PhaseToken,
         start_line: Option<usize>,
-        end_line: Option<usize>,
         prefix: &str,
     ) {
+        let phase_name = &format!("{} -> {}", start_token, end_token);
+
         println!();
         if prefix.is_empty() {
             println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
@@ -201,22 +185,11 @@ impl TerminalOutput {
         }
 
         // Display token information
-        if let Some(start) = start_token {
-            let start_info = if let Some(line) = start_line {
-                format!("{} (line {})", start, line)
-            } else {
-                start.to_string()
-            };
-            println!("{}  Start token: {}", prefix, start_info);
-        }
-
-        if let Some(end) = end_token {
-            let end_info = if let Some(line) = end_line {
-                format!("{} (line {})", end, line)
-            } else {
-                end.to_string()
-            };
-            println!("{}  End token  : {}", prefix, end_info);
-        }
+        let start_info = if let Some(line) = start_line {
+            format!("{} (line {})", start_token, line)
+        } else {
+            start_token.to_string()
+        };
+        println!("{}  Start token: {}", prefix, start_info);
     }
 }

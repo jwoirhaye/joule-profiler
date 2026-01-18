@@ -35,6 +35,7 @@ pub struct Rapl {
     poll_interval: Option<Duration>,
 }
 
+/// Ticker have to be None because it is not clonable, that's why we need init method.
 impl Clone for Rapl {
     fn clone(&self) -> Self {
         Self {
@@ -129,11 +130,8 @@ impl Rapl {
         let domains = get_domains(&base_path, sockets)?;
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
-        Ok(Rapl {
-            domains,
-            poll_interval,
-            ticker: None,
-        })
+        let rapl = Rapl::new(domains, poll_interval);
+        Ok(rapl)
     }
 
     pub fn read_snapshot(&self) -> Result<Snapshot> {
@@ -150,6 +148,14 @@ impl Rapl {
         }
 
         Ok(Snapshot { metrics: map })
+    }
+
+    fn new(domains: Vec<RaplDomain>, poll_interval: Option<Duration>) -> Self {
+        Self {
+            domains,
+            ticker: None,
+            poll_interval,
+        }
     }
 }
 

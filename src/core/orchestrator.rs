@@ -23,9 +23,11 @@ impl SourceOrchestrator {
     }
 
     /// Start the metrics sources worker threads.
+    #[inline]
     pub async fn start(&mut self, sources: Vec<Box<dyn MetricSourceWorker>>) {
-        let mut senders = Vec::new();
-        let mut handles = Vec::new();
+        let nb_sources = sources.len();
+        let mut senders = Vec::with_capacity(nb_sources);
+        let mut handles = Vec::with_capacity(nb_sources);
 
         for source in sources {
             let (tx, rx) = channel(4);
@@ -82,19 +84,11 @@ impl SourceOrchestrator {
                 .map(|source_result| sources_results.push(source_result))?;
         }
 
-        let nb_sources = sources_results.len();
-
         let merged_results =
             SensorResult::merge(sources_results).ok_or(JouleProfilerError::NotEnoughSnapshots)?;
-        let measure_count = merged_results.count / nb_sources as u64;
-        let measure_delta = merged_results.measure_delta / nb_sources as u64;
         let iterations = merged_results.iterations;
-
-        Ok(SensorResult {
-            iterations,
-            count: measure_count,
-            measure_delta,
-        })
+        let result = SensorResult::new(iterations);
+        Ok(result)
     }
 
     /// Stop the worker thread of each metrics sources to join threads gracefully.
