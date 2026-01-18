@@ -109,14 +109,17 @@ impl Displayer for CsvOutput {
     }
 
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
-        write!(self.file, "sensor;unit;source")?;
+        writeln!(self.file, "sensor;unit;source")?;
+
         for sensor in sensors {
-            write!(
+            writeln!(
                 self.file,
                 "{};{};{}",
                 sensor.name, sensor.unit, sensor.source
             )?;
         }
+        
+        self.finalize();
         Ok(())
     }
 }
@@ -185,13 +188,11 @@ impl CsvOutput {
             write!(self.file, "{};", metric.value)?;
         }
 
-        write!(
+        writeln!(
             self.file,
             "{};{};{};{};",
             result.duration_ms, result.measure_count, result.measure_delta, result.exit_code
         )?;
-
-        writeln!(self.file)?;
 
         Ok(())
     }
@@ -220,7 +221,7 @@ impl CsvOutput {
             write!(self.file, "{};", metric.value)?;
         }
 
-        write!(self.file, "{};", phase.duration_ms)?;
+        writeln!(self.file, "{};", phase.duration_ms)?;
 
         Ok(())
     }
