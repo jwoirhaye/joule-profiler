@@ -229,7 +229,7 @@ where
 
     /// Initialize a new iteration.
     pub fn new_iteration(&mut self) -> Result<()> {
-        if let Some(_) = self.last_measure.take() {
+        if self.last_measure.take().is_some() {
             let iteration = std::mem::take(&mut self.current_iteration);
             self.current_iteration.measure_count = 0;
             self.current_iteration.total_elapsed = Duration::ZERO;
