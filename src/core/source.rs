@@ -70,15 +70,13 @@ pub enum SourceEvent {
 }
 
 pub trait MetricReaderBound: MetricReader + GetSensorsTrait + Send + 'static {}
-impl<T> MetricReaderBound for T where T: Clone + GetSensorsTrait + MetricReader + Send + 'static {}
+impl<T> MetricReaderBound for T where T: GetSensorsTrait + MetricReader + Send + 'static {}
 
-pub trait MetricReaderTypeBound<T>: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq {}
-impl<T> MetricReaderTypeBound<T> for T where T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq {}
+pub trait MetricReaderTypeBound<T>: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static {}
+impl<T> MetricReaderTypeBound<T> for T where T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static {}
 
 pub trait MetricReader {
     type Type: MetricReaderTypeBound<Self::Type>;
-
-    fn init(&mut self) -> Result<()>;
 
     /// Measure the sensors metrics.
     fn measure(&self) -> Result<Self::Type>;
@@ -141,7 +139,7 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
 }
 
 #[derive(Clone)]
-pub struct MetricSource<T: MetricReaderBound> {
+pub struct MetricSource<T: MetricReaderBound> where T::Type: MetricReaderTypeBound<T::Type> {
     metric_reader: T,
 
     iterations: Vec<SourceIteration<T::Type>>,
@@ -217,19 +215,18 @@ impl<T: MetricReaderBound> MetricSource<T>
     }
 
     /// Retrieve all sensors measures.
-    pub fn retrieve(&mut self) -> Result<SensorResult> {
-        let source_iterations = std::mem::take(&mut self.iterations);
-        let iterations = source_iterations
+    pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
+        let iterations = self.iterations
             .into_iter()
             .map(|iteration| iteration.into())
             .collect();
         let result = SensorResult::new(iterations);
-        Ok(result)
+        let boxed_source = Box::new(MetricSource::new(self.metric_reader));
+        Ok((result, boxed_source))
     }
 
     /// Start a worker thread to measure the source.
-    pub async fn run_worker(&mut self, mut rx: Receiver<SourceEvent>) -> Result<SensorResult> {
-        self.metric_reader.init()?;
+    pub async fn run_worker(mut self, mut rx: Receiver<SourceEvent>) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
         loop {
             select! {
                 Some(poll) = self.metric_reader.poll(), if self.polling_active => {
@@ -256,55 +253,48 @@ impl<T: MetricReaderBound> MetricSource<T>
 }
 
 pub trait MetricSourceWorker: Send {
+    /// Runs the worker and returns the result along with the source itself.
     fn run(
         self: Box<Self>,
-        rx: Receiver<SourceEvent>,
-    ) -> Pin<Box<dyn Future<Output = Result<SensorResult>> + Send>>;
+        rx: tokio::sync::mpsc::Receiver<SourceEvent>,
+    ) -> Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>>;
 
     fn list_sensors(&self) -> Result<Sensors>;
 
-    fn clone_box(&self) -> Box<dyn MetricSourceWorker>;
+    fn into_box(self) -> Box<dyn MetricSourceWorker>
+    where
+        Self: Sized + 'static,
+    {
+        Box::new(self)
+    }
+}
+
+impl<T> MetricSourceWorker for MetricSource<T>
+where
+    T: crate::core::source::MetricReaderBound + 'static,
+    T::Type: Send,
+{
+    fn run(
+        self: Box<Self>,
+        rx: Receiver<SourceEvent>,
+    ) -> Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>> {
+        Box::pin(async move {
+            self.run_worker(rx).await
+        })
+    }
+
+    fn list_sensors(&self) -> Result<Sensors> {
+        self.get_sensors()
+    }
 }
 
 impl<T> From<T> for Box<dyn MetricSourceWorker>
 where
-    MetricSource<T>: Clone,
     T: MetricReaderBound,
     T::Type: Send,
 {
     fn from(reader: T) -> Self {
         let source = MetricSource::new(reader);
         Box::new(source)
-    }
-}
-
-impl<T> MetricSourceWorker for MetricSource<T>
-where
-    MetricSource<T>: Clone,
-    T: MetricReaderBound,
-    T::Type: Send,
-{
-    #[inline]
-    fn run(
-        mut self: Box<Self>,
-        rx: Receiver<SourceEvent>,
-    ) -> Pin<Box<dyn Future<Output = Result<SensorResult>> + Send>> {
-        Box::pin(async move { self.run_worker(rx).await })
-    }
-
-    #[inline]
-    fn list_sensors(&self) -> Result<Sensors> {
-        self.get_sensors()
-    }
-
-    #[inline]
-    fn clone_box(&self) -> Box<dyn MetricSourceWorker> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn MetricSourceWorker> {
-    fn clone(&self) -> Self {
-        self.clone_box()
     }
 }

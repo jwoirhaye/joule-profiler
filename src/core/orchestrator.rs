@@ -11,7 +11,7 @@ use crate::{
 
 pub struct SourceOrchestrator {
     senders: Vec<Sender<SourceEvent>>,
-    handles: Vec<JoinHandle<Result<SensorResult>>>,
+    handles: Vec<JoinHandle<Result<(SensorResult, Box<dyn MetricSourceWorker>)>>>,
 }
 
 impl SourceOrchestrator {
@@ -72,23 +72,28 @@ impl SourceOrchestrator {
     }
 
     /// Gracefully shutdown all the workers.
-    pub async fn retrieve(&mut self) -> Result<SensorResult> {
+    pub async fn retrieve(&mut self) -> Result<(SensorResult, Vec<Box<dyn MetricSourceWorker>>)> {
         self.join().await?;
 
         let handles = std::mem::take(&mut self.handles);
-        let mut sources_results = Vec::new();
+        let nb_handles = self.handles.len();
+        let mut sources_results = Vec::with_capacity(nb_handles);
+        let mut sources = Vec::with_capacity(nb_handles);
 
         for handle in handles {
             handle
                 .await?
-                .map(|source_result| sources_results.push(source_result))?;
+                .map(|(source_result, source)| {
+                    sources_results.push(source_result);
+                    sources.push(source);
+                })?;
         }
 
         let merged_results =
             SensorResult::merge(sources_results).ok_or(JouleProfilerError::NotEnoughSnapshots)?;
         let iterations = merged_results.iterations;
         let result = SensorResult::new(iterations);
-        Ok(result)
+        Ok((result, sources))
     }
 
     /// Stop the worker thread of each metrics sources to join threads gracefully.
