@@ -16,7 +16,8 @@ use crate::{
         metric::Metrics,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
-        sensor::Sensors,
+        sensor::{Sensor, Sensors},
+        source::{GetSensorsTrait, MetricReader, MetricSource, MetricSourceWorker},
     },
     error::JouleProfilerError,
     sources::rapl::Rapl,
@@ -96,20 +97,23 @@ pub struct JouleProfiler {
     config: Config,
     orchestrator: SourceOrchestrator,
     displayer: Box<dyn Displayer>,
+    sources: Vec<Box<dyn MetricSourceWorker>>,
 }
 
 impl TryFrom<Config> for JouleProfiler {
     type Error = anyhow::Error;
 
     fn try_from(config: Config) -> Result<Self> {
-        let mut orchestrator = SourceOrchestrator::new();
+        let orchestrator = SourceOrchestrator::new();
         let displayer = (&config).try_into()?;
         let rapl = Rapl::try_from(&config)?;
-        orchestrator.add_source(rapl);
+        let sources = vec![rapl.into()];
+
         Ok(Self {
             orchestrator,
             config,
             displayer,
+            sources,
         })
     }
 }
@@ -123,6 +127,15 @@ impl JouleProfiler {
         }
     }
 
+    pub fn add_source<T>(&mut self, reader: T)
+    where
+        T: MetricReader + GetSensorsTrait + Send + 'static,
+        MetricSource<T>: Clone,
+        T::Type: Send,
+    {
+        self.sources.push(reader.into());
+    }
+
     async fn profile(&mut self, config: ProfileConfig) -> Result<()> {
         match config.mode.clone() {
             Mode::SimpleMode => self.run_simple(config).await,
@@ -131,7 +144,15 @@ impl JouleProfiler {
     }
 
     fn run_list_sensors(&mut self) -> Result<()> {
-        let sensors: Sensors = self.orchestrator.list_sensors()?;
+        let sensors: Vec<Sensor> = self
+            .sources
+            .iter()
+            .map(|source| source.list_sensors())
+            .collect::<Result<Vec<Sensors>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+
         self.displayer.list_sensors(&sensors)?;
         Ok(())
     }
@@ -139,7 +160,7 @@ impl JouleProfiler {
     async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running simple mode");
 
-        self.orchestrator.start().await;
+        self.orchestrator.start(self.sources.clone()).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
@@ -208,7 +229,7 @@ impl JouleProfiler {
         config: ProfileConfig,
         phases_config: PhasesConfig,
     ) -> Result<()> {
-        self.orchestrator.start().await;
+        self.orchestrator.start(self.sources.clone()).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
