@@ -72,8 +72,14 @@ pub enum SourceEvent {
 pub trait MetricReaderBound: MetricReader + GetSensorsTrait + Send + 'static {}
 impl<T> MetricReaderBound for T where T: GetSensorsTrait + MetricReader + Send + 'static {}
 
-pub trait MetricReaderTypeBound<T>: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static {}
-impl<T> MetricReaderTypeBound<T> for T where T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static {}
+pub trait MetricReaderTypeBound<T>:
+    Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static
+{
+}
+impl<T> MetricReaderTypeBound<T> for T where
+    T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send + 'static
+{
+}
 
 pub trait MetricReader {
     type Type: MetricReaderTypeBound<Self::Type>;
@@ -139,7 +145,10 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
 }
 
 #[derive(Clone)]
-pub struct MetricSource<T: MetricReaderBound> where T::Type: MetricReaderTypeBound<T::Type> {
+pub struct MetricSource<T: MetricReaderBound>
+where
+    T::Type: MetricReaderTypeBound<T::Type>,
+{
     metric_reader: T,
 
     iterations: Vec<SourceIteration<T::Type>>,
@@ -156,8 +165,7 @@ pub struct MetricSource<T: MetricReaderBound> where T::Type: MetricReaderTypeBou
     polling_active: bool,
 }
 
-impl<T: MetricReaderBound> MetricSource<T>
-{
+impl<T: MetricReaderBound> MetricSource<T> {
     pub fn new(reader: T) -> Self {
         Self {
             metric_reader: reader,
@@ -216,7 +224,8 @@ impl<T: MetricReaderBound> MetricSource<T>
 
     /// Retrieve all sensors measures.
     pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
-        let iterations = self.iterations
+        let iterations = self
+            .iterations
             .into_iter()
             .map(|iteration| iteration.into())
             .collect();
@@ -226,7 +235,10 @@ impl<T: MetricReaderBound> MetricSource<T>
     }
 
     /// Start a worker thread to measure the source.
-    pub async fn run_worker(mut self, mut rx: Receiver<SourceEvent>) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
+    pub async fn run_worker(
+        mut self,
+        mut rx: Receiver<SourceEvent>,
+    ) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
         loop {
             select! {
                 Some(poll) = self.metric_reader.poll(), if self.polling_active => {
@@ -252,12 +264,15 @@ impl<T: MetricReaderBound> MetricSource<T>
     }
 }
 
+type MetricSourceWorkerFuture =
+    Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>>;
+
 pub trait MetricSourceWorker: Send {
     /// Runs the worker and returns the result along with the source itself.
     fn run(
         self: Box<Self>,
         rx: tokio::sync::mpsc::Receiver<SourceEvent>,
-    ) -> Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>>;
+    ) -> MetricSourceWorkerFuture;
 
     fn list_sensors(&self) -> Result<Sensors>;
 
@@ -274,13 +289,8 @@ where
     T: crate::core::source::MetricReaderBound + 'static,
     T::Type: Send,
 {
-    fn run(
-        self: Box<Self>,
-        rx: Receiver<SourceEvent>,
-    ) -> Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>> {
-        Box::pin(async move {
-            self.run_worker(rx).await
-        })
+    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture {
+        Box::pin(async move { self.run_worker(rx).await })
     }
 
     fn list_sensors(&self) -> Result<Sensors> {
