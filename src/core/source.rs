@@ -9,7 +9,7 @@ use tokio::{select, sync::mpsc::Receiver, time::Instant};
 
 use crate::core::{
     metric::{Metric, Metrics},
-    sensor::Sensors,
+    sensor::{SensorResult, Sensors},
 };
 
 #[derive(Default, Debug)]
@@ -69,36 +69,14 @@ pub enum SourceEvent {
     JoinWorker,
 }
 
-#[derive(Debug)]
-pub struct SensorResult {
-    pub iterations: Vec<SensorIteration>,
-}
+pub trait MetricReaderBound: MetricReader + GetSensorsTrait + Send + 'static {}
+impl<T> MetricReaderBound for T where T: Clone + GetSensorsTrait + MetricReader + Send + 'static {}
 
-impl Add for SensorResult {
-    type Output = SensorResult;
+pub trait MetricReaderTypeBound<T>: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq {}
+impl<T> MetricReaderTypeBound<T> for T where T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq {}
 
-    fn add(self, rhs: Self) -> Self::Output {
-        let iterations = self
-            .iterations
-            .into_iter()
-            .zip(rhs.iterations)
-            .map(|(self_iter, rhs_iter)| self_iter + rhs_iter)
-            .collect();
-        Self::Output { iterations }
-    }
-}
-
-impl SensorResult {
-    pub fn new(iterations: Vec<SensorIteration>) -> Self {
-        Self { iterations }
-    }
-
-    pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
-        results.into_iter().reduce(|acc, result| acc + result)
-    }
-}
 pub trait MetricReader {
-    type Type: Into<Metrics> + AddAssign<Self::Type> + Default + Clone + PartialEq;
+    type Type: MetricReaderTypeBound<Self::Type>;
 
     fn init(&mut self) -> Result<()>;
 
@@ -107,10 +85,10 @@ pub trait MetricReader {
 
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
 
-    fn poll(&mut self) -> impl Future<Output = Option<Result<()>>> + Send + '_;
+    fn poll(&mut self) -> impl Future<Output = Option<Result<()>>> + Send;
 }
 
-pub trait GetSensorsTrait: Send {
+pub trait GetSensorsTrait {
     fn get_sensors(&self) -> Result<Sensors>;
 }
 
@@ -163,7 +141,7 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
 }
 
 #[derive(Clone)]
-pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
+pub struct MetricSource<T: MetricReaderBound> {
     metric_reader: T,
 
     iterations: Vec<SourceIteration<T::Type>>,
@@ -180,9 +158,7 @@ pub struct MetricSource<T: MetricReader + GetSensorsTrait> {
     polling_active: bool,
 }
 
-impl<T> MetricSource<T>
-where
-    T: MetricReader + GetSensorsTrait,
+impl<T: MetricReaderBound> MetricSource<T>
 {
     pub fn new(reader: T) -> Self {
         Self {
@@ -292,8 +268,8 @@ pub trait MetricSourceWorker: Send {
 
 impl<T> From<T> for Box<dyn MetricSourceWorker>
 where
-    T: MetricReader + GetSensorsTrait + Send + 'static,
     MetricSource<T>: Clone,
+    T: MetricReaderBound,
     T::Type: Send,
 {
     fn from(reader: T) -> Self {
@@ -305,7 +281,7 @@ where
 impl<T> MetricSourceWorker for MetricSource<T>
 where
     MetricSource<T>: Clone,
-    T: MetricReader + GetSensorsTrait + Send + 'static,
+    T: MetricReaderBound,
     T::Type: Send,
 {
     #[inline]
