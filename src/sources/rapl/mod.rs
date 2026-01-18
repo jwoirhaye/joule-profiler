@@ -135,7 +135,7 @@ impl MetricReader for Rapl {
         Ok(snapshot)
     }
 
-    async fn poll_loop(&mut self) -> Option<Result<()>> {
+    async fn poll(&mut self) -> Option<Result<()>> {
         if let Some(ticker) = &mut self.ticker {
             let _ = ticker.next().await?;
             Some(Ok(()))

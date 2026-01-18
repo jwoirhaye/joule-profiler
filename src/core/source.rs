@@ -95,14 +95,9 @@ pub trait MetricReader {
     /// Measure the sensors metrics.
     fn measure(&self) -> Result<Self::Type>;
 
-    /// Get the polling interval of the metric source if supported.
-    fn get_polling_interval(&self) -> Option<Duration> {
-        None
-    }
-
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
 
-    fn poll_loop(&mut self) -> impl Future<Output = Option<Result<()>>> + Send + '_;
+    fn poll(&mut self) -> impl Future<Output = Option<Result<()>>> + Send + '_;
 }
 
 pub trait GetSensorsTrait: Send {
@@ -265,7 +260,7 @@ where
                         SourceEvent::JoinWorker => return self.retrieve(),
                     }
                 },
-                Some(poll) = self.metric_reader.poll_loop(), if self.polling_active => {
+                Some(poll) = self.metric_reader.poll(), if self.polling_active => {
                     poll?;
                     self.measure()?;
                 }
