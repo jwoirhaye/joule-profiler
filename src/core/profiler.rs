@@ -160,7 +160,8 @@ impl JouleProfiler {
     async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running simple mode");
 
-        self.orchestrator.start(self.sources.clone()).await;
+        let sources = std::mem::take(&mut self.sources);
+        self.orchestrator.start(sources).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
@@ -170,8 +171,9 @@ impl JouleProfiler {
             command_results.push(iteration);
         }
 
-        let sources_results = self.orchestrator.retrieve().await?;
-
+        let (sources_results, sources) = self.orchestrator.retrieve().await?;
+        self.sources = sources;
+        
         let results: Vec<Iteration> = command_results
             .into_iter()
             .zip(sources_results.iterations.into_iter().enumerate())
@@ -219,7 +221,8 @@ impl JouleProfiler {
         config: ProfileConfig,
         phases_config: PhasesConfig,
     ) -> Result<()> {
-        self.orchestrator.start(self.sources.clone()).await;
+        let sources = std::mem::take(&mut self.sources);
+        self.orchestrator.start(sources).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
@@ -228,7 +231,8 @@ impl JouleProfiler {
             command_results.push(iteration);
         }
 
-        let sources_results = self.orchestrator.retrieve().await?;
+        let (sources_results, sources) = self.orchestrator.retrieve().await?;
+        self.sources = sources;
 
         let results: Vec<Iteration> = command_results
             .into_iter()
