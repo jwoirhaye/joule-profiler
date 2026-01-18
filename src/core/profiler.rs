@@ -136,10 +136,10 @@ impl JouleProfiler {
         self.sources.push(reader.into());
     }
 
-    async fn profile(&mut self, config: ProfileConfig) -> Result<()> {
-        match config.mode.clone() {
-            Mode::SimpleMode => self.run_simple(config).await,
-            Mode::PhaseMode(phases_config) => self.run_phases(config, phases_config).await,
+    async fn profile(&mut self, profile_config: ProfileConfig) -> Result<()> {
+        match profile_config.mode.clone() {
+            Mode::SimpleMode => self.run_simple(profile_config).await,
+            Mode::PhaseMode(phases_config) => self.run_phases(profile_config, phases_config).await,
         }
     }
 
@@ -174,8 +174,6 @@ impl JouleProfiler {
 
         let mean_count = sources_results.count;
         let mean_measure_delta = sources_results.measure_delta;
-
-        println!("{:?}", sources_results);
 
         let results: Vec<Iteration> = command_results
             .into_iter()
@@ -242,8 +240,6 @@ impl JouleProfiler {
 
         let mean_count = sources_results.count;
         let mean_measure_delta = sources_results.measure_delta;
-
-        println!("{:?}", sources_results);
 
         let results: Vec<Iteration> = command_results
             .into_iter()
