@@ -5,9 +5,9 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
-use crate::error::JouleProfilerError;
+use crate::sources::rapl::Result;
 use crate::sources::rapl::domain::socket::parse_or_all_sockets;
-use anyhow::{Result, bail};
+use crate::sources::rapl::error::RaplError;
 use log::{debug, error, info, trace, warn};
 
 pub mod socket;
@@ -16,6 +16,7 @@ pub mod socket;
 pub enum RaplDomainType {
     Package,
     Core,
+    Uncore,
     Dram,
     Psys,
 }
@@ -25,6 +26,7 @@ impl Display for RaplDomainType {
         let domain_type = match self {
             RaplDomainType::Package => "PACKAGE",
             RaplDomainType::Core => "CORE",
+            RaplDomainType::Uncore => "UNCORE",
             RaplDomainType::Dram => "DRAM",
             RaplDomainType::Psys => "PSYS",
         };
@@ -33,7 +35,7 @@ impl Display for RaplDomainType {
 }
 
 impl TryInto<RaplDomainType> for String {
-    type Error = anyhow::Error;
+    type Error = RaplError;
 
     fn try_into(self) -> Result<RaplDomainType> {
         let lowercase = self.to_lowercase();
@@ -41,12 +43,14 @@ impl TryInto<RaplDomainType> for String {
             RaplDomainType::Package
         } else if lowercase.starts_with("core") {
             RaplDomainType::Core
+        } else if lowercase.starts_with("uncore") {
+            RaplDomainType::Uncore
         } else if lowercase.starts_with("dram") {
             RaplDomainType::Dram
         } else if lowercase.starts_with("psys") {
             RaplDomainType::Psys
         } else {
-            bail!("Unknown RAPL domain: {}", self);
+            return Err(RaplError::UnknownDomain(lowercase));
         };
         Ok(domain_type)
     }
@@ -112,9 +116,9 @@ fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
     let entries = fs::read_dir(base).map_err(|e| {
         error!("Failed to read RAPL base directory: {}", e);
         if e.kind() == ErrorKind::PermissionDenied {
-            JouleProfilerError::InsufficientPermissions
+            RaplError::InsufficientPermissions
         } else {
-            JouleProfilerError::RaplReadError(format!("Failed to read {}: {}", base, e))
+            RaplError::RaplReadError(format!("Failed to read {}: {}", base, e))
         }
     })?;
 
@@ -149,7 +153,7 @@ fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
 
     if domains.is_empty() {
         warn!("No RAPL domains found");
-        bail!(JouleProfilerError::NoDomains);
+        return Err(RaplError::NoDomains);
     }
 
     info!("Discovered {} RAPL domains", domains.len());
@@ -214,31 +218,8 @@ fn extract_socket_number(path: &Path) -> Result<u32> {
 /// Reads the current energy counter value from a RAPL domain.
 pub fn read_energy(domain: &RaplDomain) -> Result<u64> {
     trace!("Reading energy for domain {}", domain.domain_type);
-
-    let content = fs::read_to_string(&domain.path).map_err(|e| {
-        error!("Failed to read energy for {}: {}", domain.domain_type, e);
-        if e.kind() == ErrorKind::PermissionDenied {
-            JouleProfilerError::InsufficientPermissions
-        } else {
-            JouleProfilerError::RaplReadError(format!(
-                "Failed to read {}: {}",
-                domain.domain_type, e
-            ))
-        }
-    })?;
-
-    let energy = content.trim().parse::<u64>().map_err(|_| {
-        error!(
-            "Invalid energy value '{}' in {}",
-            content.trim(),
-            domain.get_name()
-        );
-        JouleProfilerError::ParseEnergyError(format!(
-            "Invalid energy value '{}' in domain {}",
-            content.trim(),
-            domain.get_name()
-        ))
-    })?;
+    let content = fs::read_to_string(&domain.path)?;
+    let energy = content.trim().parse().map_err(|e| RaplError::ParseEnergy { err: e })?;
 
     trace!("Energy {} = {} µJ", domain.get_name(), energy);
     Ok(energy)

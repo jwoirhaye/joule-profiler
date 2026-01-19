@@ -1,17 +1,19 @@
-use anyhow::Result;
-
 use crate::{
     config::Config,
-    core::{profiler::Iteration, sensor::Sensor},
+    core::{displayer::error::DisplayerError, profiler::Iteration, sensor::Sensor},
     output::{OutputFormat, csv::CsvOutput, json::JsonOutput, terminal::TerminalOutput},
     util::time::get_timestamp,
 };
+
+pub mod error;
+
+pub type Result<T> = std::result::Result<T, DisplayerError>;
 
 pub trait Displayer {
     fn simple_single(&mut self, cmd: &[String], _result: &Iteration) -> Result<()>;
 
     fn simple_iterations(&mut self, _cmd: &[String], _results: &[Iteration]) -> Result<()> {
-        anyhow::bail!("Simple iterations not implemented for this format");
+        Err(DisplayerError::NotImplementedForFormat)
     }
 
     fn phases_single(
@@ -20,7 +22,7 @@ pub trait Displayer {
         _token_pattern: &str,
         _result: &Iteration,
     ) -> Result<()> {
-        anyhow::bail!("Phases single not implemented for this format");
+        Err(DisplayerError::NotImplementedForFormat)
     }
 
     fn phases_iterations(
@@ -29,18 +31,18 @@ pub trait Displayer {
         _token_pattern: &str,
         _results: &[Iteration],
     ) -> Result<()> {
-        anyhow::bail!("Phases iterations not implemented for this format");
+        Err(DisplayerError::NotImplementedForFormat)
     }
 
     fn list_sensors(&mut self, _sensors: &[Sensor]) -> Result<()> {
-        anyhow::bail!("List sensors not implemented for this format");
+        Err(DisplayerError::NotImplementedForFormat)
     }
 }
 
 impl TryFrom<&Config> for Box<dyn Displayer> {
-    type Error = anyhow::Error;
+    type Error = DisplayerError;
 
-    fn try_from(config: &Config) -> Result<Self, Self::Error> {
+    fn try_from(config: &Config) -> Result<Self> {
         let output_file = config.output_file.clone();
         let displayer = match config.output_format {
             OutputFormat::Terminal => TerminalOutput.into(),

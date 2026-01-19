@@ -9,7 +9,6 @@ pub use core::profiler::JouleProfiler;
 pub mod cli;
 mod config;
 mod core;
-pub mod error;
 mod output;
 mod sources;
 mod util;
@@ -23,5 +22,7 @@ pub async fn run() -> Result<()> {
 
     info!("Joule Profiler starting");
     let mut profiler = JouleProfiler::try_from(config)?;
-    profiler.run().await
+    profiler.run().await?;
+
+    Ok(())
 }
