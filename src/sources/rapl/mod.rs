@@ -15,7 +15,7 @@ use crate::{
     config::{Command, Config},
     core::{
         sensor::{Sensor, Sensors},
-        source::{GetSensorsTrait, MetricReader},
+        source::MetricReader,
     },
     error::JouleProfilerError,
     sources::rapl::{
@@ -52,24 +52,6 @@ impl TryFrom<&Config> for Rapl {
     }
 }
 
-impl GetSensorsTrait for Rapl {
-    fn get_sensors(&self) -> Result<Sensors> {
-        let sensors = self
-            .domains
-            .iter()
-            .map(|domain| {
-                Sensor::new(
-                    domain.get_name(),
-                    "µJ".to_string(),
-                    POWERCAP_SOURCE_NAME.to_lowercase(),
-                )
-            })
-            .collect();
-
-        Ok(sensors)
-    }
-}
-
 impl MetricReader for Rapl {
     type Type = Snapshot;
 
@@ -91,6 +73,22 @@ impl MetricReader for Rapl {
         } else {
             None
         }
+    }
+
+    fn get_sensors(&self) -> Result<Sensors> {
+        let sensors = self
+            .domains
+            .iter()
+            .map(|domain| {
+                Sensor::new(
+                    domain.get_name(),
+                    "µJ".to_string(),
+                    POWERCAP_SOURCE_NAME.to_lowercase(),
+                )
+            })
+            .collect();
+
+        Ok(sensors)
     }
 }
 

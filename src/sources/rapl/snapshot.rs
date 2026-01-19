@@ -6,7 +6,10 @@ use log::{debug, error, info, trace};
 use crate::{
     core::metric::{Metric, Metrics},
     error::JouleProfilerError,
-    sources::rapl::domain::{RaplDomain, RaplDomainType},
+    sources::rapl::{
+        POWERCAP_SOURCE_NAME,
+        domain::{RaplDomain, RaplDomainType},
+    },
 };
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -35,11 +38,13 @@ impl From<Snapshot> for Metrics {
         snapshot
             .metrics
             .into_iter()
-            .map(|((domain, socket), value)| Metric {
-                name: domain.to_string_socket(socket),
-                source: "powercap".to_string(),
-                unit: "uj".to_string(),
-                value,
+            .map(|((domain, socket), value)| {
+                Metric::new(
+                    domain.to_string_socket(socket),
+                    value,
+                    "uj".to_string(),
+                    POWERCAP_SOURCE_NAME.to_lowercase(),
+                )
             })
             .collect()
     }
