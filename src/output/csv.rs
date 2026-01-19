@@ -1,9 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 
-use anyhow::Result;
-
-use crate::core::displayer::{Displayer, default_iterations_filename};
+use crate::core::displayer::{Displayer, Result, default_iterations_filename};
 use crate::core::profiler::{Iteration, Phase};
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};

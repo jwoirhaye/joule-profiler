@@ -5,14 +5,16 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
 use tokio::{select, sync::mpsc::Receiver, time::Instant};
 
 use crate::core::{
     metric::{Metric, Metrics},
     phase::SourcePhase,
     sensor::Sensors,
+    source::error::MetricSourceError,
 };
+
+pub mod error;
 
 #[derive(Default, Debug)]
 pub struct SensorIteration {
@@ -110,17 +112,22 @@ impl<T> MetricReaderTypeBound for T where
 {
 }
 
-pub trait MetricReader: Send + 'static {
+pub trait MetricReaderTrait: Send + 'static {
     type Type: MetricReaderTypeBound;
+    type Error: Debug + Into<MetricSourceError>;
 
     /// Measure the sensors metrics.
-    fn measure(&self) -> Result<Self::Type>;
+    fn measure(&self) -> Result<Self::Type, Self::Error>;
 
-    fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
+    fn compute_measures(
+        &self,
+        new: &Self::Type,
+        old: Self::Type,
+    ) -> Result<Self::Type, Self::Error>;
 
-    fn poll(&mut self) -> impl Future<Output = Option<Result<()>>> + Send;
+    fn poll(&mut self) -> impl Future<Output = Option<Result<(), Self::Error>>> + Send;
 
-    fn get_sensors(&self) -> Result<Sensors>;
+    fn get_sensors(&self) -> Result<Sensors, Self::Error>;
 }
 
 #[derive(Debug, Default, Clone)]
@@ -149,17 +156,16 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
 }
 
 #[derive(Debug)]
-pub struct MetricSource<T: MetricReader>
-{
-    metric_reader: T,
+pub struct MetricReader<R: MetricReaderTrait> {
+    metric_reader: R,
 
-    iterations: Vec<SourceIteration<T::Type>>,
+    iterations: Vec<SourceIteration<R::Type>>,
 
-    current_iteration: SourceIteration<T::Type>,
+    current_iteration: SourceIteration<R::Type>,
 
-    last_measure: Option<T::Type>,
+    last_measure: Option<R::Type>,
 
-    current_counters: T::Type,
+    current_counters: R::Type,
 
     /// Monotonic timestamp of last snapshot
     last_instant: Option<Instant>,
@@ -167,7 +173,7 @@ pub struct MetricSource<T: MetricReader>
     polling_active: bool,
 }
 
-impl<T: MetricReader> MetricSource<T> {
+impl<T: MetricReaderTrait> MetricReader<T> {
     pub fn new(reader: T) -> Self {
         Self {
             metric_reader: reader,
@@ -181,7 +187,7 @@ impl<T: MetricReader> MetricSource<T> {
     }
 
     /// Measure the sensors metrics.
-    pub fn measure(&mut self) -> Result<()> {
+    pub fn measure(&mut self) -> Result<(), MetricSourceError> {
         let now = Instant::now();
         if let Some(last) = self.last_instant {
             self.current_iteration.total_elapsed += now.duration_since(last);
@@ -189,10 +195,13 @@ impl<T: MetricReader> MetricSource<T> {
 
         self.last_instant = Some(now);
         self.current_iteration.measure_count += 1;
-        let measure = self.metric_reader.measure()?;
+        let measure = self.metric_reader.measure().map_err(|err| err.into())?;
 
         if let Some(old) = self.last_measure.take() {
-            self.current_counters += self.metric_reader.compute_measures(&measure, old)?;
+            self.current_counters += self
+                .metric_reader
+                .compute_measures(&measure, old)
+                .map_err(|err| err.into())?;
         }
 
         self.last_measure = Some(measure);
@@ -201,7 +210,7 @@ impl<T: MetricReader> MetricSource<T> {
     }
 
     /// Initialize a new measure phase.
-    pub fn new_phase(&mut self) -> Result<()> {
+    pub fn new_phase(&mut self) -> Result<(), MetricSourceError> {
         if self.current_counters != T::Type::default() {
             let phase_counters = std::mem::take(&mut self.current_counters);
             self.current_iteration
@@ -212,7 +221,7 @@ impl<T: MetricReader> MetricSource<T> {
     }
 
     /// Initialize a new iteration.
-    pub fn new_iteration(&mut self) -> Result<()> {
+    pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
         if self.last_measure.take().is_some() {
             let iteration = std::mem::take(&mut self.current_iteration);
             self.current_iteration.measure_count = 0;
@@ -225,14 +234,14 @@ impl<T: MetricReader> MetricSource<T> {
     }
 
     /// Retrieve all sensors measures.
-    pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
+    pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         let iterations = self
             .iterations
             .into_iter()
             .map(|iteration| iteration.into())
             .collect();
         let result = SensorResult::new(iterations);
-        let boxed_source = Box::new(MetricSource::new(self.metric_reader));
+        let boxed_source = Box::new(MetricReader::new(self.metric_reader));
         Ok((result, boxed_source))
     }
 
@@ -240,11 +249,11 @@ impl<T: MetricReader> MetricSource<T> {
     pub async fn run_worker(
         mut self,
         mut rx: Receiver<SourceEvent>,
-    ) -> Result<(SensorResult, Box<dyn MetricSourceWorker>)> {
+    ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         loop {
             select! {
                 Some(poll) = self.metric_reader.poll(), if self.polling_active => {
-                    poll?;
+                    poll.map_err(|err| err.into())?;
                     self.measure()?;
                 }
                 Some(event) = rx.recv() => {
@@ -261,21 +270,25 @@ impl<T: MetricReader> MetricSource<T> {
         }
     }
 
-    pub fn get_sensors(&self) -> Result<Sensors> {
-        self.metric_reader.get_sensors()
+    pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
+        self.metric_reader.get_sensors().map_err(|err| err.into())
     }
 }
 
-type MetricSourceWorkerFuture =
-    Pin<Box<dyn Future<Output = Result<(SensorResult, Box<dyn MetricSourceWorker>)>> + Send>>;
+type MetricSourceWorkerFuture = Pin<
+    Box<
+        dyn Future<Output = Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
+            + Send,
+    >,
+>;
 
-pub trait MetricSourceWorker: Send {
+pub trait MetricSource: Send {
     /// Runs the worker and returns the result along with the source itself.
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture;
 
-    fn list_sensors(&self) -> Result<Sensors>;
+    fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 
-    fn into_box(self) -> Box<dyn MetricSourceWorker>
+    fn into_box(self) -> Box<dyn MetricSource>
     where
         Self: Sized + 'static,
     {
@@ -283,25 +296,25 @@ pub trait MetricSourceWorker: Send {
     }
 }
 
-impl<T> MetricSourceWorker for MetricSource<T>
+impl<T> MetricSource for MetricReader<T>
 where
-    T: MetricReader,
+    T: MetricReaderTrait,
 {
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture {
         Box::pin(async move { self.run_worker(rx).await })
     }
 
-    fn list_sensors(&self) -> Result<Sensors> {
+    fn list_sensors(&self) -> Result<Sensors, MetricSourceError> {
         self.get_sensors()
     }
 }
 
-impl<T> From<T> for Box<dyn MetricSourceWorker>
+impl<T> From<T> for Box<dyn MetricSource>
 where
-    T: MetricReader,
+    T: MetricReaderTrait,
 {
     fn from(reader: T) -> Self {
-        let source = MetricSource::new(reader);
+        let source = MetricReader::new(reader);
         Box::new(source)
     }
 }

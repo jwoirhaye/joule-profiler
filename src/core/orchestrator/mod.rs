@@ -1,15 +1,18 @@
-use anyhow::Result;
 use tokio::{
     sync::mpsc::{Sender, channel},
     task::JoinHandle,
 };
 
-use crate::{
-    core::source::{MetricSourceWorker, SensorResult, SourceEvent},
-    error::JouleProfilerError,
+use crate::core::{
+    orchestrator::error::OrchestratorError,
+    source::{MetricSource, SensorResult, SourceEvent},
 };
 
-type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSourceWorker>)>>;
+pub mod error;
+
+type Result<T> = std::result::Result<T, OrchestratorError>;
+
+type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>)>>;
 
 pub struct SourceOrchestrator {
     senders: Vec<Sender<SourceEvent>>,
@@ -26,14 +29,15 @@ impl SourceOrchestrator {
 
     /// Start the metrics sources worker threads.
     #[inline]
-    pub async fn start(&mut self, sources: Vec<Box<dyn MetricSourceWorker>>) {
+    pub async fn start(&mut self, sources: Vec<Box<dyn MetricSource>>) {
         let nb_sources = sources.len();
         let mut senders = Vec::with_capacity(nb_sources);
         let mut handles = Vec::with_capacity(nb_sources);
 
         for source in sources {
             let (tx, rx) = channel(4);
-            let handle = tokio::spawn(async move { source.run(rx).await });
+            let handle =
+                tokio::spawn(async move { source.run(rx).await.map_err(|err| err.into()) });
 
             senders.push(tx.clone());
             handles.push(handle);
@@ -74,7 +78,7 @@ impl SourceOrchestrator {
     }
 
     /// Gracefully shutdown all the workers.
-    pub async fn retrieve(&mut self) -> Result<(SensorResult, Vec<Box<dyn MetricSourceWorker>>)> {
+    pub async fn retrieve(&mut self) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>)> {
         self.join().await?;
 
         let handles = std::mem::take(&mut self.handles);
@@ -90,7 +94,7 @@ impl SourceOrchestrator {
         }
 
         let merged_results =
-            SensorResult::merge(sources_results).ok_or(JouleProfilerError::NotEnoughSnapshots)?;
+            SensorResult::merge(sources_results).ok_or(OrchestratorError::NotEnoughSnapshots)?;
         let iterations = merged_results.iterations;
         let result = SensorResult::new(iterations);
         Ok((result, sources))
@@ -105,7 +109,7 @@ impl SourceOrchestrator {
     /// Send an event to each metrics source.
     async fn send_event(&self, event: SourceEvent) -> Result<()> {
         for sender in &self.senders {
-            sender.send(event).await?;
+            sender.send(event).await.map_err(OrchestratorError::from)?;
         }
         Ok(())
     }
