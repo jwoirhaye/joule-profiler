@@ -1,18 +1,16 @@
 use std::{
     env,
     fs::{File, OpenOptions, Permissions},
+    io::ErrorKind,
     os::unix::fs::{PermissionsExt, chown},
     path::PathBuf,
 };
-
-use anyhow::{Context, Result};
 
 const ROOT_UID_ENV_VAR: &str = "SUDO_UID";
 const ROOT_GID_ENV_VAR: &str = "SUDO_GID";
 const URW_GRW_OR_PERMS: u32 = 0o664;
 
-/// Create a file with user permissions in case of running with root permissions.
-pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
+pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
     let file = OpenOptions::new()
         .write(true)
         .create(true)
@@ -21,13 +19,15 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
 
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
-    let uid: u32 = env::var(ROOT_UID_ENV_VAR)?
-        .parse()
-        .context("Unable to parse root UID to u32")?;
+    let uid = env::var(ROOT_UID_ENV_VAR)
+        .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_UID not set"))?
+        .parse::<u32>()
+        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_UID"))?;
 
-    let gid: u32 = env::var(ROOT_GID_ENV_VAR)?
-        .parse()
-        .context("Unable to parse root GID to u32")?;
+    let gid = env::var(ROOT_GID_ENV_VAR)
+        .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_GID not set"))?
+        .parse::<u32>()
+        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_GID"))?;
 
     chown(path, Some(uid), Some(gid))?;
 
@@ -35,7 +35,7 @@ pub fn create_file_with_user_permissions(path: &str) -> Result<File> {
 }
 
 /// Get the absolute path of a file.
-pub fn get_absolute_path(filename: &str) -> Result<String> {
+pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
     let path = PathBuf::from(filename);
     let absolute_path = if path.is_absolute() {
         path

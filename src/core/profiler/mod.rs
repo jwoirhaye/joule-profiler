@@ -4,10 +4,11 @@ use std::{
     process::{self, Stdio},
 };
 
-use anyhow::{Context, Result, bail};
 use log::{debug, info};
 use regex::Regex;
 use serde::Serialize;
+
+pub mod error;
 
 use crate::{
     config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
@@ -16,13 +17,15 @@ use crate::{
         metric::Metrics,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
+        profiler::error::JouleProfilerError,
         sensor::{Sensor, Sensors},
-        source::{MetricReader, MetricSource, MetricSourceWorker},
+        source::{MetricReader, MetricReaderTrait, MetricSource, error::MetricSourceError},
     },
-    error::JouleProfilerError,
     sources::rapl::Rapl,
     util::{command::run_command, file::create_file_with_user_permissions, time::get_timestamp},
 };
+
+type Result<T> = std::result::Result<T, JouleProfilerError>;
 
 #[derive(Debug, Serialize)]
 pub struct Phase {
@@ -97,16 +100,18 @@ pub struct JouleProfiler {
     config: Config,
     orchestrator: SourceOrchestrator,
     displayer: Box<dyn Displayer>,
-    sources: Vec<Box<dyn MetricSourceWorker>>,
+    sources: Vec<Box<dyn MetricSource>>,
 }
 
 impl TryFrom<Config> for JouleProfiler {
-    type Error = anyhow::Error;
+    type Error = JouleProfilerError;
 
     fn try_from(config: Config) -> Result<Self> {
         let orchestrator = SourceOrchestrator::new();
-        let displayer = (&config).try_into()?;
-        let rapl = Rapl::try_from(&config)?;
+
+        let displayer = (&config).try_into().map_err(JouleProfilerError::from)?;
+
+        let rapl = Rapl::try_from(&config).map_err(MetricSourceError::from)?;
         let sources = vec![rapl.into()];
 
         Ok(Self {
@@ -129,8 +134,8 @@ impl JouleProfiler {
 
     pub fn add_source<T>(&mut self, reader: T)
     where
-        T: MetricReader,
-        MetricSource<T>: Clone,
+        T: MetricReaderTrait,
+        MetricReader<T>: Clone,
         T::Type: Send,
     {
         self.sources.push(reader.into());
@@ -147,7 +152,7 @@ impl JouleProfiler {
         let sensors: Vec<Sensor> = self
             .sources
             .iter()
-            .map(|source| source.list_sensors())
+            .map(|source| source.list_sensors().map_err(|err| err.into()))
             .collect::<Result<Vec<Sensors>>>()?
             .into_iter()
             .flatten()
@@ -359,7 +364,7 @@ impl JouleProfiler {
         let stdout = child
             .stdout
             .take()
-            .context("Failed to capture child stdout")?;
+            .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
         let reader = BufReader::new(stdout);
 
@@ -380,13 +385,7 @@ impl JouleProfiler {
                 Err(e) if e.kind() == ErrorKind::InvalidData => {
                     continue;
                 }
-                Err(e) => {
-                    bail!(
-                        "Failed to read line {} from command output: {}",
-                        line_number + 1,
-                        e
-                    );
-                }
+                Err(e) => return Err(e.into()),
             };
 
             if let Some(f) = output_file.as_mut() {
@@ -436,7 +435,7 @@ impl JouleProfiler {
         let phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
         detected_phases.push(phase_info);
 
-        let status = child.wait().context("Failed to wait on child")?;
+        let status = child.wait()?;
         let exit_code = status.code().unwrap_or(1);
         let duration_ms = end_timestamp - begin_timestamp;
 

@@ -1,7 +1,9 @@
-use anyhow::Result;
-
 use crate::core::{
-    displayer::Displayer, metric::Metric, phase::PhaseToken, profiler::Iteration, sensor::Sensor,
+    displayer::{Displayer, Result},
+    metric::Metric,
+    phase::PhaseToken,
+    profiler::Iteration,
+    sensor::Sensor,
 };
 
 /// Constants for formatting

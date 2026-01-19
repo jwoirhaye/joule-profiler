@@ -1,14 +1,13 @@
 use std::{collections::HashMap, ops::AddAssign};
 
-use anyhow::Result;
 use log::{debug, error, info, trace};
 
 use crate::{
     core::metric::{Metric, Metrics},
-    error::JouleProfilerError,
     sources::rapl::{
-        POWERCAP_SOURCE_NAME,
+        POWERCAP_SOURCE_NAME, Result,
         domain::{RaplDomain, RaplDomainType},
+        error::RaplError,
     },
 };
 
@@ -79,11 +78,10 @@ pub fn compute_measurement_from_snapshots(
                     "Missing start energy snapshot for domain '{}'",
                     domain.get_name()
                 );
-                return Err(JouleProfilerError::RaplReadError(format!(
+                return Err(RaplError::RaplReadError(format!(
                     "Missing start energy snapshot for domain '{}'",
                     domain.get_name()
-                ))
-                .into());
+                )));
             }
         };
 
@@ -94,11 +92,10 @@ pub fn compute_measurement_from_snapshots(
                     "Missing end energy snapshot for domain '{}'",
                     domain.get_name()
                 );
-                return Err(JouleProfilerError::RaplReadError(format!(
+                return Err(RaplError::RaplReadError(format!(
                     "Missing end energy snapshot for domain '{}'",
                     domain.get_name()
-                ))
-                .into());
+                )));
             }
         };
 

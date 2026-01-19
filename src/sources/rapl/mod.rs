@@ -1,13 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    env,
-    fs::{self},
+    env, fs,
+    io::ErrorKind,
     path::Path,
     time::Duration,
 };
 
-use anyhow::Result;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use log::{debug, error, info, trace};
 use tokio_timerfd::Interval;
 
@@ -15,20 +14,22 @@ use crate::{
     config::{Command, Config},
     core::{
         sensor::{Sensor, Sensors},
-        source::MetricReader,
+        source::MetricReaderTrait,
     },
-    error::JouleProfilerError,
     sources::rapl::{
         domain::{RaplDomain, get_domains, read_energy},
+        error::RaplError,
         snapshot::{Snapshot, compute_measurement_from_snapshots},
     },
-    util::platform::check_os,
 };
 
-pub mod domain;
+mod domain;
+pub mod error;
 pub mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
+
+pub type Result<T> = std::result::Result<T, RaplError>;
 
 #[derive(Default)]
 pub struct Rapl {
@@ -37,23 +38,27 @@ pub struct Rapl {
 }
 
 impl TryFrom<&Config> for Rapl {
-    type Error = anyhow::Error;
+    type Error = RaplError;
 
-    fn try_from(config: &Config) -> Result<Self, Self::Error> {
+    fn try_from(config: &Config) -> Result<Self> {
+        let base_path = rapl_base_path(config.rapl_path.as_deref());
+
         let (sockets, rapl_polling) = match &config.mode {
             Command::Profile(profile_config) => {
+                check_root_rights(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
             }
             Command::ListSensors(_) => (None, None),
         };
 
-        let rapl = Rapl::try_new(config.rapl_path.as_deref(), sockets, rapl_polling)?;
+        let rapl = Rapl::try_new(&base_path, sockets, rapl_polling)?;
         Ok(rapl)
     }
 }
 
-impl MetricReader for Rapl {
+impl MetricReaderTrait for Rapl {
     type Type = Snapshot;
+    type Error = RaplError;
 
     fn measure(&self) -> Result<Self::Type> {
         trace!("Starting RAPL measurement");
@@ -69,7 +74,10 @@ impl MetricReader for Rapl {
     async fn poll(&mut self) -> Option<Result<()>> {
         if let Some(ticker) = &mut self.ticker {
             let _ = ticker.next().await?;
-            Some(Ok(()))
+            ticker
+                .next()
+                .map(|option| option.map(|result| result.map_err(RaplError::IoError)))
+                .await
         } else {
             None
         }
@@ -94,16 +102,14 @@ impl MetricReader for Rapl {
 
 impl Rapl {
     pub fn try_new(
-        rapl_path: Option<&str>,
+        rapl_path: &str,
         sockets: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
         check_os()?;
+        check_rapl(rapl_path)?;
 
-        let base_path = rapl_base_path(rapl_path);
-        check_rapl(&base_path)?;
-
-        let domains = get_domains(&base_path, sockets)?;
+        let domains = get_domains(rapl_path, sockets)?;
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
         let ticker = if let Some(duration) = poll_interval {
@@ -146,24 +152,41 @@ fn check_rapl(base: &str) -> Result<()> {
 
     if !path.exists() {
         error!("RAPL path does not exist: {}", base);
-        return Err(JouleProfilerError::RaplNotAvailable(base.into()).into());
+        return Err(RaplError::RaplNotAvailable(base.into()));
     }
 
     if !path.is_dir() {
         error!("RAPL path is not a directory: {}", base);
-        return Err(JouleProfilerError::InvalidRaplPath(base.into()).into());
-    }
-
-    if let Err(e) = fs::read_dir(path) {
-        if e.kind() == std::io::ErrorKind::PermissionDenied {
-            error!("Permission denied accessing RAPL path");
-            return Err(JouleProfilerError::InsufficientPermissions.into());
-        }
-        return Err(e.into());
+        return Err(RaplError::InvalidRaplPath(base.into()));
     }
 
     info!("RAPL interface found at {}", base);
     Ok(())
+}
+
+fn check_root_rights(base: &str) -> Result<()> {
+    let path = Path::new(base);
+
+    let entries = fs::read_dir(path).map_err(|e| match e.kind() {
+        ErrorKind::PermissionDenied => RaplError::InsufficientPermissions,
+        _ => e.into(),
+    })?;
+
+    for entry in entries.flatten() {
+        let energy_path = entry.path().join("energy_uj");
+        if energy_path.exists() {
+            fs::read_to_string(&energy_path).map_err(|e| {
+                if e.kind() == ErrorKind::PermissionDenied {
+                    RaplError::InsufficientPermissions
+                } else {
+                    e.into()
+                }
+            })?;
+            return Ok(());
+        }
+    }
+
+    Err(RaplError::RaplNotAvailable(base.into()))
 }
 
 /// Resolves the RAPL base path from configuration and environment.
@@ -178,6 +201,20 @@ pub fn rapl_base_path(config_override: Option<&str>) -> String {
 
     let default_path = "/sys/devices/virtual/powercap/intel-rapl";
     default_path.to_string()
+}
+
+/// Checks if the operating system is Linux.
+pub fn check_os() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let os = std::env::consts::OS;
+        Err(RaplError::UnsupportedOS(os.to_string()).into())
+    }
 }
 
 #[cfg(test)]
