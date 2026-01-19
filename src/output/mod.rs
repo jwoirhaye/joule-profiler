@@ -1,10 +1,10 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter, Result};
 
 pub mod csv;
 pub mod json;
 pub mod terminal;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
     Terminal,
     Json,
@@ -22,7 +22,7 @@ pub fn output_format(json: bool, csv: bool) -> OutputFormat {
 }
 
 impl Display for OutputFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.write_str(match self {
             OutputFormat::Terminal => "Terminal",
             OutputFormat::Json => "Json",

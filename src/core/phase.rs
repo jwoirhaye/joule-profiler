@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
+use crate::core::{metric::Metrics, source::SensorPhase};
+
 #[derive(Debug, Clone)]
 pub enum PhaseToken {
     Start,
@@ -58,6 +60,29 @@ impl PhaseInfo {
             timestamp,
             duration_ms,
             line_number,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+
+pub struct SourcePhase<V> {
+    pub metrics: V,
+}
+
+impl<V> SourcePhase<V> {
+    pub fn new(metrics: V) -> Self {
+        Self { metrics }
+    }
+}
+
+impl<V> From<SourcePhase<V>> for SensorPhase
+where
+    V: Into<Metrics>,
+{
+    fn from(phase: SourcePhase<V>) -> Self {
+        SensorPhase {
+            metrics: phase.metrics.into(),
         }
     }
 }

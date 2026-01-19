@@ -11,7 +11,7 @@ pub enum Command {
     ListSensors(ListSensorsConfig),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Config {
     pub mode: Command,
     pub rapl_path: Option<String>,
