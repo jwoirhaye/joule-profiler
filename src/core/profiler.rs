@@ -17,7 +17,7 @@ use crate::{
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
         sensor::{Sensor, Sensors},
-        source::{MetricReaderBound, MetricSource, MetricSourceWorker},
+        source::{MetricReader, MetricSource, MetricSourceWorker},
     },
     error::JouleProfilerError,
     sources::rapl::Rapl,
@@ -60,7 +60,7 @@ impl Phase {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Iteration {
     pub index: usize,
     pub timestamp: u128,
@@ -129,7 +129,7 @@ impl JouleProfiler {
 
     pub fn add_source<T>(&mut self, reader: T)
     where
-        T: MetricReaderBound,
+        T: MetricReader,
         MetricSource<T>: Clone,
         T::Type: Send,
     {

@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     ops::{Add, AddAssign},
     pin::Pin,
     time::Duration,
@@ -9,7 +10,8 @@ use tokio::{select, sync::mpsc::Receiver, time::Instant};
 
 use crate::core::{
     metric::{Metric, Metrics},
-    sensor::{SensorResult, Sensors},
+    phase::SourcePhase,
+    sensor::Sensors,
 };
 
 #[derive(Default, Debug)]
@@ -59,6 +61,35 @@ pub struct SensorPhase {
     pub metrics: Vec<Metric>,
 }
 
+#[derive(Debug)]
+pub struct SensorResult {
+    pub iterations: Vec<SensorIteration>,
+}
+
+impl Add for SensorResult {
+    type Output = SensorResult;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let iterations = self
+            .iterations
+            .into_iter()
+            .zip(rhs.iterations)
+            .map(|(self_iter, rhs_iter)| self_iter + rhs_iter)
+            .collect();
+        Self::Output { iterations }
+    }
+}
+
+impl SensorResult {
+    pub fn new(iterations: Vec<SensorIteration>) -> Self {
+        Self { iterations }
+    }
+
+    pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
+        results.into_iter().reduce(|acc, result| acc + result)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum SourceEvent {
     Measure,
@@ -69,20 +100,18 @@ pub enum SourceEvent {
     JoinWorker,
 }
 
-pub trait MetricReaderBound: MetricReader + GetSensorsTrait + Send + 'static {}
-impl<T> MetricReaderBound for T where T: GetSensorsTrait + MetricReader + Send + 'static {}
-
-pub trait MetricReaderTypeBound<T>:
-    Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send
-{
-}
-impl<T> MetricReaderTypeBound<T> for T where
-    T: Into<Metrics> + AddAssign<T> + Default + Clone + PartialEq + Send
+pub trait MetricReaderTypeBound:
+    Debug + Default + Clone + PartialEq + Send + Into<Metrics> + AddAssign<Self>
 {
 }
 
-pub trait MetricReader {
-    type Type: MetricReaderTypeBound<Self::Type>;
+impl<T> MetricReaderTypeBound for T where
+    T: Debug + Default + Clone + PartialEq + Send + Into<Metrics> + AddAssign<Self>
+{
+}
+
+pub trait MetricReader: Send + 'static {
+    type Type: MetricReaderTypeBound;
 
     /// Measure the sensors metrics.
     fn measure(&self) -> Result<Self::Type>;
@@ -90,40 +119,15 @@ pub trait MetricReader {
     fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type>;
 
     fn poll(&mut self) -> impl Future<Output = Option<Result<()>>> + Send;
-}
 
-pub trait GetSensorsTrait {
     fn get_sensors(&self) -> Result<Sensors>;
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 struct SourceIteration<V> {
     pub phases: Vec<SourcePhase<V>>,
     pub total_elapsed: Duration,
     pub measure_count: u64,
-}
-
-#[derive(Default, Clone)]
-
-struct SourcePhase<V> {
-    pub metrics: V,
-}
-
-impl<V> SourcePhase<V> {
-    pub fn new(metrics: V) -> Self {
-        Self { metrics }
-    }
-}
-
-impl<V> From<SourcePhase<V>> for SensorPhase
-where
-    V: Into<Metrics>,
-{
-    fn from(phase: SourcePhase<V>) -> Self {
-        SensorPhase {
-            metrics: phase.metrics.into(),
-        }
-    }
 }
 
 impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
@@ -144,10 +148,8 @@ impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
     }
 }
 
-#[derive(Clone)]
-pub struct MetricSource<T: MetricReaderBound>
-where
-    T::Type: MetricReaderTypeBound<T::Type>,
+#[derive(Debug)]
+pub struct MetricSource<T: MetricReader>
 {
     metric_reader: T,
 
@@ -165,7 +167,7 @@ where
     polling_active: bool,
 }
 
-impl<T: MetricReaderBound> MetricSource<T> {
+impl<T: MetricReader> MetricSource<T> {
     pub fn new(reader: T) -> Self {
         Self {
             metric_reader: reader,
@@ -269,10 +271,7 @@ type MetricSourceWorkerFuture =
 
 pub trait MetricSourceWorker: Send {
     /// Runs the worker and returns the result along with the source itself.
-    fn run(
-        self: Box<Self>,
-        rx: tokio::sync::mpsc::Receiver<SourceEvent>,
-    ) -> MetricSourceWorkerFuture;
+    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture;
 
     fn list_sensors(&self) -> Result<Sensors>;
 
@@ -286,8 +285,7 @@ pub trait MetricSourceWorker: Send {
 
 impl<T> MetricSourceWorker for MetricSource<T>
 where
-    T: crate::core::source::MetricReaderBound + 'static,
-    T::Type: Send,
+    T: MetricReader,
 {
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture {
         Box::pin(async move { self.run_worker(rx).await })
@@ -300,8 +298,7 @@ where
 
 impl<T> From<T> for Box<dyn MetricSourceWorker>
 where
-    T: MetricReaderBound,
-    T::Type: Send,
+    T: MetricReader,
 {
     fn from(reader: T) -> Self {
         let source = MetricSource::new(reader);
