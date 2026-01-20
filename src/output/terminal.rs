@@ -2,7 +2,7 @@ use crate::core::{
     displayer::{Displayer, Result},
     metric::Metric,
     phase::PhaseToken,
-    profiler::Iteration,
+    profiler::types::Iteration,
     sensor::Sensor,
 };
 

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-use crate::core::{metric::Metrics, source::SensorPhase};
+use crate::core::{metric::Metrics, source::types::SensorPhase};
 
 #[derive(Debug, Clone)]
 pub enum PhaseToken {
