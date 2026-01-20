@@ -29,15 +29,74 @@ pub mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
 
+/// Custom result type for Rapl
 pub type Result<T> = std::result::Result<T, RaplError>;
 
 #[derive(Default)]
 pub struct Rapl {
+    /// Managed RAPL domains
     domains: Vec<RaplDomain>,
+    /// Optional periodic polling interval
     ticker: Option<Interval>,
+    /// Latest read counters
     current_counters: Snapshot,
+    /// Last snapshot, if available
     last_snapshot: Option<Snapshot>,
+    /// Whether polling is active
     polling_active: bool,
+}
+
+impl Rapl {
+    /// Initialize a new RAPL reader for the given path and sockets
+    ///
+    /// Optionally enables periodic polling at the given rate in seconds
+    pub fn try_new(
+        rapl_path: &str,
+        sockets: Option<&HashSet<u32>>,
+        polling_rate_s: Option<f64>,
+    ) -> Result<Self> {
+        check_os()?;
+        check_rapl(rapl_path)?;
+
+        let domains = get_domains(rapl_path, sockets)?;
+        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
+
+        let ticker = if let Some(duration) = poll_interval {
+            let timerfd_interval = Interval::new_interval(duration)?;
+            Some(timerfd_interval)
+        } else {
+            None
+        };
+
+        let rapl = Rapl::new(domains, ticker);
+        Ok(rapl)
+    }
+
+    /// Read a snapshot of current energy counters for all domains
+    pub fn read_snapshot(&self) -> Result<Snapshot> {
+        trace!(
+            "Reading energy snapshot from {} domains",
+            self.domains.len()
+        );
+
+        let mut map = HashMap::with_capacity(self.domains.len());
+
+        for domain in &self.domains {
+            let val_uj = read_energy(domain)?;
+            map.insert((domain.domain_type, domain.socket), val_uj);
+        }
+
+        Ok(Snapshot { metrics: map })
+    }
+
+    /// Create a new RAPL instance with domains and optional ticker
+    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
+        Self {
+            domains,
+            ticker,
+            ..Default::default()
+        }
+    }
 }
 
 impl TryFrom<&Config> for Rapl {
@@ -68,7 +127,7 @@ impl MetricReader for Rapl {
 
         if let Some(last_snapshot) = &self.last_snapshot {
             let metrics =
-                compute_measurement_from_snapshots(&self.domains, &last_snapshot, &new_snapshot)?;
+                compute_measurement_from_snapshots(&self.domains, last_snapshot, &new_snapshot)?;
             self.current_counters += Snapshot::new(metrics);
         } else {
             self.last_snapshot = Some(new_snapshot);
@@ -114,54 +173,6 @@ impl MetricReader for Rapl {
     }
 }
 
-impl Rapl {
-    pub fn try_new(
-        rapl_path: &str,
-        sockets: Option<&HashSet<u32>>,
-        polling_rate_s: Option<f64>,
-    ) -> Result<Self> {
-        check_os()?;
-        check_rapl(rapl_path)?;
-
-        let domains = get_domains(rapl_path, sockets)?;
-        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
-
-        let ticker = if let Some(duration) = poll_interval {
-            let timerfd_interval = Interval::new_interval(duration)?;
-            Some(timerfd_interval)
-        } else {
-            None
-        };
-
-        let rapl = Rapl::new(domains, ticker);
-        Ok(rapl)
-    }
-
-    pub fn read_snapshot(&self) -> Result<Snapshot> {
-        trace!(
-            "Reading energy snapshot from {} domains",
-            self.domains.len()
-        );
-
-        let mut map = HashMap::with_capacity(self.domains.len());
-
-        for domain in &self.domains {
-            let val_uj = read_energy(domain)?;
-            map.insert((domain.domain_type, domain.socket), val_uj);
-        }
-
-        Ok(Snapshot { metrics: map })
-    }
-
-    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
-        Self {
-            domains,
-            ticker,
-            ..Default::default()
-        }
-    }
-}
-
 /// Checks if the RAPL interface is available at the given base path.
 fn check_rapl(base: &str) -> Result<()> {
     debug!("Checking RAPL base path: {}", base);
@@ -182,6 +193,8 @@ fn check_rapl(base: &str) -> Result<()> {
     Ok(())
 }
 
+
+/// Check if the program can read RAPL powercap files
 fn check_root_rights(base: &str) -> Result<()> {
     let path = Path::new(base);
 

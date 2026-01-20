@@ -31,9 +31,6 @@ pub enum RaplError {
     #[error("Insufficient permissions to access RAPL. Try running with sudo")]
     InsufficientPermissions,
 
-    #[error("Failed to parse energy value: {0}")]
-    ParseEnergyError(String),
-
     #[error("Unknown domain {0}")]
     UnknownDomain(String),
 
@@ -41,10 +38,7 @@ pub enum RaplError {
     IoError(std::io::Error),
 
     #[error("failed to parse energy value")]
-    ParseEnergy {
-        #[source]
-        err: std::num::ParseIntError,
-    },
+    ParseEnergyError(#[source] std::num::ParseIntError),
 }
 
 impl From<std::io::Error> for RaplError {

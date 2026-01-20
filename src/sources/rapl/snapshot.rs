@@ -6,29 +6,33 @@ use crate::{
     core::aggregate::metric::{Metric, Metrics},
     sources::rapl::{
         POWERCAP_SOURCE_NAME, Result,
-        domain::{RaplDomain, RaplDomainType},
+        domain::{RaplDomain, domain_type::RaplDomainType},
         error::RaplError,
     },
 };
 
+/// Unique identifier for a domain and socket
+type RaplDomainIndex = (RaplDomainType, u32);
+
+/// Snapshot of energy counters
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
-    pub metrics: HashMap<(RaplDomainType, u32), u64>,
+    /// Energy consumption per domain in µJ
+    pub metrics: HashMap<RaplDomainIndex, u64>,
+}
+
+impl Snapshot {
+    /// Create a new snapshot from a metrics map
+    pub fn new(metrics: HashMap<RaplDomainIndex, u64>) -> Self {
+        Self { metrics }
+    }
 }
 
 impl AddAssign<Snapshot> for Snapshot {
     fn add_assign(&mut self, rhs: Snapshot) {
-        self.metrics = rhs
-            .metrics
-            .into_iter()
-            .map(|(domain, value)| {
-                if let Some(v) = self.metrics.get(&domain) {
-                    (domain, value + v)
-                } else {
-                    (domain, value)
-                }
-            })
-            .collect();
+        for (domain, value) in rhs.metrics {
+            *self.metrics.entry(domain).or_insert(0) += value;
+        }
     }
 }
 
@@ -49,24 +53,18 @@ impl From<Snapshot> for Metrics {
     }
 }
 
-impl Snapshot {
-    pub fn new(metrics: HashMap<(RaplDomainType, u32), u64>) -> Self {
-        Self { metrics }
-    }
-}
-
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
     domains: &[RaplDomain],
     begin: &Snapshot,
     end: &Snapshot,
-) -> Result<HashMap<(RaplDomainType, u32), u64>> {
+) -> Result<HashMap<RaplDomainIndex, u64>> {
     trace!(
         "Computing measurement from snapshots for {} domains",
         domains.len()
     );
 
-    let mut per_domain_energy: HashMap<(RaplDomainType, u32), u64> = HashMap::new();
+    let mut per_domain_energy: HashMap<RaplDomainIndex, u64> = HashMap::new();
 
     for domain in domains {
         trace!("Processing domain '{}'", domain.get_name());
@@ -135,7 +133,7 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::sources::rapl::domain::RaplDomainType;
+    use crate::sources::rapl::domain::domain_type::RaplDomainType;
 
     use super::*;
 

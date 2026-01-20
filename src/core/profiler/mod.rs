@@ -26,13 +26,20 @@ use crate::{
         },
     },
     sources::rapl::Rapl,
-    util::{command::run_command, file::create_file_with_user_permissions, time::get_timestamp},
+    util::{
+        command::run_command, file::create_file_with_user_permissions, time::get_timestamp_micros,
+    },
 };
 
 pub mod types;
 
+/// Result type for profiler operations
 type Result<T> = std::result::Result<T, JouleProfilerError>;
 
+type MeasureSimpleReturnType = (u128, u128, i32);
+type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
+
+/// Profiler orchestrating metrics collection from various metrics sources and display
 pub struct JouleProfiler {
     config: Config,
     orchestrator: SourceOrchestrator,
@@ -40,28 +47,8 @@ pub struct JouleProfiler {
     sources: Vec<Box<dyn MetricSource>>,
 }
 
-impl TryFrom<Config> for JouleProfiler {
-    type Error = JouleProfilerError;
-
-    fn try_from(config: Config) -> Result<Self> {
-        let orchestrator = SourceOrchestrator::new();
-
-        let displayer = (&config).try_into()?;
-
-        let rapl = Rapl::try_from(&config).map_err(MetricSourceError::from)?;
-        let sources = vec![rapl.into()];
-
-        Ok(Self {
-            orchestrator,
-            config,
-            displayer,
-            sources,
-        })
-    }
-}
-
 impl JouleProfiler {
-    /// Run Joule Profiler.
+    /// Run the profiler
     pub async fn run(&mut self) -> Result<()> {
         match self.config.mode.clone() {
             Command::Profile(profile_config) => self.profile(profile_config).await,
@@ -69,6 +56,7 @@ impl JouleProfiler {
         }
     }
 
+    /// Add a metric source to the profiler
     pub fn add_source<T>(&mut self, reader: T)
     where
         T: MetricReader,
@@ -78,6 +66,7 @@ impl JouleProfiler {
         self.sources.push(reader.into());
     }
 
+    /// Profile in the configured mode
     async fn profile(&mut self, profile_config: ProfileConfig) -> Result<()> {
         match profile_config.mode.clone() {
             Mode::SimpleMode => self.run_simple(profile_config).await,
@@ -85,6 +74,7 @@ impl JouleProfiler {
         }
     }
 
+    /// List all sources sensors
     fn run_list_sensors(&mut self) -> Result<()> {
         let sensors: Vec<Sensor> = self
             .sources
@@ -99,6 +89,7 @@ impl JouleProfiler {
         Ok(())
     }
 
+    /// Run simple profiling mode
     async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running simple mode");
 
@@ -132,6 +123,7 @@ impl JouleProfiler {
                                 duration_ms,
                                 None,
                             );
+
                             vec![phase]
                         } else {
                             Vec::new()
@@ -158,6 +150,7 @@ impl JouleProfiler {
         Ok(())
     }
 
+    /// Run phase-based profiling mode
     async fn run_phases(
         &mut self,
         config: ProfileConfig,
@@ -191,6 +184,7 @@ impl JouleProfiler {
                             let (d1, d2) = (&window[0], &window[1]);
                             let mut phase_metrics = real_phase.metrics.clone();
                             phase_metrics.sort_by_key(|metric| metric.name.clone());
+
                             Phase::new(
                                 phase_metrics,
                                 d1.token.clone(),
@@ -205,14 +199,15 @@ impl JouleProfiler {
                     if phases.is_empty()
                         && let Some(end_phase) = iteration.phases.into_iter().last()
                     {
-                        phases.push(Phase::new(
+                        let phase = Phase::new(
                             end_phase.metrics,
                             PhaseToken::Start,
                             PhaseToken::End,
                             begin_timestamp,
                             duration_ms,
                             None,
-                        ));
+                        );
+                        phases.push(phase);
                     }
 
                     Iteration::new(
@@ -241,15 +236,16 @@ impl JouleProfiler {
         Ok(())
     }
 
-    async fn measure_simple(&mut self, config: &ProfileConfig) -> Result<(u128, u128, i32)> {
+    /// Measure one iteration in simple mode
+    async fn measure_simple(&mut self, config: &ProfileConfig) -> Result<MeasureSimpleReturnType> {
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp();
+        let begin_timestamp = get_timestamp_micros();
 
         let (exit_code, _) = run_command(&config.cmd, config.stdout_file.as_ref())?;
 
-        let end_timestamp = get_timestamp();
+        let end_timestamp = get_timestamp_micros();
 
         self.orchestrator.measure().await?;
         self.orchestrator.stop_polling().await?;
@@ -261,11 +257,12 @@ impl JouleProfiler {
         Ok((duration_ms, begin_timestamp, exit_code))
     }
 
+    /// Measure one iteration in phases mode
     async fn measure_phases(
         &mut self,
         config: &ProfileConfig,
         phases_config: &PhasesConfig,
-    ) -> Result<(u128, u128, i32, Vec<PhaseInfo>)> {
+    ) -> Result<MeasurePhasesReturnType> {
         let regex = Regex::new(&phases_config.token_pattern).map_err(|err| {
             JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
         })?;
@@ -273,7 +270,7 @@ impl JouleProfiler {
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp();
+        let begin_timestamp = get_timestamp_micros();
         let mut current_phase_token = PhaseToken::Start;
         let mut current_phase_timestamp = begin_timestamp;
         let mut current_phase_line_number = None;
@@ -305,6 +302,7 @@ impl JouleProfiler {
             let file = create_file_with_user_permissions(path).map_err(|err| {
                 JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
             })?;
+
             Some(file)
         } else {
             None
@@ -337,7 +335,7 @@ impl JouleProfiler {
                     captures.get(0).unwrap().as_str().to_string()
                 };
 
-                let phase_timestamp = get_timestamp();
+                let phase_timestamp = get_timestamp_micros();
                 let phase_duration = phase_timestamp - current_phase_timestamp;
 
                 self.orchestrator.measure().await?;
@@ -345,12 +343,14 @@ impl JouleProfiler {
 
                 let phase_token =
                     std::mem::replace(&mut current_phase_token, PhaseToken::Token(token));
+
                 let phase_info = PhaseInfo::new(
                     phase_token,
                     current_phase_timestamp,
                     phase_duration,
                     current_phase_line_number,
                 );
+
                 current_phase_timestamp = phase_timestamp;
                 current_phase_line_number = Some(line_number);
 
@@ -358,7 +358,7 @@ impl JouleProfiler {
             }
         }
 
-        let end_timestamp = get_timestamp();
+        let end_timestamp = get_timestamp_micros();
 
         self.orchestrator.measure().await?;
         self.orchestrator.stop_polling().await?;
@@ -368,10 +368,31 @@ impl JouleProfiler {
         let phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
         detected_phases.push(phase_info);
 
+        let duration_ms = end_timestamp - begin_timestamp;
         let status = child.wait()?;
         let exit_code = status.code().unwrap_or(1);
-        let duration_ms = end_timestamp - begin_timestamp;
 
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
     }
 }
+
+impl TryFrom<Config> for JouleProfiler {
+    type Error = JouleProfilerError;
+
+    fn try_from(config: Config) -> Result<Self> {
+        let orchestrator = SourceOrchestrator::new();
+
+        let displayer = (&config).try_into()?;
+
+        let rapl = Rapl::try_from(&config).map_err(MetricSourceError::from)?;
+        let sources = vec![rapl.into()];
+
+        Ok(Self {
+            orchestrator,
+            config,
+            displayer,
+            sources,
+        })
+    }
+}
+

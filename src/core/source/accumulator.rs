@@ -5,22 +5,27 @@ use tokio::{select, sync::mpsc::Receiver, time::Instant};
 use crate::core::{
     sensor::Sensors,
     source::{
-        MetricSource, SourceIteration,
+        MetricSource,
         error::MetricSourceError,
         reader::MetricReader,
         result::SensorResult,
-        types::{RawPhase, SourceEvent},
+        types::{RawPhase, RawIteration, SourceEvent},
     },
 };
 
+/// Accumulates metrics from a reader and tracks iterations
 #[derive(Debug)]
 pub struct MetricAccumulator<R: MetricReader> {
+    /// The underlying metric reader
     metric_reader: R,
 
-    iterations: Vec<SourceIteration<R::Type>>,
+    /// Completed iterations
+    iterations: Vec<RawIteration<R::Type>>,
 
-    current_iteration: SourceIteration<R::Type>,
+    /// Current ongoing iteration
+    current_iteration: RawIteration<R::Type>,
 
+    /// Count of polling measurements
     poll_count: u64,
 
     /// Monotonic timestamp of last snapshot
@@ -28,17 +33,18 @@ pub struct MetricAccumulator<R: MetricReader> {
 }
 
 impl<T: MetricReader> MetricAccumulator<T> {
+    /// Create a new accumulator for the given reader
     pub fn new(reader: T) -> Self {
         Self {
             metric_reader: reader,
             iterations: Vec::new(),
-            current_iteration: SourceIteration::default(),
+            current_iteration: RawIteration::default(),
             last_instant: None,
             poll_count: 0,
         }
     }
 
-    /// Measure the sensors metrics.
+    /// Measure the sensors metrics
     pub fn measure(&mut self) -> Result<(), MetricSourceError> {
         let now = Instant::now();
         if let Some(last) = self.last_instant {
@@ -51,7 +57,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
         Ok(())
     }
 
-    /// Initialize a new measure phase.
+    /// Initialize a new measure phase
     pub fn new_phase(&mut self) -> Result<(), MetricSourceError> {
         if let Ok(phase_counters) = self.metric_reader.retrieve_counters() {
             let phase_counters = RawPhase::new(phase_counters);
@@ -63,7 +69,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
         }
     }
 
-    /// Initialize a new iteration.
+    /// Initialize a new iteration
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
         if !self.current_iteration.phases.is_empty() {
             let mut iteration = std::mem::take(&mut self.current_iteration);
@@ -86,7 +92,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
             .map_err(|err| err.into())
     }
 
-    /// Retrieve all sensors measures.
+    /// Retrieve all sensors measures and return the metric reader
     pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         let iterations = self
             .iterations
@@ -99,7 +105,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
         Ok((result, boxed_source))
     }
 
-    /// Start a worker thread to measure the source.
+    /// Start a worker to process events and measure metrics
     pub async fn run_worker(
         mut self,
         mut rx: Receiver<SourceEvent>,
@@ -127,6 +133,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
         }
     }
 
+    /// Return all sensors from the reader
     pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
         self.metric_reader.get_sensors().map_err(|err| err.into())
     }

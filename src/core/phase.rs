@@ -2,10 +2,16 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
+/// Represents a phase marker in an iteration
 #[derive(Debug, Clone)]
 pub enum PhaseToken {
+    /// Start of a phase
     Start,
+
+    /// Custom token detected in output
     Token(String),
+
+    /// End of a phase
     End,
 }
 
@@ -37,16 +43,24 @@ impl From<PhaseToken> for Option<String> {
     }
 }
 
-/// Detected token with timestamp
+/// Detected phase with timestamp and optional line number
 #[derive(Debug, Clone)]
 pub struct PhaseInfo {
+    /// Phase token detected
     pub token: PhaseToken,
+
+    /// Timestamp in microseconds
     pub timestamp: u128,
+
+    /// Duration of the phase in milliseconds
     pub duration_ms: u128,
+
+    /// Optional line number in output where token was detected
     pub line_number: Option<usize>,
 }
 
 impl PhaseInfo {
+    /// Create a new PhaseInfo
     pub fn new(
         token: PhaseToken,
         timestamp: u128,
