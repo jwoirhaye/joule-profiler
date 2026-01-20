@@ -1,7 +1,10 @@
 use thiserror::Error;
 use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
-use crate::core::{profiler::error::JouleProfilerError, source::{SourceEvent, error::MetricSourceError}};
+use crate::core::{
+    profiler::error::JouleProfilerError,
+    source::{SourceEvent, error::MetricSourceError},
+};
 
 #[derive(Debug, Error)]
 pub enum OrchestratorError {
@@ -13,11 +16,17 @@ pub enum OrchestratorError {
 
     #[error(transparent)]
     SendError(#[from] SendError<SourceEvent>),
-    
-    #[error("metric source error")]
-    Source {
+
+    #[error("Metric source error")]
+    SourceError {
         #[source]
         err: MetricSourceError,
+    },
+
+    #[error("Source {index} disconnected, cause: {cause}")]
+    SourceDisconnected {
+        index: usize,
+        cause: MetricSourceError,
     },
 }
 

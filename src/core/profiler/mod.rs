@@ -109,7 +109,7 @@ impl TryFrom<Config> for JouleProfiler {
     fn try_from(config: Config) -> Result<Self> {
         let orchestrator = SourceOrchestrator::new();
 
-        let displayer = (&config).try_into().map_err(JouleProfilerError::from)?;
+        let displayer = (&config).try_into()?;
 
         let rapl = Rapl::try_from(&config).map_err(MetricSourceError::from)?;
         let sources = vec![rapl.into()];
@@ -152,7 +152,7 @@ impl JouleProfiler {
         let sensors: Vec<Sensor> = self
             .sources
             .iter()
-            .map(|source| source.list_sensors().map_err(|err| err.into()))
+            .map(|source| source.list_sensors().map_err(MetricSourceError::into))
             .collect::<Result<Vec<Sensors>>>()?
             .into_iter()
             .flatten()
@@ -304,7 +304,7 @@ impl JouleProfiler {
         Ok(())
     }
 
-    async fn measure_simple(&self, config: &ProfileConfig) -> Result<(u128, u128, i32)> {
+    async fn measure_simple(&mut self, config: &ProfileConfig) -> Result<(u128, u128, i32)> {
         self.orchestrator.new_iteration().await?;
         self.orchestrator.new_phase().await?;
         self.orchestrator.start_polling().await?;
@@ -327,12 +327,12 @@ impl JouleProfiler {
     }
 
     async fn measure_phases(
-        &self,
+        &mut self,
         config: &ProfileConfig,
         phases_config: &PhasesConfig,
     ) -> Result<(u128, u128, i32, Vec<PhaseInfo>)> {
-        let regex = Regex::new(&phases_config.token_pattern).map_err(|e| {
-            JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, e))
+        let regex = Regex::new(&phases_config.token_pattern).map_err(|err| {
+            JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
         })?;
 
         self.orchestrator.new_iteration().await?;
@@ -353,11 +353,11 @@ impl JouleProfiler {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
 
-        let mut child = command.spawn().map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
+        let mut child = command.spawn().map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
                 JouleProfilerError::CommandNotFound(config.cmd[0].clone())
             } else {
-                JouleProfilerError::CommandExecutionFailed(e.to_string())
+                JouleProfilerError::CommandExecutionFailed(err.to_string())
             }
         })?;
 
@@ -369,8 +369,8 @@ impl JouleProfiler {
         let reader = BufReader::new(stdout);
 
         let mut output_file: Option<File> = if let Some(path) = &config.stdout_file {
-            let file = create_file_with_user_permissions(path).map_err(|e| {
-                JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, e))
+            let file = create_file_with_user_permissions(path).map_err(|err| {
+                JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
             })?;
             Some(file)
         } else {

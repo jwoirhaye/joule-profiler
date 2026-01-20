@@ -10,8 +10,8 @@ pub enum DisplayerError {
     #[error("Not implemented for this format")]
     NotImplementedForFormat,
 
-    #[error("Serialization error: {0}")]
-    SerializeError(String),
+    #[error("Serialization error")]
+    SerializeError(#[from] serde_json::Error),
 }
 
 impl From<DisplayerError> for JouleProfilerError {

@@ -1,3 +1,4 @@
+use log::error;
 use tokio::{
     sync::mpsc::{Sender, channel},
     task::JoinHandle,
@@ -5,14 +6,12 @@ use tokio::{
 
 use crate::core::{
     orchestrator::error::OrchestratorError,
-    source::{MetricSource, SensorResult, SourceEvent},
+    source::{MetricSource, SensorResult, SourceEvent, error::MetricSourceError},
 };
 
 pub mod error;
 
-type Result<T> = std::result::Result<T, OrchestratorError>;
-
-type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>)>>;
+type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>;
 
 pub struct SourceOrchestrator {
     senders: Vec<Sender<SourceEvent>>,
@@ -36,8 +35,7 @@ impl SourceOrchestrator {
 
         for source in sources {
             let (tx, rx) = channel(4);
-            let handle =
-                tokio::spawn(async move { source.run(rx).await.map_err(|err| err.into()) });
+            let handle = tokio::spawn(async move { source.run(rx).await });
 
             senders.push(tx.clone());
             handles.push(handle);
@@ -49,68 +47,90 @@ impl SourceOrchestrator {
 
     /// Start the polling of a metrics source if enabled.
     #[inline]
-    pub async fn start_polling(&self) -> Result<()> {
+    pub async fn start_polling(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::StartPolling).await
     }
 
     /// Measure the metrics of each metrics source.
     #[inline]
-    pub async fn measure(&self) -> Result<()> {
+    pub async fn measure(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Measure).await
     }
 
     /// Initialize a new phase for each metrics source.
     #[inline]
-    pub async fn new_phase(&self) -> Result<()> {
+    pub async fn new_phase(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewPhase).await
     }
 
     /// Pause the polling of a metrics source if enabled.
     #[inline]
-    pub async fn stop_polling(&self) -> Result<()> {
+    pub async fn stop_polling(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::StopPolling).await
     }
 
     /// Initialize a new iteration for each metrics source.
     #[inline]
-    pub async fn new_iteration(&self) -> Result<()> {
+    pub async fn new_iteration(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewIteration).await
     }
 
     /// Gracefully shutdown all the workers.
-    pub async fn retrieve(&mut self) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>)> {
-        self.join().await?;
+    pub async fn retrieve(
+        &mut self,
+    ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
+        let (results, sources) = self.join_all().await?;
 
-        let handles = std::mem::take(&mut self.handles);
-        let nb_handles = self.handles.len();
-        let mut sources_results = Vec::with_capacity(nb_handles);
-        let mut sources = Vec::with_capacity(nb_handles);
+        let merged = SensorResult::merge(results).ok_or(OrchestratorError::NotEnoughSnapshots)?;
 
-        for handle in handles {
-            handle.await?.map(|(source_result, source)| {
-                sources_results.push(source_result);
-                sources.push(source);
-            })?;
-        }
-
-        let merged_results =
-            SensorResult::merge(sources_results).ok_or(OrchestratorError::NotEnoughSnapshots)?;
-        let iterations = merged_results.iterations;
-        let result = SensorResult::new(iterations);
-        Ok((result, sources))
+        Ok((SensorResult::new(merged.iterations), sources))
     }
 
     /// Stop the worker thread of each metrics sources to join threads gracefully.
     #[inline]
-    async fn join(&self) -> Result<()> {
+    async fn join(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::JoinWorker).await
     }
 
     /// Send an event to each metrics source.
-    async fn send_event(&self, event: SourceEvent) -> Result<()> {
-        for sender in &self.senders {
-            sender.send(event).await.map_err(OrchestratorError::from)?;
+    async fn send_event(&mut self, event: SourceEvent) -> Result<(), OrchestratorError> {
+        for i in 0..self.senders.len() {
+            if let Err(sender_error) = self.senders[i].send(event).await {
+                error!("Receiver {} disconnected", i);
+
+                let _ = self.senders.swap_remove(i);
+                let handle = self.handles.swap_remove(i);
+
+                let err = match handle.await {
+                    Ok(Err(err)) => OrchestratorError::SourceError { err },
+                    Err(err) => OrchestratorError::JoinError(err),
+                    _ => OrchestratorError::SendError(sender_error),
+                };
+
+                return Err(err);
+            }
         }
+
         Ok(())
+    }
+
+    /// Join all workers
+    async fn join_all(
+        &mut self,
+    ) -> Result<(Vec<SensorResult>, Vec<Box<dyn MetricSource>>), OrchestratorError> {
+        self.join().await?;
+
+        let handles = std::mem::take(&mut self.handles);
+
+        let mut results = Vec::with_capacity(handles.len());
+        let mut sources = Vec::with_capacity(handles.len());
+
+        for handle in handles {
+            let (result, source) = handle.await??;
+            results.push(result);
+            sources.push(source);
+        }
+
+        Ok((results, sources))
     }
 }
