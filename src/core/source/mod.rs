@@ -1,15 +1,12 @@
-use std::{fmt::Debug, time::Duration};
-
 use tokio::sync::mpsc::Receiver;
 
 use crate::core::{
-    aggregate::{iteration::SensorIteration, metric::Metrics},
     sensor::Sensors,
     source::{
         accumulator::MetricAccumulator,
         error::MetricSourceError,
         reader::MetricReader,
-        types::{MetricSourceWorkerFuture, RawPhase, SourceEvent},
+        types::{MetricSourceWorkerFuture, SourceEvent},
     },
 };
 
@@ -19,37 +16,15 @@ pub mod reader;
 pub mod result;
 pub mod types;
 
-#[derive(Debug, Default, Clone)]
-struct SourceIteration<V> {
-    pub phases: Vec<RawPhase<V>>,
-    pub total_elapsed: Duration,
-    pub measure_count: u64,
-}
-
-impl<V: Into<Metrics>> From<SourceIteration<V>> for SensorIteration {
-    fn from(iteration: SourceIteration<V>) -> Self {
-        let phases = iteration
-            .phases
-            .into_iter()
-            .map(|phase| phase.into())
-            .collect();
-
-        let measure_delta = if iteration.measure_count > 1 {
-            (iteration.total_elapsed.as_micros() / (iteration.measure_count - 1) as u128) as u64
-        } else {
-            0
-        };
-
-        SensorIteration::new(phases, measure_delta, iteration.measure_count)
-    }
-}
-
+/// Trait representing a metric source and required to be used in profiler 
 pub trait MetricSource: Send {
-    /// Runs the worker and returns the result along with the source itself.
+    /// Runs the worker and returns a future that resolves with the result and the source itself
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture;
 
+    /// List all sensors available from this source
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 
+    /// Convert into a boxed trait object
     fn into_box(self) -> Box<dyn MetricSource>
     where
         Self: Sized + 'static,
@@ -62,10 +37,12 @@ impl<T> MetricSource for MetricAccumulator<T>
 where
     T: MetricReader,
 {
+    /// Run the worker for the metric accumulator
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture {
         Box::pin(async move { self.run_worker(rx).await })
     }
 
+    /// List all sensors for this accumulator
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError> {
         self.get_sensors()
     }

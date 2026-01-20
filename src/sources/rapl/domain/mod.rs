@@ -1,66 +1,17 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::fmt::Display;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use crate::sources::rapl::Result;
+use crate::sources::rapl::domain::domain_type::RaplDomainType;
 use crate::sources::rapl::domain::socket::parse_or_all_sockets;
 use crate::sources::rapl::error::RaplError;
 use log::{debug, error, info, trace, warn};
 
 pub mod socket;
-
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
-pub enum RaplDomainType {
-    Package,
-    Core,
-    Uncore,
-    Dram,
-    Psys,
-}
-
-impl Display for RaplDomainType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let domain_type = match self {
-            RaplDomainType::Package => "PACKAGE",
-            RaplDomainType::Core => "CORE",
-            RaplDomainType::Uncore => "UNCORE",
-            RaplDomainType::Dram => "DRAM",
-            RaplDomainType::Psys => "PSYS",
-        };
-        f.write_str(domain_type)
-    }
-}
-
-impl TryInto<RaplDomainType> for String {
-    type Error = RaplError;
-
-    fn try_into(self) -> Result<RaplDomainType> {
-        let lowercase = self.to_lowercase();
-        let domain_type = if lowercase.starts_with("package") {
-            RaplDomainType::Package
-        } else if lowercase.starts_with("core") {
-            RaplDomainType::Core
-        } else if lowercase.starts_with("uncore") {
-            RaplDomainType::Uncore
-        } else if lowercase.starts_with("dram") {
-            RaplDomainType::Dram
-        } else if lowercase.starts_with("psys") {
-            RaplDomainType::Psys
-        } else {
-            return Err(RaplError::UnknownDomain(lowercase));
-        };
-        Ok(domain_type)
-    }
-}
-
-impl RaplDomainType {
-    pub fn to_string_socket(self, socket: u32) -> String {
-        format!("{}-{}", self, socket)
-    }
-}
+pub mod domain_type;
 
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]
@@ -79,6 +30,9 @@ pub struct RaplDomain {
 }
 
 impl RaplDomain {
+    /// Create a new RAPL domain from the given path, name, socket, and max energy
+    ///
+    /// Converts the string name into a `RaplDomainType`
     pub fn try_new(path: PathBuf, name: String, socket: u32, max_energy_uj: u64) -> Result<Self> {
         let domain = Self {
             path,
@@ -89,6 +43,7 @@ impl RaplDomain {
         Ok(domain)
     }
 
+    /// Get the RAPL domain name
     pub fn get_name(&self) -> String {
         self.domain_type.to_string_socket(self.socket)
     }
@@ -223,7 +178,7 @@ pub fn read_energy(domain: &RaplDomain) -> Result<u64> {
     let energy = content
         .trim()
         .parse()
-        .map_err(|e| RaplError::ParseEnergy { err: e })?;
+        .map_err(RaplError::ParseEnergyError)?;
 
     trace!("Energy {} = {} µJ", domain.get_name(), energy);
     Ok(energy)
@@ -327,7 +282,7 @@ mod tests {
             max_energy_uj: 1_000,
         };
 
-        let err = read_energy(&domain).unwrap_err().to_string();
-        assert!(err.contains("Invalid energy value"));
+        let err = read_energy(&domain).unwrap_err();
+        assert!(matches!(err, RaplError::ParseEnergyError(_)));
     }
 }

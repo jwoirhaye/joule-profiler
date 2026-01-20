@@ -11,14 +11,20 @@ use crate::core::{
 
 pub mod error;
 
+/// The handle describing the return type of a source worker
 type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>;
 
+/// Orchestrates metrics sources and manages their worker threads
 pub struct SourceOrchestrator {
+    /// The event channels sender
     senders: Vec<Sender<SourceEvent>>,
+
+    /// The handles of the worker tasks
     handles: Vec<Handle>,
 }
 
 impl SourceOrchestrator {
+    /// Creates a new source orchestrator
     pub fn new() -> Self {
         Self {
             senders: Vec::new(),
@@ -26,7 +32,7 @@ impl SourceOrchestrator {
         }
     }
 
-    /// Start the metrics sources worker threads.
+    /// Start the metrics sources worker threads
     #[inline]
     pub async fn start(&mut self, sources: Vec<Box<dyn MetricSource>>) {
         let nb_sources = sources.len();
@@ -45,37 +51,37 @@ impl SourceOrchestrator {
         self.senders = senders;
     }
 
-    /// Start the polling of a metrics source if enabled.
+    /// Start polling all metrics sources
     #[inline]
     pub async fn start_polling(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::StartPolling).await
     }
 
-    /// Measure the metrics of each metrics source.
+    /// Measure the metrics of each metrics source
     #[inline]
     pub async fn measure(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Measure).await
     }
 
-    /// Initialize a new phase for each metrics source.
+    /// Initialize a new phase for each metrics source
     #[inline]
     pub async fn new_phase(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewPhase).await
     }
 
-    /// Pause the polling of a metrics source if enabled.
+    /// Pause the polling of a metrics source if enabled
     #[inline]
     pub async fn stop_polling(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::StopPolling).await
     }
 
-    /// Initialize a new iteration for each metrics source.
+    /// Initialize a new iteration for each metrics source
     #[inline]
     pub async fn new_iteration(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewIteration).await
     }
 
-    /// Gracefully shutdown all the workers.
+    /// Retrieve and merge results from all sources
     pub async fn retrieve(
         &mut self,
     ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
@@ -92,7 +98,7 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::JoinWorker).await
     }
 
-    /// Send an event to each metrics source.
+    /// Send an event to all metrics sources
     async fn send_event(&mut self, event: SourceEvent) -> Result<(), OrchestratorError> {
         for i in 0..self.senders.len() {
             if let Err(sender_error) = self.senders[i].send(event).await {
@@ -114,7 +120,7 @@ impl SourceOrchestrator {
         Ok(())
     }
 
-    /// Join all workers
+    /// Join all workers and collect results
     async fn join_all(
         &mut self,
     ) -> Result<(Vec<SensorResult>, Vec<Box<dyn MetricSource>>), OrchestratorError> {

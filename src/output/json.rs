@@ -8,11 +8,15 @@ use crate::core::profiler::types::Iteration;
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 
-/// JSON output writer to file.
+/// JSON output writer to a file
 pub struct JsonOutput {
+    /// File writer
     writer: File,
+
+    /// Output filename
     filename: String,
 }
+
 
 impl Displayer for JsonOutput {
     fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
@@ -78,7 +82,7 @@ impl Displayer for JsonOutput {
 }
 
 impl JsonOutput {
-    /// Creates a JSON output writer to a file.
+    /// Create a JSON output writer, optionally with a specific file
     pub fn new(output_file: Option<String>) -> Result<Self> {
         let filename = output_file
             .clone()
@@ -93,6 +97,7 @@ impl JsonOutput {
         })
     }
 
+    /// Write a JSON value to the output file
     fn write_json(&mut self, value: &serde_json::Value) -> Result<()> {
         let json_str = serde_json::to_string_pretty(value)?;
         writeln!(self.writer, "{}", json_str)?;
