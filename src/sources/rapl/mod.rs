@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use log::{debug, error, info, trace};
 use tokio_timerfd::Interval;
 
@@ -14,7 +14,7 @@ use crate::{
     config::{Command, Config},
     core::{
         sensor::{Sensor, Sensors},
-        source::MetricReaderTrait,
+        source::reader::MetricReader,
     },
     sources::rapl::{
         domain::{RaplDomain, get_domains, read_energy},
@@ -35,6 +35,10 @@ pub type Result<T> = std::result::Result<T, RaplError>;
 pub struct Rapl {
     domains: Vec<RaplDomain>,
     ticker: Option<Interval>,
+    current_counters: Snapshot,
+    last_snapshot: Option<Snapshot>,
+    polling_active: bool,
+    measure_count: u64,
 }
 
 impl TryFrom<&Config> for Rapl {
@@ -56,31 +60,33 @@ impl TryFrom<&Config> for Rapl {
     }
 }
 
-impl MetricReaderTrait for Rapl {
+impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
 
-    fn measure(&self) -> Result<Self::Type> {
-        trace!("Starting RAPL measurement");
-        self.read_snapshot()
-    }
+    fn measure(&mut self) -> Result<()> {
+        let new_snapshot = self.read_snapshot()?;
 
-    fn compute_measures(&self, new: &Self::Type, old: Self::Type) -> Result<Self::Type> {
-        let metrics = compute_measurement_from_snapshots(&self.domains, &old, new)?;
-        let snapshot = Self::Type::try_new(metrics);
-        Ok(snapshot)
-    }
-
-    async fn poll(&mut self) -> Option<Result<()>> {
-        if let Some(ticker) = &mut self.ticker {
-            let _ = ticker.next().await?;
-            ticker
-                .next()
-                .map(|option| option.map(|result| result.map_err(RaplError::IoError)))
-                .await
+        if let Some(last_snapshot) = &self.last_snapshot {
+            let metrics =
+                compute_measurement_from_snapshots(&self.domains, &last_snapshot, &new_snapshot)?;
+            self.current_counters += Snapshot::new(metrics);
         } else {
-            None
+            self.last_snapshot = Some(new_snapshot);
         }
+
+        Ok(())
+    }
+
+    async fn internal_scheduler(&mut self) -> Result<()> {
+        if self.polling_active
+            && let Some(ticker) = &mut self.ticker
+        {
+            ticker.next().await;
+            self.measure()?;
+            self.measure_count += 1;
+        }
+        Ok(())
     }
 
     fn get_sensors(&self) -> Result<Sensors> {
@@ -97,6 +103,22 @@ impl MetricReaderTrait for Rapl {
             .collect();
 
         Ok(sensors)
+    }
+
+    fn retrieve_counters(&mut self) -> Result<(Self::Type, u64)> {
+        let counters = std::mem::take(&mut self.current_counters);
+        let count = self.measure_count;
+        self.measure_count = 0;
+        Ok((counters, count))
+    }
+
+    fn get_measure_count(&self) -> u64 {
+        self.measure_count
+    }
+
+    fn set_polling(&mut self, polling: bool) -> Result<()> {
+        self.polling_active = polling;
+        Ok(())
     }
 }
 
@@ -140,7 +162,11 @@ impl Rapl {
     }
 
     fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
-        Self { domains, ticker }
+        Self {
+            domains,
+            ticker,
+            ..Default::default()
+        }
     }
 }
 

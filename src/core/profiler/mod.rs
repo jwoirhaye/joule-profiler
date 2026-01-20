@@ -6,7 +6,6 @@ use std::{
 
 use log::{debug, info};
 use regex::Regex;
-use serde::Serialize;
 
 pub mod error;
 
@@ -14,87 +13,25 @@ use crate::{
     config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
     core::{
         displayer::Displayer,
-        metric::Metrics,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
-        profiler::error::JouleProfilerError,
+        profiler::{
+            error::JouleProfilerError,
+            types::{Iteration, Phase},
+        },
         sensor::{Sensor, Sensors},
-        source::{MetricReader, MetricReaderTrait, MetricSource, error::MetricSourceError},
+        source::{
+            MetricSource, accumulator::MetricAccumulator, error::MetricSourceError,
+            reader::MetricReader,
+        },
     },
     sources::rapl::Rapl,
     util::{command::run_command, file::create_file_with_user_permissions, time::get_timestamp},
 };
 
+pub mod types;
+
 type Result<T> = std::result::Result<T, JouleProfilerError>;
-
-#[derive(Debug, Serialize)]
-pub struct Phase {
-    pub start_token: PhaseToken,
-
-    pub end_token: PhaseToken,
-
-    pub timestamp: u128,
-
-    pub duration_ms: u128,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_number: Option<usize>,
-
-    pub metrics: Metrics,
-}
-
-impl Phase {
-    pub fn new(
-        metrics: Metrics,
-        start_token: PhaseToken,
-        end_token: PhaseToken,
-        timestamp: u128,
-        duration_ms: u128,
-        line_number: Option<usize>,
-    ) -> Self {
-        Self {
-            metrics,
-            start_token,
-            end_token,
-            timestamp,
-            duration_ms,
-            line_number,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct Iteration {
-    pub index: usize,
-    pub timestamp: u128,
-    pub duration_ms: u128,
-    pub exit_code: i32,
-    pub measure_count: u64,
-    pub measure_delta: u64,
-    pub phases: Vec<Phase>,
-}
-
-impl Iteration {
-    pub fn new(
-        phases: Vec<Phase>,
-        index: usize,
-        timestamp: u128,
-        duration_ms: u128,
-        exit_code: i32,
-        measure_count: u64,
-        measure_delta: u64,
-    ) -> Self {
-        Self {
-            phases,
-            index,
-            timestamp,
-            duration_ms,
-            exit_code,
-            measure_count,
-            measure_delta,
-        }
-    }
-}
 
 pub struct JouleProfiler {
     config: Config,
@@ -134,8 +71,8 @@ impl JouleProfiler {
 
     pub fn add_source<T>(&mut self, reader: T)
     where
-        T: MetricReaderTrait,
-        MetricReader<T>: Clone,
+        T: MetricReader,
+        MetricAccumulator<T>: Clone,
         T::Type: Send,
     {
         self.sources.push(reader.into());
@@ -305,8 +242,6 @@ impl JouleProfiler {
     }
 
     async fn measure_simple(&mut self, config: &ProfileConfig) -> Result<(u128, u128, i32)> {
-        self.orchestrator.new_iteration().await?;
-        self.orchestrator.new_phase().await?;
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
@@ -335,8 +270,6 @@ impl JouleProfiler {
             JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
         })?;
 
-        self.orchestrator.new_iteration().await?;
-        self.orchestrator.new_phase().await?;
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 

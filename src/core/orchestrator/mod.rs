@@ -6,7 +6,7 @@ use tokio::{
 
 use crate::core::{
     orchestrator::error::OrchestratorError,
-    source::{MetricSource, SensorResult, SourceEvent, error::MetricSourceError},
+    source::{MetricSource, error::MetricSourceError, result::SensorResult, types::SourceEvent},
 };
 
 pub mod error;

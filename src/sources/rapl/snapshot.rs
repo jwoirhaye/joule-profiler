@@ -50,7 +50,7 @@ impl From<Snapshot> for Metrics {
 }
 
 impl Snapshot {
-    pub fn try_new(metrics: HashMap<(RaplDomainType, u32), u64>) -> Self {
+    pub fn new(metrics: HashMap<(RaplDomainType, u32), u64>) -> Self {
         Self { metrics }
     }
 }

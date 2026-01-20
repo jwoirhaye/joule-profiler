@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    core::{displayer::error::DisplayerError, profiler::Iteration, sensor::Sensor},
+    core::{displayer::error::DisplayerError, profiler::types::Iteration, sensor::Sensor},
     output::{OutputFormat, csv::CsvOutput, json::JsonOutput, terminal::TerminalOutput},
     util::time::get_timestamp,
 };
