@@ -28,6 +28,12 @@ impl Display for OutputFormat {
     }
 }
 
+impl Default for OutputFormat {
+    fn default() -> Self {
+        Self::Terminal
+    }
+}
+
 /// Determine output format from flags
 pub fn output_format(json: bool, csv: bool) -> OutputFormat {
     if json {

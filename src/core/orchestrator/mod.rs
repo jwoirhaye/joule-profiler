@@ -15,6 +15,7 @@ pub mod error;
 type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>;
 
 /// Orchestrates metrics sources and manages their worker threads
+#[derive(Default)]
 pub struct SourceOrchestrator {
     /// The event channels sender
     senders: Vec<Sender<SourceEvent>>,
