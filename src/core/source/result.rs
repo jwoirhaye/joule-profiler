@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-use crate::core::source::types::SensorIteration;
+use crate::core::aggregate::iteration::SensorIteration;
 
 #[derive(Debug)]
 pub struct SensorResult {

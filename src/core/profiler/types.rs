@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::core::{metric::Metrics, phase::PhaseToken};
+use crate::core::{aggregate::metric::Metrics, phase::PhaseToken};
 
 #[derive(Debug, Serialize)]
 pub struct Phase {

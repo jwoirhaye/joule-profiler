@@ -1,59 +1,6 @@
-use std::{
-    ops::{Add, AddAssign},
-    pin::Pin,
-};
+use std::pin::Pin;
 
-use crate::core::{
-    metric::Metrics,
-    source::{MetricSource, error::MetricSourceError, result::SensorResult},
-};
-
-#[derive(Default, Debug)]
-pub struct SensorIteration {
-    pub phases: Vec<SensorPhase>,
-    pub measure_delta: u64,
-    pub measure_count: u64,
-}
-
-impl AddAssign for SensorPhase {
-    fn add_assign(&mut self, rhs: Self) {
-        self.metrics.extend(rhs.metrics);
-    }
-}
-
-impl AddAssign for SensorIteration {
-    fn add_assign(&mut self, rhs: Self) {
-        self.phases
-            .iter_mut()
-            .zip(rhs.phases)
-            .for_each(|(self_phase, rhs_phase)| *self_phase += rhs_phase);
-    }
-}
-
-impl Add for SensorIteration {
-    type Output = SensorIteration;
-
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self += rhs;
-        self
-    }
-}
-
-impl SensorIteration {
-    pub fn new(phases: Vec<SensorPhase>, measure_delta: u64, measure_count: u64) -> Self {
-        Self {
-            phases,
-            measure_delta,
-            measure_count,
-        }
-    }
-}
-
-#[derive(Default, Debug)]
-
-pub struct SensorPhase {
-    pub metrics: Metrics,
-}
+use crate::core::source::{MetricSource, error::MetricSourceError, result::SensorResult};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SourceEvent {
@@ -71,3 +18,15 @@ pub type MetricSourceWorkerFuture = Pin<
             + Send,
     >,
 >;
+
+#[derive(Debug, Default, Clone)]
+
+pub struct RawPhase<V> {
+    pub metrics: V,
+}
+
+impl<V> RawPhase<V> {
+    pub fn new(metrics: V) -> Self {
+        Self { metrics }
+    }
+}
