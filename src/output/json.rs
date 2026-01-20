@@ -3,7 +3,6 @@ use std::io::Write;
 
 use serde_json::json;
 
-use crate::core::displayer::error::DisplayerError;
 use crate::core::displayer::{Displayer, Result, default_iterations_filename};
 use crate::core::profiler::Iteration;
 use crate::core::sensor::Sensor;
@@ -74,10 +73,7 @@ impl Displayer for JsonOutput {
     }
 
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
-        self.write_json(
-            &serde_json::to_value(sensors)
-                .map_err(|err| DisplayerError::SerializeError(err.to_string()))?,
-        )
+        self.write_json(&serde_json::to_value(sensors)?)
     }
 }
 
@@ -98,8 +94,7 @@ impl JsonOutput {
     }
 
     fn write_json(&mut self, value: &serde_json::Value) -> Result<()> {
-        let json_str = serde_json::to_string_pretty(value)
-            .map_err(|err| DisplayerError::SerializeError(err.to_string()))?;
+        let json_str = serde_json::to_string_pretty(value)?;
         writeln!(self.writer, "{}", json_str)?;
         println!("✔ JSON written to: {}", self.filename);
         Ok(())

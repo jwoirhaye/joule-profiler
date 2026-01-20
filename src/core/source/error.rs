@@ -2,7 +2,10 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
-use crate::{core::{orchestrator::error::OrchestratorError, profiler::error::JouleProfilerError}, sources::rapl::error::RaplError};
+use crate::{
+    core::{orchestrator::error::OrchestratorError, profiler::error::JouleProfilerError},
+    sources::rapl::error::RaplError,
+};
 
 #[derive(Debug, Error)]
 pub enum MetricSourceError {
@@ -15,7 +18,7 @@ pub enum MetricSourceError {
 
 impl From<MetricSourceError> for OrchestratorError {
     fn from(err: MetricSourceError) -> Self {
-        Self::Source { err }
+        Self::SourceError { err }
     }
 }
 

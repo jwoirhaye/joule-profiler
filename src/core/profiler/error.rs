@@ -34,26 +34,25 @@ pub enum JouleProfilerError {
     #[error("Invalid regex pattern: {0}")]
     InvalidPattern(String),
 
-    #[error("stdout capture failed")]
+    #[error("Stdout capture failed")]
     StdOutCaptureFail,
-
 
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
-    #[error("metric source error")]
+    #[error("Metric source error")]
     Source {
         #[source]
         err: MetricSourceError,
     },
 
-    #[error("displayer error")]
+    #[error("Displayer error")]
     Displayer {
         #[source]
         err: DisplayerError,
     },
 
-    #[error("orchestrator error")]
+    #[error("Orchestrator error")]
     Orchestrator {
         #[source]
         err: OrchestratorError,
