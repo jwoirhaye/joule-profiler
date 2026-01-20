@@ -3,7 +3,7 @@ use tokio::{sync::mpsc::error::SendError, task::JoinError};
 
 use crate::core::{
     profiler::error::JouleProfilerError,
-    source::{SourceEvent, error::MetricSourceError},
+    source::{error::MetricSourceError, types::SourceEvent},
 };
 
 #[derive(Debug, Error)]

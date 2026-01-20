@@ -9,6 +9,12 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum MetricSourceError {
+    #[error("Error retrieving source counters")]
+    ErrorRetrievingCounters,
+
+    #[error("Cannot build iteration without at least one phase")]
+    NoPhaseInIteration,
+
     #[error("RAPL source failed")]
     Rapl {
         #[source]
