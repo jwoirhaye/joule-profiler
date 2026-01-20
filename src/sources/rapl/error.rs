@@ -16,9 +16,6 @@ pub enum RaplError {
     #[error("Invalid RAPL domain path: {0}")]
     InvalidRaplPath(String),
 
-    #[error("RAPL counter overflow detected")]
-    CounterOverflow,
-
     #[error("Invalid socket specification: {0}")]
     InvalidSocketSpec(String),
 
@@ -53,12 +50,8 @@ pub enum RaplError {
 impl From<std::io::Error> for RaplError {
     fn from(err: std::io::Error) -> Self {
         match err.kind() {
-            std::io::ErrorKind::NotFound => {
-                RaplError::RaplNotAvailable(err.to_string())
-            }
-            std::io::ErrorKind::PermissionDenied => {
-                RaplError::InsufficientPermissions
-            }
+            std::io::ErrorKind::NotFound => RaplError::RaplNotAvailable(err.to_string()),
+            std::io::ErrorKind::PermissionDenied => RaplError::InsufficientPermissions,
             _ => RaplError::IoError(err),
         }
     }

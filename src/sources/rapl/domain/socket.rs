@@ -15,9 +15,11 @@ pub fn filter_sockets(spec: &HashSet<u32>, sockets: &HashSet<u32>) -> HashSet<u3
 /// Filter RAPL sockets with specified spec.
 pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>) -> Vec<u32> {
     let mut sockets = discover_sockets(domains);
+
     if let Some(spec) = spec {
         sockets = filter_sockets(spec, &sockets);
     }
+
     sockets.into_iter().collect()
 }
 
