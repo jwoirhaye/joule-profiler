@@ -38,7 +38,6 @@ pub struct Rapl {
     current_counters: Snapshot,
     last_snapshot: Option<Snapshot>,
     polling_active: bool,
-    measure_count: u64,
 }
 
 impl TryFrom<&Config> for Rapl {
@@ -84,7 +83,6 @@ impl MetricReader for Rapl {
         {
             ticker.next().await;
             self.measure()?;
-            self.measure_count += 1;
         }
         Ok(())
     }
@@ -105,15 +103,9 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    fn retrieve_counters(&mut self) -> Result<(Self::Type, u64)> {
+    fn retrieve_counters(&mut self) -> Result<Self::Type> {
         let counters = std::mem::take(&mut self.current_counters);
-        let count = self.measure_count;
-        self.measure_count = 0;
-        Ok((counters, count))
-    }
-
-    fn get_measure_count(&self) -> u64 {
-        self.measure_count
+        Ok(counters)
     }
 
     fn set_polling(&mut self, polling: bool) -> Result<()> {

@@ -1,6 +1,6 @@
 use crate::core::{
+    aggregate::metric::Metric,
     displayer::{Displayer, Result},
-    metric::Metric,
     phase::PhaseToken,
     profiler::types::Iteration,
     sensor::Sensor,
