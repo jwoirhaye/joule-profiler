@@ -256,7 +256,7 @@ impl JouleProfiler {
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
 
-        let duration_ms = end_timestamp - begin_timestamp;
+        let duration_ms = (end_timestamp - begin_timestamp) / 1000;
 
         Ok((duration_ms, begin_timestamp, exit_code))
     }

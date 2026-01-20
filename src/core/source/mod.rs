@@ -3,14 +3,13 @@ use std::{fmt::Debug, time::Duration};
 use tokio::sync::mpsc::Receiver;
 
 use crate::core::{
-    metric::Metrics,
-    phase::SourcePhase,
+    aggregate::{iteration::SensorIteration, metric::Metrics},
     sensor::Sensors,
     source::{
         accumulator::MetricAccumulator,
         error::MetricSourceError,
         reader::MetricReader,
-        types::{MetricSourceWorkerFuture, SensorIteration, SourceEvent},
+        types::{MetricSourceWorkerFuture, RawPhase, SourceEvent},
     },
 };
 
@@ -22,7 +21,7 @@ pub mod types;
 
 #[derive(Debug, Default, Clone)]
 struct SourceIteration<V> {
-    pub phases: Vec<SourcePhase<V>>,
+    pub phases: Vec<RawPhase<V>>,
     pub total_elapsed: Duration,
     pub measure_count: u64,
 }
