@@ -5,18 +5,27 @@ use crate::{
     output::{OutputFormat, output_format},
 };
 
-#[derive(Debug, Clone)]
-pub enum Command {
-    Profile(ProfileConfig),
-    ListSensors(ListSensorsConfig),
-}
-
+/// Configuration for running the profiler
 #[derive(Debug)]
 pub struct Config {
+    /// The selected mode of operation (profiling or listing sensors)
     pub mode: Command,
+
+    /// Optional path to the RAPL sysfs interface
     pub rapl_path: Option<String>,
+
+    /// Format of the output (Terminal, JSON, CSV)
     pub output_format: OutputFormat,
+
+    /// Optional file to write the output to
     pub output_file: Option<String>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let mode = Command::ListSensors(ListSensorsConfig { output_format: OutputFormat::Terminal });
+        Self { mode, rapl_path: Default::default(), output_format: Default::default(), output_file: Default::default() }
+    }
 }
 
 impl From<Cli> for Config {
@@ -67,28 +76,59 @@ impl From<Cli> for Config {
     }
 }
 
+/// The configuration that can be executed 
+#[derive(Debug, Clone)]
+pub enum Command {
+    /// Profile a command with either simple or phase mode
+    Profile(ProfileConfig),
+
+    /// List available sensors in a given output format
+    ListSensors(ListSensorsConfig),
+}
+
+/// Profiling configuration for a command
 #[derive(Debug, Clone)]
 pub struct ProfileConfig {
+    /// Number of iterations to run the command
     pub iterations: usize,
+
+    /// Optional file to redirect stdout
     pub stdout_file: Option<String>,
+
+    /// Command and arguments to profile
     pub cmd: Vec<String>,
+
+    /// Optional set of CPU sockets to monitor
     pub sockets: Option<HashSet<u32>>,
+
+    /// Optional RAPL polling interval in seconds
     pub rapl_polling: Option<f64>,
+
+    /// Profiling mode (simple or phases)
     pub mode: Mode,
 }
 
+/// Mode of profiling
 #[derive(Debug, Clone)]
 pub enum Mode {
+    /// Simple profiling mode (aggregated metrics)
     SimpleMode,
+
+    /// Phase-based profiling with token extraction
     PhaseMode(PhasesConfig),
 }
 
+/// Phase-based profiling configuration
 #[derive(Debug, Clone)]
 pub struct PhasesConfig {
+    /// Regex pattern to detect start and end tokens in command output
     pub token_pattern: String,
 }
 
+
+/// Configuration for listing sensors
 #[derive(Debug, Clone)]
 pub struct ListSensorsConfig {
+    /// Output format for the sensor list
     pub output_format: OutputFormat,
 }

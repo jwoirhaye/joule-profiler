@@ -10,27 +10,24 @@ use regex::Regex;
 pub mod error;
 
 use crate::{
-    config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
-    core::{
+    config::{Command, Config, Mode, PhasesConfig, ProfileConfig}, core::{
         displayer::Displayer,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
         profiler::{
-            error::JouleProfilerError,
-            types::{Iteration, Phase},
+            builder::JouleProfilerBuilder, error::JouleProfilerError, types::{Iteration, Phase}
         },
         sensor::{Sensor, Sensors},
         source::{
             MetricSource, accumulator::MetricAccumulator, error::MetricSourceError,
             reader::MetricReader,
         },
-    },
-    sources::rapl::Rapl,
-    util::{
+    }, sources::rapl::Rapl, util::{
         command::run_command, file::create_file_with_user_permissions, time::get_timestamp_micros,
-    },
+    }
 };
 
+pub mod builder;
 pub mod types;
 
 /// Result type for profiler operations
@@ -40,6 +37,7 @@ type MeasureSimpleReturnType = (u128, u128, i32);
 type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 
 /// Profiler orchestrating metrics collection from various metrics sources and display
+#[derive(Default)]
 pub struct JouleProfiler {
     config: Config,
     orchestrator: SourceOrchestrator,
@@ -48,6 +46,14 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn builder() -> JouleProfilerBuilder {
+        JouleProfilerBuilder::default()
+    }
+
     /// Run the profiler
     pub async fn run(&mut self) -> Result<()> {
         match self.config.mode.clone() {
@@ -395,4 +401,3 @@ impl TryFrom<Config> for JouleProfiler {
         })
     }
 }
-
