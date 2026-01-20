@@ -68,6 +68,12 @@ impl<T: Displayer + 'static> From<T> for Box<dyn Displayer> {
     }
 }
 
+impl Default for Box<dyn Displayer> {
+    fn default() -> Self {
+        TerminalOutput.into()
+    }
+}
+
 /// Generates a default filename for iteration data
 pub fn default_iterations_filename(ext: &str) -> String {
     format!("data{}.{}", get_timestamp_micros(), ext)
