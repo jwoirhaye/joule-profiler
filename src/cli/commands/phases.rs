@@ -20,6 +20,7 @@ pub struct PhasesArgs {
     )]
     pub token_pattern: String,
 
+    /// The common arguments between profiler commands
     #[command(flatten)]
     pub common: CommonArgs,
 }

@@ -34,6 +34,7 @@ pub struct CommonArgs {
     #[arg(last = true)]
     pub cmd: Vec<String>,
 
+    /// Rapl polling frequency in second.
     #[arg(long = "rapl-polling")]
     pub rapl_polling: Option<f64>,
 }
