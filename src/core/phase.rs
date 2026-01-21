@@ -49,7 +49,7 @@ pub struct PhaseInfo {
     /// Phase token detected
     pub token: PhaseToken,
 
-    /// Timestamp in microseconds
+    /// Timestamp in milliseconds
     pub timestamp: u128,
 
     /// Duration of the phase in milliseconds
