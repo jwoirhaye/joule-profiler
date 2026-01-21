@@ -45,6 +45,10 @@ impl Phase {
             line_number,
         }
     }
+
+    pub fn get_name(&self) -> String {
+        format!("{} -> {}", self.start_token, self.end_token)
+    }
 }
 
 /// Represents a profiler iteration with its phases and metrics
@@ -63,10 +67,10 @@ pub struct Iteration {
     pub exit_code: i32,
 
     /// Number of measurements performed
-    pub measure_count: u64,
+    pub poll_count: u64,
 
     /// Time between measurements in microseconds
-    pub measure_delta: u64,
+    pub poll_delta: u64,
 
     /// Phases detected in the iteration
     pub phases: Vec<Phase>,
@@ -80,8 +84,8 @@ impl Iteration {
         timestamp: u128,
         duration_ms: u128,
         exit_code: i32,
-        measure_count: u64,
-        measure_delta: u64,
+        poll_count: u64,
+        poll_delta: u64,
     ) -> Self {
         Self {
             phases,
@@ -89,8 +93,8 @@ impl Iteration {
             timestamp,
             duration_ms,
             exit_code,
-            measure_count,
-            measure_delta,
+            poll_count,
+            poll_delta,
         }
     }
 }

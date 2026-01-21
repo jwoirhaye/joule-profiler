@@ -101,7 +101,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
         if !self.current_iteration.phases.is_empty() {
             let mut iteration = std::mem::take(&mut self.current_iteration);
-            iteration.measure_count = self.poll_count;
+            iteration.poll_count = self.poll_count;
 
             trace!("Iteration total elapsed: {:?}", iteration.total_elapsed);
 

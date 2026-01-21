@@ -50,7 +50,7 @@ use std::{
     time::Duration,
 };
 
-use futures::StreamExt;
+use futures::{StreamExt, future::pending};
 use log::{debug, error, info, trace};
 use tokio_timerfd::Interval;
 
@@ -238,9 +238,10 @@ impl MetricReader for Rapl {
             trace!("Waiting for RAPL scheduler tick");
             ticker.next().await;
             trace!("RAPL scheduler tick fired");
-            self.measure()?;
+            self.measure()
+        } else {
+            pending().await
         }
-        Ok(())
     }
 
     fn get_sensors(&self) -> Result<Sensors> {
