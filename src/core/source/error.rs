@@ -2,10 +2,7 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
-use crate::{
-    core::{orchestrator::error::OrchestratorError, profiler::error::JouleProfilerError},
-    sources::rapl::error::RaplError,
-};
+use crate::sources::rapl::error::RaplError;
 
 #[derive(Debug, Error)]
 pub enum MetricSourceError {
@@ -15,21 +12,17 @@ pub enum MetricSourceError {
     #[error("Cannot build iteration without at least one phase")]
     NoPhaseInIteration,
 
-    #[error("RAPL source failed")]
-    Rapl {
+    #[error("Rapl error")]
+    Rapl(
+        #[from]
         #[source]
-        err: RaplError,
-    },
-}
+        RaplError,
+    ),
 
-impl From<MetricSourceError> for OrchestratorError {
-    fn from(err: MetricSourceError) -> Self {
-        Self::SourceError { err }
-    }
-}
-
-impl From<MetricSourceError> for JouleProfilerError {
-    fn from(err: MetricSourceError) -> Self {
-        Self::Source { err }
-    }
+    #[error("External source error: {0}")]
+    External(
+        #[from]
+        #[source]
+        Box<dyn std::error::Error + Send + Sync>,
+    ),
 }

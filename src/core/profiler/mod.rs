@@ -10,21 +10,27 @@ use regex::Regex;
 pub mod error;
 
 use crate::{
-    config::{Command, Config, Mode, PhasesConfig, ProfileConfig}, core::{
+    config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
+    core::{
+        aggregate::iteration::SensorIteration,
         displayer::Displayer,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
         profiler::{
-            builder::JouleProfilerBuilder, error::JouleProfilerError, types::{Iteration, Phase}
+            builder::JouleProfilerBuilder,
+            error::JouleProfilerError,
+            types::{Iteration, Phase},
         },
         sensor::{Sensor, Sensors},
         source::{
             MetricSource, accumulator::MetricAccumulator, error::MetricSourceError,
             reader::MetricReader,
         },
-    }, sources::rapl::Rapl, util::{
+    },
+    sources::rapl::Rapl,
+    util::{
         command::run_command, file::create_file_with_user_permissions, time::get_timestamp_micros,
-    }
+    },
 };
 
 pub mod builder;
@@ -81,7 +87,7 @@ impl JouleProfiler {
     }
 
     /// List all sources sensors
-    fn run_list_sensors(&mut self) -> Result<()> {
+    pub fn run_list_sensors(&mut self) -> Result<()> {
         let sensors: Vec<Sensor> = self
             .sources
             .iter()
@@ -96,7 +102,7 @@ impl JouleProfiler {
     }
 
     /// Run simple profiling mode
-    async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
+    pub async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running simple mode");
 
         let sources = std::mem::take(&mut self.sources);
@@ -157,7 +163,7 @@ impl JouleProfiler {
     }
 
     /// Run phase-based profiling mode
-    async fn run_phases(
+    pub async fn run_phases(
         &mut self,
         config: ProfileConfig,
         phases_config: PhasesConfig,
@@ -182,7 +188,7 @@ impl JouleProfiler {
                 |(
                     (duration_ms, begin_timestamp, exit_code, detected_phases),
                     (index, iteration),
-                )| {
+                ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
                     let mut phases: Vec<_> = detected_phases
                         .windows(2)
                         .zip(&iteration.phases)

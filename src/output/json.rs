@@ -17,7 +17,6 @@ pub struct JsonOutput {
     filename: String,
 }
 
-
 impl Displayer for JsonOutput {
     fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
         let phase = &result.phases[0];

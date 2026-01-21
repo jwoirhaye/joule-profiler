@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use crate::core::source::error::MetricSourceError;
-
 #[derive(Debug, Error)]
 pub enum RaplError {
     #[error("Intel RAPL not available at {0}")]
@@ -37,8 +35,12 @@ pub enum RaplError {
     #[error(transparent)]
     IoError(std::io::Error),
 
-    #[error("failed to parse energy value")]
-    ParseEnergyError(#[source] std::num::ParseIntError),
+    #[error("Failed to parse energy value")]
+    ParseEnergyError(
+        #[from]
+        #[source]
+        std::num::ParseIntError,
+    ),
 }
 
 impl From<std::io::Error> for RaplError {
@@ -48,11 +50,5 @@ impl From<std::io::Error> for RaplError {
             std::io::ErrorKind::PermissionDenied => RaplError::InsufficientPermissions,
             _ => RaplError::IoError(err),
         }
-    }
-}
-
-impl From<RaplError> for MetricSourceError {
-    fn from(err: RaplError) -> Self {
-        Self::Rapl { err }
     }
 }

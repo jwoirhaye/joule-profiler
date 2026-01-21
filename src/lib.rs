@@ -7,10 +7,10 @@ use crate::{cli::Cli, config::Config, util::logging::init_logging};
 pub use core::profiler::JouleProfiler;
 
 pub mod cli;
-mod config;
-mod core;
-mod output;
-mod sources;
+pub mod config;
+pub mod core;
+pub mod output;
+pub mod sources;
 mod util;
 
 /// Initialize and run Joule Profiler.

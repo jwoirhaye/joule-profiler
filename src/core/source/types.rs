@@ -1,6 +1,26 @@
-use std::{pin::Pin, time::Duration};
+use std::{fmt::Debug, pin::Pin, time::Duration};
 
-use crate::core::{aggregate::{iteration::SensorIteration, metric::Metrics}, source::{MetricSource, error::MetricSourceError, result::SensorResult}};
+use crate::core::{
+    aggregate::{iteration::SensorIteration, metric::Metrics, sensor_result::SensorResult},
+    source::{MetricSource, error::MetricSourceError},
+};
+
+/// Bounds of the type used in a metric reader
+pub trait MetricReaderTypeBound: Debug + Send + Default + Into<Metrics> {}
+
+impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send + Into<Metrics> {}
+
+pub trait MetricReaderErrorBound: std::error::Error + Send + Sync {}
+
+impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
+
+/// Future returned by a metric source worker
+pub type MetricSourceFuture = Pin<
+    Box<
+        dyn Future<Output = Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
+            + Send,
+    >,
+>;
 
 /// Events sent to a metric source worker
 #[derive(Debug, Clone, Copy)]
@@ -15,22 +35,14 @@ pub enum SourceEvent {
     NewIteration,
 
     /// Enable polling for the source
-    StartPolling,
+    StartScheduler,
 
     /// Disable polling for the source
-    StopPolling,
+    StopScheduler,
 
     /// Signal the worker to finish and join
     JoinWorker,
 }
-
-/// Future returned by a metric source worker
-pub type MetricSourceWorkerFuture = Pin<
-    Box<
-        dyn Future<Output = Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
-            + Send,
-    >,
->;
 
 /// Raw phase containing metrics from a metric reader
 #[derive(Debug, Default, Clone)]

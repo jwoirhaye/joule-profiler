@@ -10,8 +10,8 @@ use crate::sources::rapl::domain::socket::parse_or_all_sockets;
 use crate::sources::rapl::error::RaplError;
 use log::{debug, error, info, trace, warn};
 
-pub mod socket;
 pub mod domain_type;
+pub mod socket;
 
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]

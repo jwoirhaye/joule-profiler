@@ -63,7 +63,12 @@ impl CsvOutput {
     }
 
     /// Write a CSV row for a simple iteration.
-    fn write_row(&mut self, command: &[String], result: &Iteration, iteration: Option<usize>) -> Result<()> {
+    fn write_row(
+        &mut self,
+        command: &[String],
+        result: &Iteration,
+        iteration: Option<usize>,
+    ) -> Result<()> {
         write!(self.file, "'{}';", command.join(" "))?;
         if let Some(idx) = iteration {
             write!(self.file, "{};", idx)?;
@@ -83,7 +88,12 @@ impl CsvOutput {
     }
 
     /// Write a CSV row for a single phase.
-    fn write_row_phase(&mut self, command: &[String], phase: &Phase, iteration: Option<usize>) -> Result<()> {
+    fn write_row_phase(
+        &mut self,
+        command: &[String],
+        phase: &Phase,
+        iteration: Option<usize>,
+    ) -> Result<()> {
         write!(self.file, "'{}';", command.join(" "))?;
         if let Some(idx) = iteration {
             write!(self.file, "{};", idx)?;
