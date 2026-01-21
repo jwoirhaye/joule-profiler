@@ -73,20 +73,6 @@ pub struct Config {
     pub output_file: Option<String>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        let command = Command::ListSensors(ListSensorsConfig {
-            output_format: OutputFormat::Terminal,
-        });
-        Self {
-            command,
-            rapl_path: Default::default(),
-            output_format: Default::default(),
-            output_file: Default::default(),
-        }
-    }
-}
-
 /// Converts a [`Cli`] instance into a [`Config`] for the Joule Profiler.
 ///
 /// This implementation allows constructing a `Config` from the parsed CLI

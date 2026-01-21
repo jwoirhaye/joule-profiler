@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use log::{debug, trace, warn};
 use tokio::{select, sync::mpsc::Receiver, time::Instant};
 
 use crate::core::{
@@ -34,9 +35,11 @@ pub(crate) struct MetricAccumulator<R: MetricReader> {
     running: bool,
 }
 
-impl<T: MetricReader> MetricAccumulator<T> {
+impl<R: MetricReader> MetricAccumulator<R> {
     /// Create a new accumulator for the given reader
-    pub fn new(reader: T) -> Self {
+    pub fn new(reader: R) -> Self {
+        debug!("Creating MetricAccumulator for reader: {}", R::get_name());
+
         Self {
             metric_reader: reader,
             iterations: Vec::new(),
@@ -47,11 +50,16 @@ impl<T: MetricReader> MetricAccumulator<T> {
         }
     }
 
-    /// Measure the sensors metrics
     pub fn measure(&mut self) -> Result<(), MetricSourceError> {
         let now = Instant::now();
+
         if let Some(last) = self.last_instant {
-            self.current_iteration.total_elapsed += now.duration_since(last);
+            let delta = now.duration_since(last);
+            self.current_iteration.total_elapsed += delta;
+
+            trace!("Measure delta: {:?}", delta);
+        } else {
+            trace!("First measure in iteration");
         }
 
         self.last_instant = Some(now);
@@ -64,35 +72,55 @@ impl<T: MetricReader> MetricAccumulator<T> {
 
     /// Initialize a new measure phase
     pub fn new_phase(&mut self) -> Result<(), MetricSourceError> {
-        if let Ok(phase_counters) = self.metric_reader.retrieve() {
-            let phase_counters = RawPhase::new(phase_counters);
-            self.current_iteration.phases.push(phase_counters);
+        debug!(
+            "Starting new phase (current phases: {})",
+            self.current_iteration.phases.len()
+        );
 
-            Ok(())
-        } else {
-            Err(MetricSourceError::ErrorRetrievingCounters)
+        match self.metric_reader.retrieve() {
+            Ok(phase_counters) => {
+                let phase = RawPhase::new(phase_counters);
+                trace!("Phase counters retrieved");
+                self.current_iteration.phases.push(phase);
+                Ok(())
+            }
+            Err(_) => {
+                warn!("Failed to retrieve counters for new phase");
+                Err(MetricSourceError::ErrorRetrievingCounters)
+            }
         }
     }
 
     /// Initialize a new iteration
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
+        debug!(
+            "Finalizing iteration (phases={}, polls={})",
+            self.current_iteration.phases.len(),
+            self.poll_count
+        );
+
         if !self.current_iteration.phases.is_empty() {
             let mut iteration = std::mem::take(&mut self.current_iteration);
             iteration.measure_count = self.poll_count;
-            self.poll_count = 0;
 
+            trace!("Iteration total elapsed: {:?}", iteration.total_elapsed);
+
+            self.poll_count = 0;
             self.current_iteration.total_elapsed = Duration::ZERO;
             self.last_instant = None;
-            self.iterations.push(iteration);
 
+            self.iterations.push(iteration);
             Ok(())
         } else {
+            warn!("Attempted to create iteration with no phases");
             Err(MetricSourceError::NoPhaseInIteration)
         }
     }
 
     /// Retrieve all sensors measures and return the metric reader
     pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
+        debug!("Retrieving results (iterations={})", self.iterations.len());
+
         let iterations = self
             .iterations
             .into_iter()
@@ -100,7 +128,10 @@ impl<T: MetricReader> MetricAccumulator<T> {
             .collect();
 
         let result = SensorResult::new(iterations);
+
+        trace!("Resetting {} metric source for reuse", R::get_name());
         let boxed_source = Box::new(MetricAccumulator::new(self.metric_reader));
+
         Ok((result, boxed_source))
     }
 
@@ -109,22 +140,38 @@ impl<T: MetricReader> MetricAccumulator<T> {
         mut self,
         mut rx: Receiver<SourceEvent>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
+        debug!("MetricAccumulator worker started");
+
         loop {
             select! {
                 Some(event) = rx.recv() => {
+                    trace!("Worker received event: {:?}", event);
+
                     match event {
                         SourceEvent::Measure => self.measure()?,
                         SourceEvent::NewPhase => self.new_phase()?,
                         SourceEvent::NewIteration => self.new_iteration()?,
-                        SourceEvent::StartScheduler => self.running = true,
-                        SourceEvent::StopScheduler => self.running = false,
-                        SourceEvent::JoinWorker => return self.retrieve(),
+                        SourceEvent::StartScheduler => {
+                            debug!("Scheduler started");
+                            self.running = true;
+                        }
+                        SourceEvent::StopScheduler => {
+                            debug!("Scheduler stopped");
+                            self.running = false;
+                        }
+                        SourceEvent::JoinWorker => {
+                            debug!("Worker join requested");
+                            return self.retrieve();
+                        }
                     }
                 },
-                res =  self.metric_reader.scheduler(), if self.running => {
+
+                res = self.metric_reader.scheduler(), if self.running => {
                     self.poll_count += 1;
+                    trace!("Scheduler tick (poll #{})", self.poll_count);
 
                     if let Err(err) = res {
+                        warn!("Scheduler error: {}", err);
                         return Err(err.into_metric_source_error());
                     }
                 }
@@ -134,6 +181,8 @@ impl<T: MetricReader> MetricAccumulator<T> {
 
     /// Return all sensors from the reader
     pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
+        trace!("Retrieving sensors from metric reader {}", R::get_name());
+
         self.metric_reader
             .get_sensors()
             .map_err(IntoMetricSourceError::into_metric_source_error)

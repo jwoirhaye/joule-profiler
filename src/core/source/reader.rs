@@ -14,9 +14,9 @@ use crate::core::{
 ///
 /// # Associated Types
 ///
-/// - `Type` (`MetricReaderTypeBound`): The type returned by the reader when
+/// - `Type` ([`MetricReaderTypeBound`]): The type returned by the reader when
 ///   retrieving metrics. Typically represents a snapshot or collection of metrics.
-/// - `Error` (`MetricReaderErrorBound`): The error type produced by the reader.
+/// - `Error` ([`MetricReaderErrorBound`]): The error type produced by the reader.
 ///
 /// # Required Methods
 ///
@@ -52,4 +52,6 @@ pub trait MetricReader: Send + 'static {
         trace!("Internal scheduler not implemented for this source");
         pending()
     }
+
+    fn get_name() -> &'static str;
 }

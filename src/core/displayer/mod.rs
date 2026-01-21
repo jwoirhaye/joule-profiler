@@ -11,10 +11,10 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
 //! use joule_profiler::{displayer::Displayer, config::Config};
 //!
-//! let config = Config::default();
+//! // We assume you have a Config variable
 //! let mut displayer: Box<dyn Displayer> = Box::try_from(&config).unwrap();
 //!
 //! // displayer.simple_single(&cmd, &iteration)?;
