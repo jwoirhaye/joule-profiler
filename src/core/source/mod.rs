@@ -6,20 +6,19 @@ use crate::core::{
         accumulator::MetricAccumulator,
         error::MetricSourceError,
         reader::MetricReader,
-        types::{MetricSourceWorkerFuture, SourceEvent},
+        types::{MetricSourceFuture, SourceEvent},
     },
 };
 
 pub mod accumulator;
 pub mod error;
 pub mod reader;
-pub mod result;
 pub mod types;
 
-/// Trait representing a metric source and required to be used in profiler 
+/// Trait representing a metric source and required to be used in profiler
 pub trait MetricSource: Send {
     /// Runs the worker and returns a future that resolves with the result and the source itself
-    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture;
+    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceFuture;
 
     /// List all sensors available from this source
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
@@ -38,7 +37,7 @@ where
     T: MetricReader,
 {
     /// Run the worker for the metric accumulator
-    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceWorkerFuture {
+    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceFuture {
         Box::pin(async move { self.run_worker(rx).await })
     }
 

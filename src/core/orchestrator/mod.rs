@@ -5,8 +5,9 @@ use tokio::{
 };
 
 use crate::core::{
+    aggregate::sensor_result::SensorResult,
     orchestrator::error::OrchestratorError,
-    source::{MetricSource, error::MetricSourceError, result::SensorResult, types::SourceEvent},
+    source::{MetricSource, error::MetricSourceError, types::SourceEvent},
 };
 
 pub mod error;
@@ -55,7 +56,7 @@ impl SourceOrchestrator {
     /// Start polling all metrics sources
     #[inline]
     pub async fn start_polling(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::StartPolling).await
+        self.send_event(SourceEvent::StartScheduler).await
     }
 
     /// Measure the metrics of each metrics source
@@ -73,7 +74,7 @@ impl SourceOrchestrator {
     /// Pause the polling of a metrics source if enabled
     #[inline]
     pub async fn stop_polling(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::StopPolling).await
+        self.send_event(SourceEvent::StopScheduler).await
     }
 
     /// Initialize a new iteration for each metrics source
@@ -109,7 +110,7 @@ impl SourceOrchestrator {
                 let handle = self.handles.swap_remove(i);
 
                 let err = match handle.await {
-                    Ok(Err(err)) => OrchestratorError::SourceError { err },
+                    Ok(Err(err)) => err.into(),
                     Err(err) => OrchestratorError::JoinError(err),
                     _ => OrchestratorError::SendError(sender_error),
                 };

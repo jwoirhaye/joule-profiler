@@ -23,8 +23,15 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let mode = Command::ListSensors(ListSensorsConfig { output_format: OutputFormat::Terminal });
-        Self { mode, rapl_path: Default::default(), output_format: Default::default(), output_file: Default::default() }
+        let mode = Command::ListSensors(ListSensorsConfig {
+            output_format: OutputFormat::Terminal,
+        });
+        Self {
+            mode,
+            rapl_path: Default::default(),
+            output_format: Default::default(),
+            output_file: Default::default(),
+        }
     }
 }
 
@@ -76,7 +83,7 @@ impl From<Cli> for Config {
     }
 }
 
-/// The configuration that can be executed 
+/// The configuration that can be executed
 #[derive(Debug, Clone)]
 pub enum Command {
     /// Profile a command with either simple or phase mode
@@ -111,7 +118,7 @@ pub struct ProfileConfig {
 /// Mode of profiling
 #[derive(Debug, Clone)]
 pub enum Mode {
-    /// Simple profiling mode (aggregated metrics)
+    /// Simple profiling mode
     SimpleMode,
 
     /// Phase-based profiling with token extraction
@@ -124,7 +131,6 @@ pub struct PhasesConfig {
     /// Regex pattern to detect start and end tokens in command output
     pub token_pattern: String,
 }
-
 
 /// Configuration for listing sensors
 #[derive(Debug, Clone)]

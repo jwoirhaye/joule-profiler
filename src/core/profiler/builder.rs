@@ -1,4 +1,9 @@
-use crate::{JouleProfiler, config::Config, core::{displayer::Displayer, source::MetricSource}, output::OutputFormat};
+use crate::{
+    JouleProfiler,
+    config::Config,
+    core::{displayer::Displayer, source::MetricSource},
+    output::OutputFormat,
+};
 
 #[derive(Default)]
 pub struct JouleProfilerBuilder {
@@ -51,7 +56,17 @@ impl JouleProfilerBuilder {
 
 impl From<JouleProfilerBuilder> for JouleProfiler {
     fn from(builder: JouleProfilerBuilder) -> Self {
-        let config = Config { output_file: builder.output_file, output_format: builder.output_format, rapl_path: builder.rapl_path, ..Default::default() };
-        Self { displayer: builder.displayer.unwrap_or_default(), config, sources: builder.sources, ..Default::default() }
+        let config = Config {
+            output_file: builder.output_file,
+            output_format: builder.output_format,
+            rapl_path: builder.rapl_path,
+            ..Default::default()
+        };
+        Self {
+            displayer: builder.displayer.unwrap_or_default(),
+            config,
+            sources: builder.sources,
+            ..Default::default()
+        }
     }
 }
