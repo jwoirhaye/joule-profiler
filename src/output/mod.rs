@@ -5,9 +5,10 @@ pub mod json;
 pub mod terminal;
 
 /// Supported output formats
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum OutputFormat {
     /// Output to terminal
+    #[default]
     Terminal,
 
     /// Output as JSON
@@ -28,12 +29,6 @@ impl Display for OutputFormat {
     }
 }
 
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Terminal
-    }
-}
-
 /// Determine output format from flags
 pub fn output_format(json: bool, csv: bool) -> OutputFormat {
     if json {
@@ -44,4 +39,3 @@ pub fn output_format(json: bool, csv: bool) -> OutputFormat {
         OutputFormat::Terminal
     }
 }
-

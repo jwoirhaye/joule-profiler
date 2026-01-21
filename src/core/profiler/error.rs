@@ -37,34 +37,31 @@ pub enum JouleProfilerError {
     #[error("Stdout capture failed")]
     StdOutCaptureFail,
 
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    #[error("I/O error")]
+    IoError(
+        #[from]
+        #[source]
+        std::io::Error,
+    ),
 
     #[error("Metric source error")]
-    Source {
+    MetricSourceError(
+        #[from]
         #[source]
-        err: MetricSourceError,
-    },
+        MetricSourceError,
+    ),
 
     #[error("Displayer error")]
-    Displayer {
+    DisplayerError(
+        #[from]
         #[source]
-        err: DisplayerError,
-    },
+        DisplayerError,
+    ),
 
     #[error("Orchestrator error")]
-    Orchestrator {
+    OrchestratorError(
+        #[from]
         #[source]
-        err: OrchestratorError,
-    },
-}
-
-impl JouleProfilerError {
-    pub fn command_not_found(cmd: impl AsRef<str>) -> Self {
-        Self::CommandNotFound(cmd.as_ref().to_string())
-    }
-
-    pub fn token_not_found(token: impl AsRef<str>) -> Self {
-        Self::TokenNotFound(token.as_ref().to_string())
-    }
+        OrchestratorError,
+    ),
 }

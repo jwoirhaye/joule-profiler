@@ -36,14 +36,15 @@ pub type Result<T> = std::result::Result<T, RaplError>;
 pub struct Rapl {
     /// Managed RAPL domains
     domains: Vec<RaplDomain>,
+
     /// Optional periodic polling interval
     ticker: Option<Interval>,
+
     /// Latest read counters
     current_counters: Snapshot,
+
     /// Last snapshot, if available
     last_snapshot: Option<Snapshot>,
-    /// Whether polling is active
-    polling_active: bool,
 }
 
 impl Rapl {
@@ -136,10 +137,8 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    async fn internal_scheduler(&mut self) -> Result<()> {
-        if self.polling_active
-            && let Some(ticker) = &mut self.ticker
-        {
+    async fn scheduler(&mut self) -> Result<()> {
+        if let Some(ticker) = &mut self.ticker {
             ticker.next().await;
             self.measure()?;
         }
@@ -162,14 +161,9 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    fn retrieve_counters(&mut self) -> Result<Self::Type> {
+    fn retrieve(&mut self) -> Result<Self::Type> {
         let counters = std::mem::take(&mut self.current_counters);
         Ok(counters)
-    }
-
-    fn set_polling(&mut self, polling: bool) -> Result<()> {
-        self.polling_active = polling;
-        Ok(())
     }
 }
 
@@ -192,7 +186,6 @@ fn check_rapl(base: &str) -> Result<()> {
     info!("RAPL interface found at {}", base);
     Ok(())
 }
-
 
 /// Check if the program can read RAPL powercap files
 fn check_root_rights(base: &str) -> Result<()> {

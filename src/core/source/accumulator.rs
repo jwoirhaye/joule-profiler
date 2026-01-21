@@ -3,13 +3,13 @@ use std::time::Duration;
 use tokio::{select, sync::mpsc::Receiver, time::Instant};
 
 use crate::core::{
+    aggregate::sensor_result::SensorResult,
     sensor::Sensors,
     source::{
         MetricSource,
         error::MetricSourceError,
         reader::MetricReader,
-        result::SensorResult,
-        types::{RawPhase, RawIteration, SourceEvent},
+        types::{RawIteration, RawPhase, SourceEvent},
     },
 };
 
@@ -30,6 +30,8 @@ pub struct MetricAccumulator<R: MetricReader> {
 
     /// Monotonic timestamp of last snapshot
     last_instant: Option<Instant>,
+
+    running: bool,
 }
 
 impl<T: MetricReader> MetricAccumulator<T> {
@@ -41,6 +43,7 @@ impl<T: MetricReader> MetricAccumulator<T> {
             current_iteration: RawIteration::default(),
             last_instant: None,
             poll_count: 0,
+            running: false,
         }
     }
 
@@ -52,14 +55,16 @@ impl<T: MetricReader> MetricAccumulator<T> {
         }
 
         self.last_instant = Some(now);
-        self.metric_reader.measure().map_err(|err| err.into())?;
+        self.metric_reader
+            .measure()
+            .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
         Ok(())
     }
 
     /// Initialize a new measure phase
     pub fn new_phase(&mut self) -> Result<(), MetricSourceError> {
-        if let Ok(phase_counters) = self.metric_reader.retrieve_counters() {
+        if let Ok(phase_counters) = self.metric_reader.retrieve() {
             let phase_counters = RawPhase::new(phase_counters);
             self.current_iteration.phases.push(phase_counters);
 
@@ -86,12 +91,6 @@ impl<T: MetricReader> MetricAccumulator<T> {
         }
     }
 
-    fn set_polling(&mut self, polling: bool) -> Result<(), MetricSourceError> {
-        self.metric_reader
-            .set_polling(polling)
-            .map_err(|err| err.into())
-    }
-
     /// Retrieve all sensors measures and return the metric reader
     pub fn retrieve(self) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         let iterations = self
@@ -112,29 +111,44 @@ impl<T: MetricReader> MetricAccumulator<T> {
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         loop {
             select! {
-                res = self.metric_reader.internal_scheduler() => {
-                    self.poll_count += 1;
-
-                    if let Err(err) = res {
-                        return Err(err.into());
-                    }
-                }
                 Some(event) = rx.recv() => {
                     match event {
                         SourceEvent::Measure => self.measure()?,
                         SourceEvent::NewPhase => self.new_phase()?,
                         SourceEvent::NewIteration => self.new_iteration()?,
-                        SourceEvent::StartPolling => self.set_polling(true)?,
-                        SourceEvent::StopPolling => self.set_polling(false)?,
+                        SourceEvent::StartScheduler => self.running = true,
+                        SourceEvent::StopScheduler => self.running = false,
                         SourceEvent::JoinWorker => return self.retrieve(),
                     }
                 },
+                res =  self.metric_reader.scheduler(), if self.running => {
+                    self.poll_count += 1;
+
+                    if let Err(err) = res {
+                        return Err(err.into_metric_source_error());
+                    }
+                }
             }
         }
     }
 
     /// Return all sensors from the reader
     pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
-        self.metric_reader.get_sensors().map_err(|err| err.into())
+        self.metric_reader
+            .get_sensors()
+            .map_err(IntoMetricSourceError::into_metric_source_error)
+    }
+}
+
+pub trait IntoMetricSourceError {
+    fn into_metric_source_error(self) -> MetricSourceError;
+}
+
+impl<T> IntoMetricSourceError for T
+where
+    T: std::error::Error + Send + Sync + 'static,
+{
+    fn into_metric_source_error(self) -> MetricSourceError {
+        MetricSourceError::External(Box::new(self))
     }
 }
