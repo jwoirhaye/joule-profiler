@@ -6,6 +6,8 @@
 
 - [Installation](./tutorials/install.md)
 
+- [Architecture](./architecture.md)
+
 # Supported Sources
 
 - [RAPL](./sources/rapl/README.md)

@@ -80,6 +80,7 @@ Because the RAPL energy counters are stored in hardware registers with finite bi
 The `max_energy_range_uj` file to indicate this threshold. To ensure accurate measurements, especially for long-running benchmarks, the monitoring tool must implement a robust overflow detection and correction logic.
 
 To handle these overflows, the measurement worker thread performs **frequent polling** of the `energy_uj` files. By sampling the counters at a rate significantly higher than the theoretical minimum time it takes for a counter to wrap around, we can safely detect an overflow and correct it. The polling rate must be higher than the minimal period of an overflow, otherwise, an overflow could not be always detected.
+In the future, we might implement an overflow period to minimize polling and reduce the overhead it introduces, even so it is not huge .
 
 ## Limitations
 
