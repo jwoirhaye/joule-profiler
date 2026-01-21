@@ -1,24 +1,93 @@
+//! Representation of measurable sensors.
+//!
+//! This module defines the structures used to describe sensors collected
+//! by JouleProfiler. Sensors are associated with metric sources and are
+//! used to represent individual measurements.
+//!
+//! # Structures
+//!
+//! - [`Sensor`] — Represents a single measurable sensor, with a name, unit, and source.
+//! - [`Sensors`] — A collection of [`Sensor`] objects.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use joule_profiler::sensor::{Sensor, Sensors};
+//!
+//! // Create a single sensor
+//! let cpu_sensor = Sensor::new(
+//!     "CORE-0".to_string(),
+//!     "uJ".to_string(),
+//!     "powercap".to_string(),
+//! );
+//!
+//! // Collect sensors into a vector
+//! let sensors: Sensors = vec![cpu_sensor];
+//! assert_eq!(sensors.len(), 1);
+//! ```
+
 use serde::Serialize;
 
-/// Represents a measurable sensor
+/// Represents a measurable sensor.
+///
+/// A sensor corresponds to a metric collected from a source. Each sensor
+/// has a name, a unit of measurement, and an origin indicating the source
+/// providing this metric.
+///
+/// # Fields
+///
+/// - `name` (`String`) - The human-readable name of the sensor (e.g., `"CORE-0"`).
+/// - `unit` (`String`) - The unit of measurement for the sensor (e.g., `"uJ"`).
+/// - `source` (`String`) - The origin of the sensor (e.g., `"powercap"`).
+///
+/// # Examples
+///
+/// ```no_run
+/// use joule_profiler::sensor::Sensor;
+///
+/// let sensor = Sensor {
+///     name: "CORE-0".to_string(),
+///     unit: "uJ".to_string(),
+///     source: "powercap".to_string(),
+/// };
+/// assert_eq!(sensor.name, "CORE-0");
+/// assert_eq!(sensor.unit, "uJ");
+/// assert_eq!(sensor.source, "powercap");
+/// ```
 #[derive(Debug, Serialize)]
 pub struct Sensor {
-    /// Sensor name
     pub name: String,
 
-    /// Unit of the sensor value
     pub unit: String,
 
-    /// Source or origin of the sensor
     pub source: String,
 }
 
 impl Sensor {
-    /// Create a new Sensor
+    /// Create a new sensor
+    ///
+    /// # Arguments
+    ///
+    /// - `name` (`String`) - The sensor name
+    /// - `unit` (`String`) - Unit of measurement
+    /// - `source` (`String`) - The origin of the sensor
+    ///
+    /// # Returns
+    ///
+    /// - 'Self' - The sensor
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use joule_profiler::sensor::Sensor;
+    ///
+    /// let sensor = Sensor::new("CPU Energy".to_string(), "Joule".to_string(), "RAPL".to_string());
+    /// assert_eq!(sensor.name, "CPU Energy");
+    /// ```
     pub fn new(name: String, unit: String, source: String) -> Self {
         Self { name, unit, source }
     }
 }
 
-/// Collection of sensors
+/// A collection of sensors.
 pub type Sensors = Vec<Sensor>;

@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::core::{aggregate::metric::Metrics, phase::PhaseToken};
+use crate::core::{aggregate::Metrics, phase::PhaseToken};
 
 /// Represents a profiling phase with metrics and timing
 #[derive(Debug, Serialize)]
