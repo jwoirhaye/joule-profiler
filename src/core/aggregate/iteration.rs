@@ -9,19 +9,19 @@ pub struct SensorIteration {
     pub phases: Vec<SensorPhase>,
 
     /// Interval between measurements
-    pub measure_delta: u64,
+    pub poll_delta: u64,
 
     /// Number of collected measurements
-    pub measure_count: u64,
+    pub poll_count: u64,
 }
 
 impl SensorIteration {
     /// Creates a new sensor iteration
-    pub fn new(phases: Vec<SensorPhase>, measure_delta: u64, measure_count: u64) -> Self {
+    pub fn new(phases: Vec<SensorPhase>, poll_delta: u64, poll_count: u64) -> Self {
         Self {
             phases,
-            measure_delta,
-            measure_count,
+            poll_delta,
+            poll_count,
         }
     }
 }

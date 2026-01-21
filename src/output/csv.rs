@@ -38,16 +38,15 @@ impl CsvOutput {
         include_iteration: bool,
         include_phase: bool,
     ) -> Result<()> {
-        write!(self.file, "command;")?;
-
         if include_iteration {
             write!(self.file, "iteration;")?;
         }
+        write!(self.file, "command;")?;
 
         if include_phase {
             write!(
                 self.file,
-                "phase_name;start_token;end_token;start_line;end_line;"
+                "start_token;end_token;start_line;"
             )?;
         }
 
@@ -57,7 +56,7 @@ impl CsvOutput {
 
         writeln!(
             self.file,
-            "duration_ms;measure_count;measure_delta;exit_code"
+            "duration_ms;poll_count;poll_delta;exit_code"
         )?;
         Ok(())
     }
@@ -82,38 +81,75 @@ impl CsvOutput {
         writeln!(
             self.file,
             "{};{};{};{};",
-            result.duration_ms, result.measure_count, result.measure_delta, result.exit_code
+            result.duration_ms, result.poll_count, result.poll_delta, result.exit_code
         )?;
         Ok(())
     }
 
     /// Write a CSV row for a single phase.
-    fn write_row_phase(
-        &mut self,
-        command: &[String],
-        phase: &Phase,
-        iteration: Option<usize>,
-    ) -> Result<()> {
-        write!(self.file, "'{}';", command.join(" "))?;
-        if let Some(idx) = iteration {
-            write!(self.file, "{};", idx)?;
-        }
-
-        write!(self.file, "{};", phase.start_token)?;
-        write!(self.file, "{};", phase.end_token)?;
-        write!(
-            self.file,
-            "{};",
-            phase.line_number.map(|l| l.to_string()).unwrap_or_default()
-        )?;
-
-        for metric in &phase.metrics {
-            write!(self.file, "{};", metric.value)?;
-        }
-
-        writeln!(self.file, "{};", phase.duration_ms)?;
-        Ok(())
+    fn write_row_phase(&mut self, phase: &Phase, iteration_index: Option<usize>) -> Result<()> {
+    if let Some(i) = iteration_index {
+        write!(self.file, "{};", i)?;
     }
+
+    // command
+    write!(self.file, ";")?;
+
+    // phase columns
+    write!(
+        self.file,
+        "{};{};{};",
+        phase.start_token,
+        phase.end_token,
+        phase.line_number
+            .map(|l| l.to_string())
+            .unwrap_or_default(),
+    )?;
+
+    for metric in &phase.metrics {
+        write!(self.file, "{};", metric.value)?;
+    }
+
+    write!(self.file, "{};", phase.duration_ms)?;
+    writeln!(self.file, ";;")?;
+
+    Ok(())
+}
+
+    fn write_iteration_row(
+    &mut self,
+    command: &[String],
+    iteration: &Iteration,
+    index: Option<usize>,
+) -> Result<()> {
+    // iteration index
+    if let Some(i) = index {
+        write!(self.file, "{};", i)?;
+    }
+    write!(self.file, "'{}';", command.join(" "))?;
+
+    // phase columns
+    write!(self.file, ";;;")?;
+
+    let phase = &iteration.phases[0];
+    for _ in &phase.metrics {
+        write!(self.file, ";")?;
+    }
+
+    write!(self.file, "{};", iteration.duration_ms)?;
+
+    // iteration metadata
+    writeln!(
+        self.file,
+        "{};{};{}",
+        iteration.poll_count,
+        iteration.poll_delta,
+        iteration.exit_code
+    )?;
+
+    Ok(())
+}
+
 
     /// Print a message indicating the CSV file has been written.
     fn finalize(&self) {
@@ -173,10 +209,12 @@ impl Displayer for CsvOutput {
             .iter()
             .map(|metric| &metric.name)
             .collect();
+
         self.write_header(&keys, false, true)?;
+        self.write_iteration_row(cmd, result, None)?;
 
         for phase in &result.phases {
-            self.write_row_phase(cmd, phase, None)?;
+            self.write_row_phase(phase, None)?;
         }
 
         self.finalize();
@@ -204,11 +242,14 @@ impl Displayer for CsvOutput {
             .iter()
             .map(|metric| &metric.name)
             .collect();
+
         self.write_header(&keys, true, true)?;
 
-        for (idx, iteration_results) in iterations.iter().enumerate() {
-            for phase in &iteration_results.phases {
-                self.write_row_phase(cmd, phase, Some(idx))?;
+        for (i, iteration) in iterations.iter().enumerate() {
+            self.write_iteration_row(cmd, iteration, Some(i))?;
+
+            for phase in &iteration.phases {
+                self.write_row_phase(phase, Some(i))?;
             }
         }
 

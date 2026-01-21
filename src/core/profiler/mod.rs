@@ -49,7 +49,7 @@ use crate::{
     sources::Rapl,
     util::{
         command::run_command, file::create_file_with_user_permissions, logging::init_logging,
-        time::get_timestamp_micros,
+        time::get_timestamp_millis,
     },
 };
 
@@ -215,8 +215,8 @@ impl JouleProfiler {
                         begin_timestamp,
                         duration_ms,
                         exit_code,
-                        iteration.measure_count,
-                        iteration.measure_delta,
+                        iteration.poll_count,
+                        iteration.poll_delta,
                     )
                 },
             )
@@ -302,8 +302,8 @@ impl JouleProfiler {
                         begin_timestamp,
                         duration_ms,
                         exit_code,
-                        iteration.measure_count,
-                        iteration.measure_delta,
+                        iteration.poll_count,
+                        iteration.poll_delta,
                     )
                 },
             )
@@ -330,18 +330,18 @@ impl JouleProfiler {
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
 
         let (exit_code, _) = run_command(&config.cmd, config.stdout_file.as_ref())?;
 
-        let end_timestamp = get_timestamp_micros();
+        let end_timestamp = get_timestamp_millis();
 
         self.orchestrator.measure().await?;
         self.orchestrator.stop_polling().await?;
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
 
-        let duration_ms = (end_timestamp - begin_timestamp) / 1000;
+        let duration_ms = end_timestamp - begin_timestamp;
 
         Ok((duration_ms, begin_timestamp, exit_code))
     }
@@ -371,7 +371,7 @@ impl JouleProfiler {
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         trace!("Begin timestamp: {}", begin_timestamp);
 
         let mut command = process::Command::new(&config.cmd[0]);
@@ -407,7 +407,7 @@ impl JouleProfiler {
             )
             .await?;
 
-        let end_timestamp = get_timestamp_micros();
+        let end_timestamp = get_timestamp_millis();
         trace!("End timestamp: {}", end_timestamp);
 
         self.orchestrator.measure().await?;
@@ -463,7 +463,7 @@ impl JouleProfiler {
             }
 
             if let Some(token) = has_phase_token_in_line(regex, &line) {
-                let phase_timestamp = get_timestamp_micros();
+                let phase_timestamp = get_timestamp_millis();
                 let phase_duration = phase_timestamp - current_phase_timestamp;
 
                 debug!("Detected phase at line {}, token '{}'", line_number, token);
@@ -527,7 +527,7 @@ mod tests {
         config::{Command, Config, ListSensorsConfig},
         core::{orchestrator::SourceOrchestrator, phase::PhaseToken},
         output::{OutputFormat, TerminalOutput},
-        util::time::get_timestamp_micros,
+        util::time::get_timestamp_millis,
     };
 
     fn joule_profiler() -> JouleProfiler {
@@ -554,7 +554,7 @@ mod tests {
         let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
         let reader = BufReader::new(cursor);
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -573,7 +573,7 @@ mod tests {
         let cursor = Cursor::new("hello\nworld\nno phases here");
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -589,7 +589,7 @@ mod tests {
         let cursor = Cursor::new("");
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -605,7 +605,7 @@ mod tests {
         let cursor = Cursor::new("start __PHASE1__ end");
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -623,7 +623,7 @@ mod tests {
         let cursor = Cursor::new("a\nb\n__PHASE1__\nc\n__PHASE2__");
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -641,7 +641,7 @@ mod tests {
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
@@ -666,7 +666,7 @@ mod tests {
         let reader = BufReader::new(cursor);
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
 
         profiler
             .detect_and_handle_phases_from_program_output(
@@ -695,7 +695,7 @@ mod tests {
         let cursor = Cursor::new(bytes);
         let reader = BufReader::new(cursor);
 
-        let begin_timestamp = get_timestamp_micros();
+        let begin_timestamp = get_timestamp_millis();
         let phases = profiler
             .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
             .await
