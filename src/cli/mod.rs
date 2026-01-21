@@ -2,6 +2,8 @@ use clap::{ArgAction, Parser};
 
 pub use commands::ProfilerCommand;
 
+use crate::JouleProfilerError;
+
 mod commands;
 
 /// joule-profiler: measure program energy consumption using Intel RAPL
@@ -36,11 +38,18 @@ pub struct Cli {
     #[arg(long, conflicts_with = "json")]
     pub csv: bool,
 
-    /// Output file for CSV/JSON (else data<TIMESTAMP>.csv/json)
+    /// Output file for CSV/JSON (else `data<TIMESTAMP>`.csv/json)
     #[arg(short = 'o', long = "output-file")]
     pub output_file: Option<String>,
 
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,
+}
+
+impl Cli {
+    pub fn from_args() -> Result<Cli, JouleProfilerError> {
+        let cli = Cli::try_parse()?;
+        Ok(cli)
+    }
 }

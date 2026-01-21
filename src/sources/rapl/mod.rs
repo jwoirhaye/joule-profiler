@@ -1,3 +1,47 @@
+//! Module `rapl` — Intel RAPL metric source.
+//!
+//! This module provides an implementation of a [`MetricReader`] for
+//! collecting energy metrics from Intel RAPL (Running Average Power Limit) domains.
+//!
+//! The `Rapl` struct manages RAPL domains, reads energy counters,
+//! and optionally supports periodic polling for continuous measurement.
+//!
+//! # Features
+//!
+//! - Discover available RAPL domains under a given path.
+//! - Read instantaneous energy consumption snapshots.
+//! - Compute energy usage between consecutive snapshots.
+//! - Provide sensors information for integration with the profiler.
+//! - Optional async scheduler for periodic measurement.
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use joule_profiler::sources::Rapl;
+//! use joule_profiler::reader::MetricReader;
+//! use std::collections::HashSet;
+//!
+//! // Initialize a RAPL reader (no polling, monitoring all sockets)
+//! let mut rapl = Rapl::try_new("/sys/devices/virtual/powercap/intel-rapl", None, None).unwrap();
+//!
+//! // Measure and update internal counters
+//! rapl.measure().unwrap();
+//!
+//! // Retrieve available sensors
+//! let sensors = rapl.get_sensors().unwrap();
+//!
+//! // Retrieve collected counters
+//! let counters = rapl.retrieve().unwrap();
+//! ```
+//!
+//! # Errors
+//!
+//! All RAPL operations return a [`RaplError`]. Possible errors include:
+//! - [`RaplError::RaplNotAvailable`] - no RAPL domains found at the specified path.
+//! - [`RaplError::InsufficientPermissions`] - requires elevated privileges to read powercap files.
+//! - [`RaplError::UnsupportedOS`] - only Linux is supported.
+//! - [`RaplError::RaplReadError`] or [`RaplError::InvalidRaplPath`] - problems reading counters or invalid paths.
+
 use std::{
     collections::{HashMap, HashSet},
     env, fs,
@@ -24,33 +68,52 @@ use crate::{
 };
 
 mod domain;
-pub mod error;
-pub mod snapshot;
+pub(crate) mod error;
+mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
 
 /// Custom result type for Rapl
-pub type Result<T> = std::result::Result<T, RaplError>;
+type Result<T> = std::result::Result<T, RaplError>;
 
+/// RAPL metric source
+///
+/// Implements [`MetricReader`] and provides energy metrics from Intel RAPL.
+///
+/// # Fields
+///
+/// - `domains`: Managed RAPL domains discovered under the base path. Each domain corresponds
+///   to a CPU socket and an energy domain.
+/// - `ticker`: Optional periodic polling interval. If set, [`Self::scheduler`] will trigger
+///   measurements at this interval.
+/// - `current_counters`: Latest energy counters collected by this reader. Updated by
+///   [`Self::measure`] and returned by [`Self::retrieve`].
+/// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
+///   between measurements.
 #[derive(Default)]
 pub struct Rapl {
-    /// Managed RAPL domains
     domains: Vec<RaplDomain>,
 
-    /// Optional periodic polling interval
     ticker: Option<Interval>,
 
-    /// Latest read counters
     current_counters: Snapshot,
 
-    /// Last snapshot, if available
     last_snapshot: Option<Snapshot>,
 }
 
 impl Rapl {
-    /// Initialize a new RAPL reader for the given path and sockets
+    /// Creates a new RAPL reader for the given path and sockets.
     ///
-    /// Optionally enables periodic polling at the given rate in seconds
+    /// `rapl_path` — base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)  
+    /// `sockets` — optional set of CPU sockets to monitor  
+    /// `polling_rate_s` — optional interval in seconds for periodic measurement
+    ///
+    /// # Errors
+    ///
+    /// Returns a `RaplError` if:
+    /// - RAPL interface is unavailable
+    /// - Path is invalid
+    /// - Permissions are insufficient
     pub fn try_new(
         rapl_path: &str,
         sockets: Option<&HashSet<u32>>,
@@ -73,8 +136,19 @@ impl Rapl {
         Ok(rapl)
     }
 
-    /// Read a snapshot of current energy counters for all domains
-    pub fn read_snapshot(&self) -> Result<Snapshot> {
+    /// Create a new RAPL instance with domains and optional ticker.
+    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
+        Self {
+            domains,
+            ticker,
+            ..Default::default()
+        }
+    }
+
+    /// Reads a snapshot of current energy counters for all domains.
+    ///
+    /// Returns a `Snapshot` containing the energy in microjoules.
+    fn read_snapshot(&self) -> Result<Snapshot> {
         trace!(
             "Reading energy snapshot from {} domains",
             self.domains.len()
@@ -89,24 +163,18 @@ impl Rapl {
 
         Ok(Snapshot { metrics: map })
     }
-
-    /// Create a new RAPL instance with domains and optional ticker
-    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
-        Self {
-            domains,
-            ticker,
-            ..Default::default()
-        }
-    }
 }
 
 impl TryFrom<&Config> for Rapl {
     type Error = RaplError;
 
+    /// Initialize a `Rapl` reader from a [`Config`] object.
+    ///
+    /// Automatically resolves the base path and polling settings.
     fn try_from(config: &Config) -> Result<Self> {
         let base_path = rapl_base_path(config.rapl_path.as_deref());
 
-        let (sockets, rapl_polling) = match &config.mode {
+        let (sockets, rapl_polling) = match &config.command {
             Command::Profile(profile_config) => {
                 check_root_rights(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
@@ -214,7 +282,7 @@ fn check_root_rights(base: &str) -> Result<()> {
 }
 
 /// Resolves the RAPL base path from configuration and environment.
-pub fn rapl_base_path(config_override: Option<&str>) -> String {
+fn rapl_base_path(config_override: Option<&str>) -> String {
     if let Some(path) = config_override {
         return path.to_string();
     }
@@ -228,7 +296,7 @@ pub fn rapl_base_path(config_override: Option<&str>) -> String {
 }
 
 /// Checks if the operating system is Linux.
-pub fn check_os() -> Result<()> {
+fn check_os() -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         Ok(())

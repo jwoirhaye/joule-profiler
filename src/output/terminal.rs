@@ -1,5 +1,5 @@
 use crate::core::{
-    aggregate::metric::Metric,
+    aggregate::Metric,
     displayer::{Displayer, Result},
     phase::PhaseToken,
     profiler::types::Iteration,

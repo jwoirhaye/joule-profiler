@@ -1,3 +1,26 @@
+//! Profiler module
+//!
+//! This module provides the main `JouleProfiler` struct, which orchestrates
+//! the execution of commands, collection of metrics from various sources,
+//! and displaying results in different output formats.
+//!
+//! # Overview
+//!
+//! - [`JouleProfiler`] is the main entry point for running profiling sessions.
+//! - Metrics sources implement [`MetricReader`] and [`MetricSource`].
+//! - The profiler supports simple and phase-based profiling modes.
+//! - Display is handled via the [`Displayer`] trait, which can output to
+//!   terminal, JSON, CSV, or custom formats.
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use joule_profiler::{JouleProfiler, config::Config};
+//!
+//! let config = Config::default();
+//! let mut profiler = JouleProfiler::try_from(config).unwrap();
+//! ```
+
 use std::{
     fs::File,
     io::{BufRead, BufReader, ErrorKind, Write},
@@ -9,6 +32,8 @@ use regex::Regex;
 
 pub mod error;
 
+pub use error::JouleProfilerError;
+
 use crate::{
     config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
     core::{
@@ -18,16 +43,12 @@ use crate::{
         phase::{PhaseInfo, PhaseToken},
         profiler::{
             builder::JouleProfilerBuilder,
-            error::JouleProfilerError,
             types::{Iteration, Phase},
         },
         sensor::{Sensor, Sensors},
-        source::{
-            MetricSource, accumulator::MetricAccumulator, error::MetricSourceError,
-            reader::MetricReader,
-        },
+        source::{MetricSource, error::MetricSourceError, reader::MetricReader},
     },
-    sources::rapl::Rapl,
+    sources::Rapl,
     util::{
         command::run_command, file::create_file_with_user_permissions, time::get_timestamp_micros,
     },
@@ -42,7 +63,27 @@ type Result<T> = std::result::Result<T, JouleProfilerError>;
 type MeasureSimpleReturnType = (u128, u128, i32);
 type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 
-/// Profiler orchestrating metrics collection from various metrics sources and display
+/// Main profiler orchestrating command execution and metrics collection.
+///
+/// `JouleProfiler` handles the following responsibilities:
+/// 1. Executes a configured command (or list sensors command).
+/// 2. Collects metrics from multiple sources implementing [`MetricReader`].
+/// 3. Aggregates results into `Iteration`s and `Phase`s.
+/// 4. Displays results via the configured [`Displayer`].
+///
+/// The profiler supports both simple and phase-based modes and can run
+/// multiple iterations.
+///
+/// # Fields
+///
+/// - `config` ([`Config`]): Configuration for profiling session, including
+///   command, iterations, RAPL options, and output format.
+/// - `orchestrator` (`SourceOrchestrator`): Manages polling and aggregation
+///   from all metric sources.
+/// - `displayer` (Box<dyn [`Displayer`]>): Handles displaying or exporting
+///   metrics to terminal, JSON, CSV, etc.
+/// - `sources` (Vec<Box<dyn [`MetricSource`]>): Registered metric sources
+///   to collect data from (e.g., RAPL, custom sensors).
 #[derive(Default)]
 pub struct JouleProfiler {
     config: Config,
@@ -52,27 +93,32 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
+    /// Create a new profiler with default configuration.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Obtain a builder for more fine-grained configuration.
     pub fn builder() -> JouleProfilerBuilder {
         JouleProfilerBuilder::default()
     }
 
     /// Run the profiler
     pub async fn run(&mut self) -> Result<()> {
-        match self.config.mode.clone() {
+        match self.config.command.clone() {
             Command::Profile(profile_config) => self.profile(profile_config).await,
             Command::ListSensors(_) => self.run_list_sensors(),
         }
     }
 
-    /// Add a metric source to the profiler
+    /// Run the profiler asynchronously.
+    ///
+    /// Executes the configured command and collects metrics according
+    /// to the selected mode (simple or phase-based). Also supports
+    /// listing sensors.
     pub fn add_source<T>(&mut self, reader: T)
     where
         T: MetricReader,
-        MetricAccumulator<T>: Clone,
         T::Type: Send,
     {
         self.sources.push(reader.into());
@@ -86,7 +132,9 @@ impl JouleProfiler {
         }
     }
 
-    /// List all sources sensors
+    /// Add a custom metric source to the profiler.
+    ///
+    /// All sources must implement [`MetricReader`].
     pub fn run_list_sensors(&mut self) -> Result<()> {
         let sensors: Vec<Sensor> = self
             .sources
@@ -101,7 +149,7 @@ impl JouleProfiler {
         Ok(())
     }
 
-    /// Run simple profiling mode
+    /// Run simple profiling mode.
     pub async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running simple mode");
 
@@ -162,7 +210,7 @@ impl JouleProfiler {
         Ok(())
     }
 
-    /// Run phase-based profiling mode
+    /// Run phase-based profiling mode.
     pub async fn run_phases(
         &mut self,
         config: ProfileConfig,
@@ -391,6 +439,9 @@ impl JouleProfiler {
 impl TryFrom<Config> for JouleProfiler {
     type Error = JouleProfilerError;
 
+    /// Convert a configuration into a ready-to-run profiler.
+    ///
+    /// Automatically sets up the displayer and built-in RAPL source.
     fn try_from(config: Config) -> Result<Self> {
         let orchestrator = SourceOrchestrator::new();
 

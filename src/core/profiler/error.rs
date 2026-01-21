@@ -1,12 +1,42 @@
 use thiserror::Error;
 
 use crate::core::{
-    displayer::error::DisplayerError, orchestrator::error::OrchestratorError,
+    displayer::DisplayerError, orchestrator::error::OrchestratorError,
     source::error::MetricSourceError,
 };
 
+/// Top-level error type for JouleProfiler.
+///
+/// This enum represents all possible errors that can occur during the
+/// execution of the profiler, from CLI parsing to command execution,
+/// metric collection, and result display.
+///
+/// # Variants
+///
+/// - `ParseCliArguments` ([`clap::error::Error`]): Failed to parse command-line arguments.
+/// - `InvalidIterations` (`usize`): Provided iterations value is invalid (must be >= 1).
+/// - `CommandExecutionFailed` (`String`): Failed to execute the target command.
+/// - `CommandNotFound` (`String`): The command was not found in the system.
+/// - `CommandKilled` (`i32`): The command was killed by a signal (code provided).
+/// - `TokenNotFound` (`String`): Expected token not found in program output.
+/// - `InvalidTokenOrder` { start, end } (`String`): End token found before start token.
+/// - `MultipleTokens` (`String`): Multiple occurrences of a token were found (expected exactly one).
+/// - `OutputFileCreationFailed` (`String`): Could not create the specified output file.
+/// - `InvalidPattern` (`String`): Provided regex pattern is invalid.
+/// - `StdOutCaptureFail`: Failed to capture standard output from the command.
+/// - `IoError` ([`std::io::Error`]): Any I/O error encountered during execution.
+/// - `MetricSourceError` ([`MetricSourceError`]): Error from a metrics source.
+/// - `DisplayerError` ([`DisplayerError`]): Error while displaying metrics.
+/// - `OrchestratorError` (`OrchestratorError`): Error from the orchestrator.
 #[derive(Debug, Error)]
 pub enum JouleProfilerError {
+    #[error("Failed to parse CLI arguments")]
+    ParseCliArguments(
+        #[from]
+        #[source]
+        clap::error::Error,
+    ),
+
     #[error("Invalid iterations value: {0}. Must be >= 1")]
     InvalidIterations(usize),
 

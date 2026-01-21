@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::AddAssign};
 use log::{debug, error, info, trace};
 
 use crate::{
-    core::aggregate::metric::{Metric, Metrics},
+    core::aggregate::{Metric, Metrics},
     sources::rapl::{
         POWERCAP_SOURCE_NAME, Result,
         domain::{RaplDomain, domain_type::RaplDomainType},

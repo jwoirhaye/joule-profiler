@@ -15,7 +15,7 @@ use crate::core::{
 
 /// Accumulates metrics from a reader and tracks iterations
 #[derive(Debug)]
-pub struct MetricAccumulator<R: MetricReader> {
+pub(crate) struct MetricAccumulator<R: MetricReader> {
     /// The underlying metric reader
     metric_reader: R,
 

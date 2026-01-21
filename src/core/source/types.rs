@@ -1,15 +1,25 @@
 use std::{fmt::Debug, pin::Pin, time::Duration};
 
 use crate::core::{
-    aggregate::{iteration::SensorIteration, metric::Metrics, sensor_result::SensorResult},
+    aggregate::{Metrics, iteration::SensorIteration, sensor_result::SensorResult},
     source::{MetricSource, error::MetricSourceError},
 };
 
-/// Bounds of the type used in a metric reader
+/// Trait for types returned by a [`crate::reader::MetricReader`].
+///
+/// Any type implementing this trait represents the result of a metric measurement.
+/// It must implement `Debug` for logging and debugging, `Send` to be safely
+/// transferred across threads, `Default` for easy initialization, and `Into<Metrics>`
+/// to allow conversion into the unified [`Metrics`] type used by the profiler.
 pub trait MetricReaderTypeBound: Debug + Send + Default + Into<Metrics> {}
 
 impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send + Into<Metrics> {}
 
+/// Trait for errors produced by a [`crate::reader::MetricReader`].
+///
+/// This trait marks the types of errors that can occur during metric collection.
+/// Errors must implement `std::error::Error` for standard Rust error handling
+/// and be `Send + Sync` so they can be safely propagated across threads.
 pub trait MetricReaderErrorBound: std::error::Error + Send + Sync {}
 
 impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
