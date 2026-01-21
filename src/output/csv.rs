@@ -44,20 +44,14 @@ impl CsvOutput {
         write!(self.file, "command;")?;
 
         if include_phase {
-            write!(
-                self.file,
-                "start_token;end_token;start_line;"
-            )?;
+            write!(self.file, "start_token;end_token;start_line;")?;
         }
 
         for key in keys {
             write!(self.file, "{};", key)?;
         }
 
-        writeln!(
-            self.file,
-            "duration_ms;poll_count;poll_delta;exit_code"
-        )?;
+        writeln!(self.file, "duration_ms;poll_count;poll_delta;exit_code")?;
         Ok(())
     }
 
@@ -88,68 +82,63 @@ impl CsvOutput {
 
     /// Write a CSV row for a single phase.
     fn write_row_phase(&mut self, phase: &Phase, iteration_index: Option<usize>) -> Result<()> {
-    if let Some(i) = iteration_index {
-        write!(self.file, "{};", i)?;
+        if let Some(i) = iteration_index {
+            write!(self.file, "{};", i)?;
+        }
+
+        // command
+        write!(self.file, ";")?;
+
+        // phase columns
+        write!(
+            self.file,
+            "{};{};{};",
+            phase.start_token,
+            phase.end_token,
+            phase.line_number.map(|l| l.to_string()).unwrap_or_default(),
+        )?;
+
+        for metric in &phase.metrics {
+            write!(self.file, "{};", metric.value)?;
+        }
+
+        write!(self.file, "{};", phase.duration_ms)?;
+        writeln!(self.file, ";;")?;
+
+        Ok(())
     }
-
-    // command
-    write!(self.file, ";")?;
-
-    // phase columns
-    write!(
-        self.file,
-        "{};{};{};",
-        phase.start_token,
-        phase.end_token,
-        phase.line_number
-            .map(|l| l.to_string())
-            .unwrap_or_default(),
-    )?;
-
-    for metric in &phase.metrics {
-        write!(self.file, "{};", metric.value)?;
-    }
-
-    write!(self.file, "{};", phase.duration_ms)?;
-    writeln!(self.file, ";;")?;
-
-    Ok(())
-}
 
     fn write_iteration_row(
-    &mut self,
-    command: &[String],
-    iteration: &Iteration,
-    index: Option<usize>,
-) -> Result<()> {
-    // iteration index
-    if let Some(i) = index {
-        write!(self.file, "{};", i)?;
+        &mut self,
+        command: &[String],
+        iteration: &Iteration,
+        index: Option<usize>,
+    ) -> Result<()> {
+        // iteration index
+        if let Some(i) = index {
+            write!(self.file, "{};", i)?;
+        }
+        write!(self.file, "'{}';", command.join(" "))?;
+
+        // phase columns
+        write!(self.file, ";;;")?;
+
+        let phase = &iteration.phases[0];
+        for _ in &phase.metrics {
+            write!(self.file, ";")?;
+        }
+
+        write!(self.file, "{};", iteration.duration_ms)?;
+
+        // iteration metadata
+        writeln!(
+            self.file,
+            "{};{};{}",
+            iteration.poll_count, iteration.poll_delta, iteration.exit_code
+        )?;
+
+        Ok(())
     }
-    write!(self.file, "'{}';", command.join(" "))?;
-
-    // phase columns
-    write!(self.file, ";;;")?;
-
-    let phase = &iteration.phases[0];
-    for _ in &phase.metrics {
-        write!(self.file, ";")?;
-    }
-
-    write!(self.file, "{};", iteration.duration_ms)?;
-
-    // iteration metadata
-    writeln!(
-        self.file,
-        "{};{};{}",
-        iteration.poll_count,
-        iteration.poll_delta,
-        iteration.exit_code
-    )?;
-
-    Ok(())
-}
-
 
     /// Print a message indicating the CSV file has been written.
     fn finalize(&self) {
