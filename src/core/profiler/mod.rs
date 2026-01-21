@@ -14,10 +14,10 @@
 //!
 //! # Usage
 //!
-//! ```no_run
+//! ```ignore
 //! use joule_profiler::{JouleProfiler, config::Config};
 //!
-//! let config = Config::default();
+//! // We assume you have a Config variable
 //! let mut profiler = JouleProfiler::try_from(config).unwrap();
 //! ```
 
@@ -27,7 +27,7 @@ use std::{
     process::{self, Stdio},
 };
 
-use log::{debug, info};
+use log::{debug, info, trace};
 use regex::Regex;
 
 pub mod error;
@@ -35,26 +35,24 @@ pub mod error;
 pub use error::JouleProfilerError;
 
 use crate::{
+    cli::Cli,
     config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
     core::{
         aggregate::iteration::SensorIteration,
         displayer::Displayer,
         orchestrator::SourceOrchestrator,
         phase::{PhaseInfo, PhaseToken},
-        profiler::{
-            builder::JouleProfilerBuilder,
-            types::{Iteration, Phase},
-        },
+        profiler::types::{Iteration, Phase},
         sensor::{Sensor, Sensors},
         source::{MetricSource, error::MetricSourceError, reader::MetricReader},
     },
     sources::Rapl,
     util::{
-        command::run_command, file::create_file_with_user_permissions, time::get_timestamp_micros,
+        command::run_command, file::create_file_with_user_permissions, logging::init_logging,
+        time::get_timestamp_micros,
     },
 };
 
-pub mod builder;
 pub mod types;
 
 /// Result type for profiler operations
@@ -84,7 +82,6 @@ type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 ///   metrics to terminal, JSON, CSV, etc.
 /// - `sources` (Vec<Box<dyn [`MetricSource`]>): Registered metric sources
 ///   to collect data from (e.g., RAPL, custom sensors).
-#[derive(Default)]
 pub struct JouleProfiler {
     config: Config,
     orchestrator: SourceOrchestrator,
@@ -93,22 +90,21 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
-    /// Create a new profiler with default configuration.
-    pub fn new() -> Self {
-        Self::default()
-    }
+    /// Creates a JouleProfiler from the CLI arguments.
+    ///
+    /// Uses clap to parse arguments.
+    pub fn from_cli() -> Result<Self> {
+        let cli = Cli::from_args()?;
+        init_logging(cli.verbose);
 
-    /// Obtain a builder for more fine-grained configuration.
-    pub fn builder() -> JouleProfilerBuilder {
-        JouleProfilerBuilder::default()
-    }
+        info!("Starting JouleProfiler");
+        debug!("CLI parsed successfully");
+        trace!("CLI args: {:?}", cli);
 
-    /// Run the profiler
-    pub async fn run(&mut self) -> Result<()> {
-        match self.config.command.clone() {
-            Command::Profile(profile_config) => self.profile(profile_config).await,
-            Command::ListSensors(_) => self.run_list_sensors(),
-        }
+        let config = Config::from(cli);
+        trace!("Profiler config: {:?}", config);
+
+        JouleProfiler::try_from(config)
     }
 
     /// Run the profiler asynchronously.
@@ -116,11 +112,30 @@ impl JouleProfiler {
     /// Executes the configured command and collects metrics according
     /// to the selected mode (simple or phase-based). Also supports
     /// listing sensors.
+    pub async fn run(&mut self) -> Result<()> {
+        info!("Profiler run started");
+
+        match self.config.command.clone() {
+            Command::Profile(profile_config) => {
+                info!("Entering profiling mode");
+                self.profile(profile_config).await
+            }
+            Command::ListSensors(_) => {
+                info!("Entering sensor listing mode");
+                self.run_list_sensors()
+            }
+        }
+    }
+
+    /// Add a custom metric source to the profiler.
+    ///
+    /// All sources must implement [`MetricReader`].
     pub fn add_source<T>(&mut self, reader: T)
     where
         T: MetricReader,
-        T::Type: Send,
     {
+        debug!("Registering additional metric source: {}", T::get_name());
+        trace!("MetricReader type: {}", std::any::type_name::<T>());
         self.sources.push(reader.into());
     }
 
@@ -132,19 +147,24 @@ impl JouleProfiler {
         }
     }
 
-    /// Add a custom metric source to the profiler.
-    ///
-    /// All sources must implement [`MetricReader`].
+    /// List the sensors of the provided sources.
     pub fn run_list_sensors(&mut self) -> Result<()> {
+        debug!("Listing sensors from {} source(s)", self.sources.len());
+
         let sensors: Vec<Sensor> = self
             .sources
             .iter()
-            .map(|source| source.list_sensors().map_err(MetricSourceError::into))
+            .enumerate()
+            .map(|(i, source)| {
+                trace!("Querying sensors from source {}", i);
+                source.list_sensors().map_err(MetricSourceError::into)
+            })
             .collect::<Result<Vec<Sensors>>>()?
             .into_iter()
             .flatten()
             .collect();
 
+        info!("Discovered {} sensor(s)", sensors.len());
         self.displayer.list_sensors(&sensors)?;
         Ok(())
     }
@@ -216,12 +236,18 @@ impl JouleProfiler {
         config: ProfileConfig,
         phases_config: PhasesConfig,
     ) -> Result<()> {
+        info!("Running phase-based profiling");
+        debug!("Iterations: {}", config.iterations);
+        debug!("Phase regex: {}", phases_config.token_pattern);
+
         let sources = std::mem::take(&mut self.sources);
+        trace!("Starting orchestrator with {} source(s)", sources.len());
         self.orchestrator.start(sources).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
-        for _ in 0..config.iterations {
+        for i in 0..config.iterations {
+            info!("Starting iteration {}", i);
             let iteration = self.measure_phases(&config, &phases_config).await?;
             command_results.push(iteration);
         }
@@ -293,6 +319,9 @@ impl JouleProfiler {
             self.displayer
                 .phases_single(&config.cmd, &phases_config.token_pattern, &results[0])?;
         }
+
+        debug!("Collected {} sensor iteration(s)", results.len());
+
         Ok(())
     }
 
@@ -323,17 +352,27 @@ impl JouleProfiler {
         config: &ProfileConfig,
         phases_config: &PhasesConfig,
     ) -> Result<MeasurePhasesReturnType> {
+        debug!("Compiling phase regex");
+
         let regex = Regex::new(&phases_config.token_pattern).map_err(|err| {
             JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
         })?;
+
+        let mut output_file: Option<File> = if let Some(path) = &config.stdout_file {
+            let file = create_file_with_user_permissions(path).map_err(|err| {
+                JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
+            })?;
+
+            Some(file)
+        } else {
+            None
+        };
 
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
         let begin_timestamp = get_timestamp_micros();
-        let mut current_phase_token = PhaseToken::Start;
-        let mut current_phase_timestamp = begin_timestamp;
-        let mut current_phase_line_number = None;
+        trace!("Begin timestamp: {}", begin_timestamp);
 
         let mut command = process::Command::new(&config.cmd[0]);
         if config.cmd.len() > 1 {
@@ -342,6 +381,8 @@ impl JouleProfiler {
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
+
+        debug!("Spawning command: {:?}", config.cmd);
 
         let mut child = command.spawn().map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
@@ -357,82 +398,96 @@ impl JouleProfiler {
             .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
         let reader = BufReader::new(stdout);
-
-        let mut output_file: Option<File> = if let Some(path) = &config.stdout_file {
-            let file = create_file_with_user_permissions(path).map_err(|err| {
-                JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
-            })?;
-
-            Some(file)
-        } else {
-            None
-        };
-
-        let mut detected_phases = Vec::new();
-
-        for (line_number, line_res) in reader.lines().enumerate() {
-            let line = match line_res {
-                Ok(l) => l,
-                Err(e) if e.kind() == ErrorKind::InvalidData => {
-                    continue;
-                }
-                Err(e) => return Err(e.into()),
-            };
-
-            if let Some(f) = output_file.as_mut() {
-                writeln!(f, "{}", line)?;
-            } else {
-                println!("{}", line);
-            }
-
-            // Check if line matches the regex pattern
-            if let Some(captures) = regex.captures(&line) {
-                // Get the full match or the first capture group
-                let token = if let Some(capture) = captures.get(1) {
-                    capture.as_str().to_string()
-                } else {
-                    // Safe unwrap because if regex captures is some then it always has the full matching group
-                    captures.get(0).unwrap().as_str().to_string()
-                };
-
-                let phase_timestamp = get_timestamp_micros();
-                let phase_duration = phase_timestamp - current_phase_timestamp;
-
-                self.orchestrator.measure().await?;
-                self.orchestrator.new_phase().await?;
-
-                let phase_token =
-                    std::mem::replace(&mut current_phase_token, PhaseToken::Token(token));
-
-                let phase_info = PhaseInfo::new(
-                    phase_token,
-                    current_phase_timestamp,
-                    phase_duration,
-                    current_phase_line_number,
-                );
-
-                current_phase_timestamp = phase_timestamp;
-                current_phase_line_number = Some(line_number);
-
-                detected_phases.push(phase_info);
-            }
-        }
+        let mut detected_phases = self
+            .detect_and_handle_phases_from_program_output(
+                reader,
+                &regex,
+                output_file.as_mut(),
+                begin_timestamp,
+            )
+            .await?;
 
         let end_timestamp = get_timestamp_micros();
+        trace!("End timestamp: {}", end_timestamp);
 
         self.orchestrator.measure().await?;
         self.orchestrator.stop_polling().await?;
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
 
-        let phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
-        detected_phases.push(phase_info);
+        let start_phase_info = PhaseInfo::new(PhaseToken::Start, begin_timestamp, 0, None);
+        let end_phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
+        detected_phases.insert(0, start_phase_info);
+        detected_phases.push(end_phase_info);
 
         let duration_ms = end_timestamp - begin_timestamp;
         let status = child.wait()?;
         let exit_code = status.code().unwrap_or(1);
 
+        info!(
+            "Command finished: duration={} µs exit_code={}",
+            end_timestamp - begin_timestamp,
+            exit_code
+        );
+
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
+    }
+
+    async fn detect_and_handle_phases_from_program_output<R: BufRead>(
+        &mut self,
+        reader: R,
+        regex: &Regex,
+        output_file: Option<&mut File>,
+        begin_timestamp: u128,
+    ) -> Result<Vec<PhaseInfo>> {
+        let mut detected_phases = Vec::new();
+
+        let mut current_phase_timestamp = begin_timestamp;
+        // let mut current_phase_line_number = None;
+
+        for (line_number, line_res) in reader.lines().enumerate() {
+            let line = match line_res {
+                Ok(l) => l,
+                Err(e) if e.kind() == ErrorKind::InvalidData => {
+                    trace!("Skipping invalid UTF-8 output at line {}", line_number);
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            };
+            trace!("STDOUT[{}]: {}", line_number, line);
+
+            if let Some(mut f) = output_file.as_deref() {
+                writeln!(f, "{}", line)?;
+            } else {
+                println!("{}", line);
+            }
+
+            if let Some(token) = has_phase_token_in_line(regex, &line) {
+                let phase_timestamp = get_timestamp_micros();
+                let phase_duration = phase_timestamp - current_phase_timestamp;
+
+                debug!("Detected phase at line {}, token '{}'", line_number, token);
+                trace!(
+                    "Phase duration: {} µs (from {})",
+                    phase_duration, current_phase_timestamp
+                );
+
+                self.orchestrator.measure().await?;
+                self.orchestrator.new_phase().await?;
+
+                let phase_info = PhaseInfo::new(
+                    PhaseToken::Token(token),
+                    phase_timestamp,
+                    phase_duration,
+                    Some(line_number),
+                );
+
+                current_phase_timestamp = phase_timestamp;
+                detected_phases.push(phase_info);
+            }
+        }
+
+        Ok(detected_phases)
     }
 }
 
@@ -443,18 +498,224 @@ impl TryFrom<Config> for JouleProfiler {
     ///
     /// Automatically sets up the displayer and built-in RAPL source.
     fn try_from(config: Config) -> Result<Self> {
-        let orchestrator = SourceOrchestrator::new();
+        info!("Building JouleProfiler from config");
+        trace!("Profiler config: {:?}", config);
 
+        let orchestrator = SourceOrchestrator::new();
         let displayer = (&config).try_into()?;
 
+        debug!("Initializing RAPL source");
         let rapl = Rapl::try_from(&config).map_err(MetricSourceError::from)?;
-        let sources = vec![rapl.into()];
 
         Ok(Self {
             orchestrator,
             config,
             displayer,
-            sources,
+            sources: vec![rapl.into()],
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{BufReader, Cursor};
+
+    use regex::Regex;
+
+    use crate::{
+        JouleProfiler,
+        config::{Command, Config, ListSensorsConfig},
+        core::{orchestrator::SourceOrchestrator, phase::PhaseToken},
+        output::{OutputFormat, TerminalOutput},
+        util::time::get_timestamp_micros,
+    };
+
+    fn joule_profiler() -> JouleProfiler {
+        let list_sensors_config = ListSensorsConfig {
+            output_format: OutputFormat::Terminal,
+        };
+        let config = Config {
+            command: Command::ListSensors(list_sensors_config),
+            output_file: None,
+            output_format: OutputFormat::Terminal,
+            rapl_path: None,
+        };
+        JouleProfiler {
+            config,
+            orchestrator: SourceOrchestrator::new(),
+            displayer: TerminalOutput.into(),
+            sources: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn detect_multiple_phases() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
+        let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
+        let reader = BufReader::new(cursor);
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert_eq!(3, phases.len());
+        assert_eq!(PhaseToken::Token("__PHASE1__".to_string()), phases[0].token);
+        assert_eq!(PhaseToken::Token("__PHASE2__".to_string()), phases[1].token);
+        assert_eq!(PhaseToken::Token("__PHASE3__".to_string()), phases[2].token);
+    }
+
+    #[tokio::test]
+    async fn detect_no_phases() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
+        let cursor = Cursor::new("hello\nworld\nno phases here");
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert!(phases.is_empty());
+    }
+
+    #[tokio::test]
+    async fn detect_empty_output() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE__").unwrap();
+        let cursor = Cursor::new("");
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert_eq!(phases.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn detect_phase_in_middle_of_line() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE[0-9]+__").unwrap();
+        let cursor = Cursor::new("start __PHASE1__ end");
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert_eq!(phases.len(), 1);
+        assert_eq!(phases[0].token, PhaseToken::Token("__PHASE1__".to_string()));
+        assert_eq!(phases[0].line_number, Some(0));
+    }
+
+    #[tokio::test]
+    async fn detect_correct_line_numbers() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE[0-9]+__").unwrap();
+        let cursor = Cursor::new("a\nb\n__PHASE1__\nc\n__PHASE2__");
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert_eq!(phases.len(), 2);
+        assert_eq!(phases[0].line_number, Some(2));
+        assert_eq!(phases[1].line_number, Some(4));
+    }
+
+    #[tokio::test]
+    async fn phase_durations_are_monotonic() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE[0-9]+__").unwrap();
+        let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        let mut last_phase_timestamp = begin_timestamp;
+
+        for phase in &phases {
+            assert!(phase.timestamp >= last_phase_timestamp);
+            last_phase_timestamp = phase.timestamp;
+        }
+    }
+
+    #[tokio::test]
+    async fn writes_stdout_to_file() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE__").unwrap();
+        let cursor = Cursor::new("hello\n__PHASE__\nworld");
+        let reader = BufReader::new(cursor);
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let begin_timestamp = get_timestamp_micros();
+
+        profiler
+            .detect_and_handle_phases_from_program_output(
+                reader,
+                &regex,
+                Some(temp_file.as_file_mut()),
+                begin_timestamp,
+            )
+            .await
+            .unwrap();
+
+        let content = fs::read_to_string(temp_file.path()).unwrap();
+        assert!(content.contains("hello"));
+        assert!(content.contains("__PHASE__"));
+        assert!(content.contains("world"));
+    }
+
+    #[tokio::test]
+    async fn skips_invalid_utf8_lines() {
+        let mut profiler = joule_profiler();
+        let regex = Regex::new("__PHASE__").unwrap();
+
+        let bytes = vec![
+            0xff, 0xfe, b'\n', b'_', b'_', b'P', b'H', b'A', b'S', b'E', b'_', b'_',
+        ];
+        let cursor = Cursor::new(bytes);
+        let reader = BufReader::new(cursor);
+
+        let begin_timestamp = get_timestamp_micros();
+        let phases = profiler
+            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+            .await
+            .unwrap();
+
+        assert_eq!(phases.len(), 1);
+    }
+}
+
+pub fn has_phase_token_in_line(regex: &Regex, line: &str) -> Option<String> {
+    if let Some(captures) = regex.captures(line.trim()) {
+        // Get the full match or the first capture group
+        let token = if let Some(capture) = captures.get(1) {
+            capture.as_str().to_string()
+        } else {
+            // Safe unwrap because if regex captures is some then it always has the full matching group
+            captures.get(0).unwrap().as_str().to_string()
+        };
+        Some(token)
+    } else {
+        None
     }
 }

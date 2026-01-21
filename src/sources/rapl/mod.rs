@@ -119,25 +119,39 @@ impl Rapl {
         sockets: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
+        debug!("Initializing RAPL reader");
+        trace!("rapl_path={}", rapl_path);
+        trace!("sockets={:?}", sockets);
+        trace!("polling_rate_s={:?}", polling_rate_s);
+
         check_os()?;
         check_rapl(rapl_path)?;
 
         let domains = get_domains(rapl_path, sockets)?;
+        info!("Discovered {} RAPL domain(s)", domains.len());
+
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
         let ticker = if let Some(duration) = poll_interval {
+            debug!("Enabling RAPL polling every {:?}", duration);
             let timerfd_interval = Interval::new_interval(duration)?;
             Some(timerfd_interval)
         } else {
+            debug!("RAPL polling disabled (on-demand only)");
             None
         };
 
-        let rapl = Rapl::new(domains, ticker);
-        Ok(rapl)
+        Ok(Rapl::new(domains, ticker))
     }
 
     /// Create a new RAPL instance with domains and optional ticker.
     fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
+        trace!(
+            "Creating Rapl instance (domains={}, ticker={})",
+            domains.len(),
+            ticker.is_some()
+        );
+
         Self {
             domains,
             ticker,
@@ -150,14 +164,21 @@ impl Rapl {
     /// Returns a `Snapshot` containing the energy in microjoules.
     fn read_snapshot(&self) -> Result<Snapshot> {
         trace!(
-            "Reading energy snapshot from {} domains",
+            "Reading energy snapshot from {} RAPL domain(s)",
             self.domains.len()
         );
 
         let mut map = HashMap::with_capacity(self.domains.len());
 
         for domain in &self.domains {
+            trace!(
+                "Reading domain: type={:?} socket={}",
+                domain.domain_type, domain.socket
+            );
+
             let val_uj = read_energy(domain)?;
+            trace!("Energy read: {} µJ", val_uj);
+
             map.insert((domain.domain_type, domain.socket), val_uj);
         }
 
@@ -192,13 +213,20 @@ impl MetricReader for Rapl {
     type Error = RaplError;
 
     fn measure(&mut self) -> Result<()> {
+        trace!("RAPL measure() called");
+
         let new_snapshot = self.read_snapshot()?;
 
         if let Some(last_snapshot) = &self.last_snapshot {
+            trace!("Computing delta from previous snapshot");
+
             let metrics =
                 compute_measurement_from_snapshots(&self.domains, last_snapshot, &new_snapshot)?;
+
+            trace!("Computed {} metric(s)", metrics.len());
             self.current_counters += Snapshot::new(metrics);
         } else {
+            trace!("First snapshot recorded (no delta)");
             self.last_snapshot = Some(new_snapshot);
         }
 
@@ -207,21 +235,27 @@ impl MetricReader for Rapl {
 
     async fn scheduler(&mut self) -> Result<()> {
         if let Some(ticker) = &mut self.ticker {
+            trace!("Waiting for RAPL scheduler tick");
             ticker.next().await;
+            trace!("RAPL scheduler tick fired");
             self.measure()?;
         }
         Ok(())
     }
 
     fn get_sensors(&self) -> Result<Sensors> {
+        trace!("Building RAPL sensor list");
+
         let sensors = self
             .domains
             .iter()
             .map(|domain| {
+                trace!("Registering sensor: {}", domain.get_name());
+
                 Sensor::new(
                     domain.get_name(),
                     "µJ".to_string(),
-                    POWERCAP_SOURCE_NAME.to_lowercase(),
+                    Self::get_name().to_lowercase(),
                 )
             })
             .collect();
@@ -230,14 +264,24 @@ impl MetricReader for Rapl {
     }
 
     fn retrieve(&mut self) -> Result<Self::Type> {
+        trace!(
+            "Retrieving RAPL counters ({} entries)",
+            self.current_counters.metrics.len()
+        );
+
         let counters = std::mem::take(&mut self.current_counters);
         Ok(counters)
+    }
+
+    fn get_name() -> &'static str {
+        POWERCAP_SOURCE_NAME
     }
 }
 
 /// Checks if the RAPL interface is available at the given base path.
 fn check_rapl(base: &str) -> Result<()> {
     debug!("Checking RAPL base path: {}", base);
+    trace!("Validating filesystem entry");
 
     let path = Path::new(base);
 

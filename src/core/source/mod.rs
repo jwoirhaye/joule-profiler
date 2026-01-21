@@ -72,6 +72,7 @@
 //!     fn measure(&mut self) -> Result<(), Self::Error> { Ok(()) }
 //!     fn retrieve(&mut self) -> Result<Self::Type, Self::Error> { Ok(MyReaderType { value: 42 }) }
 //!     fn get_sensors(&self) -> Result<Sensors, Self::Error> { Ok(Vec::new()) }
+//!     fn get_name() -> &'static str { "MyReader" }
 //! }
 //!
 //! let source: Box<dyn MetricSource> = Box::from(MyReader);
@@ -114,9 +115,9 @@ pub trait MetricSource: Send {
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 }
 
-impl<T> MetricSource for MetricAccumulator<T>
+impl<R> MetricSource for MetricAccumulator<R>
 where
-    T: MetricReader,
+    R: MetricReader,
 {
     /// Run the worker for the metric accumulator
     fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceFuture {
@@ -129,11 +130,11 @@ where
     }
 }
 
-impl<T> From<T> for Box<dyn MetricSource>
+impl<R> From<R> for Box<dyn MetricSource>
 where
-    T: MetricReader,
+    R: MetricReader,
 {
-    fn from(reader: T) -> Self {
+    fn from(reader: R) -> Self {
         let source = MetricAccumulator::new(reader);
         Box::new(source)
     }
