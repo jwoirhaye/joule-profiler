@@ -9,28 +9,28 @@ pub mod simple;
 /// Subcommands of joule-profiler
 #[derive(Subcommand, Debug)]
 pub enum ProfilerCommand {
-    /// Standard measurement mode (single or repeated)
+    /// Standard measurement mode (single or repeated).
     Simple(SimpleArgs),
 
-    /// Phase-based measurement mode (with start/end tokens)
+    /// Phase-based measurement mode (with start/end tokens).
     Phases(PhasesArgs),
 
-    /// List available RAPL energy domains
+    /// List available sensors.
     ListSensors(ListSensorsArgs),
 }
 
-/// Fields common to both Simple and Phases modes
+/// Fields common to both Simple and Phases modes.
 #[derive(Parser, Debug)]
 pub struct CommonArgs {
-    /// Number of iterations (>=1)
+    /// Number of iterations (>=1).
     #[arg(short = 'n', long = "iterations")]
     pub iterations: Option<usize>,
 
-    /// Redirect profiled program stdout to this file
+    /// Redirect profiled program stdout to this file.
     #[arg(short = 'o', long = "stdout-file")]
     pub stdout_file: Option<String>,
 
-    /// Command to execute (everything after `--`)
+    /// Command to execute (everything after `--`).
     #[arg(last = true)]
     pub cmd: Vec<String>,
 

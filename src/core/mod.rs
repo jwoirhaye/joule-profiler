@@ -5,3 +5,5 @@ pub mod phase;
 pub mod profiler;
 pub mod sensor;
 pub mod source;
+
+pub use profiler::{JouleProfiler, JouleProfilerError};

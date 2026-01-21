@@ -1,26 +1,79 @@
+//! Display profiler results.
+//!
+//! This module provides abstractions and implementations for displaying
+//! JouleProfiler results in various formats, such as terminal output, JSON,
+//! or CSV. It also defines the trait [`Displayer`] for custom display implementations.
+//!
+//! # Overview
+//!
+//! - [`Displayer`] — Trait defining methods for displaying iterations, phases, and sensors.
+//! - [`TerminalOutput`], [`JsonOutput`], [`CsvOutput`] — Standard output formats.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use joule_profiler::{displayer::Displayer, config::Config};
+//!
+//! let config = Config::default();
+//! let mut displayer: Box<dyn Displayer> = Box::try_from(&config).unwrap();
+//!
+//! // displayer.simple_single(&cmd, &iteration)?;
+//! ```
+
 use crate::{
     config::Config,
-    core::{displayer::error::DisplayerError, profiler::types::Iteration, sensor::Sensor},
-    output::{OutputFormat, csv::CsvOutput, json::JsonOutput, terminal::TerminalOutput},
+    core::{profiler::types::Iteration, sensor::Sensor},
+    output::{CsvOutput, JsonOutput, OutputFormat, TerminalOutput},
     util::time::get_timestamp_micros,
 };
 
-pub mod error;
+mod error;
+pub use error::DisplayerError;
 
-/// Result type for displayer operations
-pub type Result<T> = std::result::Result<T, DisplayerError>;
+/// Result type for displayer operations.
+pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
 
-/// Trait for displaying profiler results
+/// Trait for displaying profiler results.
+///
+/// This trait abstracts over different output formats (terminal, JSON, CSV, etc.).
+/// Implementors provide methods to display single or multiple iterations, phases,
+/// and the list of sensors. Default implementations return
+/// [`DisplayerError::NotImplementedForFormat`] if the method is not supported
+/// for a given format.
 pub trait Displayer {
-    /// Display a single iteration in simple format
-    fn simple_single(&mut self, cmd: &[String], _result: &Iteration) -> Result<()>;
+    /// Display a single iteration in simple format.
+    ///
+    /// # Parameters
+    ///
+    /// - `cmd` — Command and arguments that were profiled.
+    /// - `result` — Metrics of the iteration to display.
+    ///
+    /// # Returns
+    ///
+    /// `Result<(), DisplayerError>` indicating success or failure.
+    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()>;
 
-    /// Display multiple iterations in simple format
+    /// Display multiple iterations in simple format.
+    ///
+    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
+    ///
+    /// # Parameters
+    ///
+    /// - `_cmd` — Command and arguments that were profiled.
+    /// - `_results` — Metrics of the iterations to display.
     fn simple_iterations(&mut self, _cmd: &[String], _results: &[Iteration]) -> Result<()> {
         Err(DisplayerError::NotImplementedForFormat)
     }
 
-    /// Display phases for a single iteration
+    /// Display phases for a single iteration.
+    ///
+    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
+    ///
+    /// # Parameters
+    ///
+    /// - `_cmd` — Command and arguments that were profiled.
+    /// - `_token_pattern` — Regex used to detect phases in output.
+    /// - `_result` — Metrics of the iteration to display.
     fn phases_single(
         &mut self,
         _cmd: &[String],
@@ -30,7 +83,15 @@ pub trait Displayer {
         Err(DisplayerError::NotImplementedForFormat)
     }
 
-    /// Display phases for multiple iterations
+    /// Display phases for multiple iterations.
+    ///
+    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
+    ///
+    /// # Parameters
+    ///
+    /// - `_cmd` — Command and arguments that were profiled.
+    /// - `_token_pattern` — Regex used to detect phases in output.
+    /// - `_results` — Metrics of the iterations to display.
     fn phases_iterations(
         &mut self,
         _cmd: &[String],
@@ -40,7 +101,13 @@ pub trait Displayer {
         Err(DisplayerError::NotImplementedForFormat)
     }
 
-    /// List available sensors
+    /// List available sensors.
+    ///
+    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
+    ///
+    /// # Parameters
+    ///
+    /// - `_sensors` — Slice of sensors to list.
     fn list_sensors(&mut self, _sensors: &[Sensor]) -> Result<()> {
         Err(DisplayerError::NotImplementedForFormat)
     }
@@ -49,7 +116,10 @@ pub trait Displayer {
 impl TryFrom<&Config> for Box<dyn Displayer> {
     type Error = DisplayerError;
 
-    /// Creates a displayer from a configuration
+    /// Creates a boxed [`Displayer`] from a [`Config`] object.
+    ///
+    /// Chooses the appropriate output format based on `Config::output_format`
+    /// and returns an error if initialization fails (e.g., file creation for JSON/CSV).
     fn try_from(config: &Config) -> Result<Self> {
         let output_file = config.output_file.clone();
         let displayer = match config.output_format {
@@ -69,12 +139,13 @@ impl<T: Displayer + 'static> From<T> for Box<dyn Displayer> {
 }
 
 impl Default for Box<dyn Displayer> {
+    /// Returns a boxed [`TerminalOutput`] as the default displayer.
     fn default() -> Self {
         TerminalOutput.into()
     }
 }
 
 /// Generates a default filename for iteration data
-pub fn default_iterations_filename(ext: &str) -> String {
+pub(crate) fn default_iterations_filename(ext: &str) -> String {
     format!("data{}.{}", get_timestamp_micros(), ext)
 }
