@@ -52,9 +52,8 @@ pub struct PhaseInfo {
     /// Timestamp in milliseconds
     pub timestamp: u128,
 
-    /// Duration of the phase in milliseconds
-    pub duration_ms: u128,
-
+    // /// Duration of the phase in milliseconds
+    // pub duration_ms: u128,
     /// Optional line number in output where token was detected
     pub line_number: Option<usize>,
 }
@@ -64,13 +63,13 @@ impl PhaseInfo {
     pub fn new(
         token: PhaseToken,
         timestamp: u128,
-        duration_ms: u128,
+        // duration_ms: u128,
         line_number: Option<usize>,
     ) -> Self {
         Self {
             token,
             timestamp,
-            duration_ms,
+            // duration_ms,
             line_number,
         }
     }

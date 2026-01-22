@@ -17,7 +17,7 @@
 //! // Create a single sensor
 //! let cpu_sensor = Sensor::new(
 //!     "CORE-0".to_string(),
-//!     "uJ".to_string(),
+//!     "µJ".to_string(),
 //!     "powercap".to_string(),
 //! );
 //!
@@ -37,7 +37,7 @@ use serde::Serialize;
 /// # Fields
 ///
 /// - `name` (`String`) - The human-readable name of the sensor (e.g., `"CORE-0"`).
-/// - `unit` (`String`) - The unit of measurement for the sensor (e.g., `"uJ"`).
+/// - `unit` (`String`) - The unit of measurement for the sensor (e.g., `"µJ"`).
 /// - `source` (`String`) - The origin of the sensor (e.g., `"powercap"`).
 ///
 /// # Examples
@@ -47,11 +47,11 @@ use serde::Serialize;
 ///
 /// let sensor = Sensor {
 ///     name: "CORE-0".to_string(),
-///     unit: "uJ".to_string(),
+///     unit: "µJ".to_string(),
 ///     source: "powercap".to_string(),
 /// };
 /// assert_eq!(sensor.name, "CORE-0");
-/// assert_eq!(sensor.unit, "uJ");
+/// assert_eq!(sensor.unit, "µJ");
 /// assert_eq!(sensor.source, "powercap");
 /// ```
 #[derive(Debug, Serialize)]

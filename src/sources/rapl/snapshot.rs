@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+const MICRO_JOULE_UNIT: &str = "µJ";
+
 /// Unique identifier for a domain and socket
 type RaplDomainIndex = (RaplDomainType, u32);
 
@@ -45,7 +47,7 @@ impl From<Snapshot> for Metrics {
                 Metric::new(
                     domain.to_string_socket(socket),
                     value,
-                    "uj".to_string(),
+                    MICRO_JOULE_UNIT.to_string(),
                     POWERCAP_SOURCE_NAME.to_lowercase(),
                 )
             })

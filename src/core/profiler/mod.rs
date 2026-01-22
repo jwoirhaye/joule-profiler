@@ -202,6 +202,7 @@ impl JouleProfiler {
                                 begin_timestamp,
                                 duration_ms,
                                 None,
+                                None,
                             );
 
                             vec![phase]
@@ -209,15 +210,7 @@ impl JouleProfiler {
                             Vec::new()
                         };
 
-                    Iteration::new(
-                        phases,
-                        index,
-                        begin_timestamp,
-                        duration_ms,
-                        exit_code,
-                        iteration.poll_count,
-                        iteration.poll_delta,
-                    )
+                    Iteration::new(phases, index, begin_timestamp, duration_ms, exit_code)
                 },
             )
             .collect();
@@ -270,14 +263,14 @@ impl JouleProfiler {
                             let (d1, d2) = (&window[0], &window[1]);
                             let mut phase_metrics = real_phase.metrics.clone();
                             phase_metrics.sort_by_key(|metric| metric.name.clone());
-
                             Phase::new(
                                 phase_metrics,
                                 d1.token.clone(),
                                 d2.token.clone(),
                                 d1.timestamp,
-                                d1.duration_ms,
+                                d2.timestamp - d1.timestamp,
                                 d1.line_number,
+                                d2.line_number,
                             )
                         })
                         .collect();
@@ -292,19 +285,12 @@ impl JouleProfiler {
                             begin_timestamp,
                             duration_ms,
                             None,
+                            None,
                         );
                         phases.push(phase);
                     }
 
-                    Iteration::new(
-                        phases,
-                        index,
-                        begin_timestamp,
-                        duration_ms,
-                        exit_code,
-                        iteration.poll_count,
-                        iteration.poll_delta,
-                    )
+                    Iteration::new(phases, index, begin_timestamp, duration_ms, exit_code)
                 },
             )
             .collect();
@@ -371,13 +357,12 @@ impl JouleProfiler {
         self.orchestrator.start_polling().await?;
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp_millis();
-        trace!("Begin timestamp: {}", begin_timestamp);
-
         let mut command = process::Command::new(&config.cmd[0]);
+        let begin_timestamp = get_timestamp_millis();
         if config.cmd.len() > 1 {
             command.args(&config.cmd[1..]);
         }
+        trace!("Begin timestamp: {}", begin_timestamp);
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
@@ -398,14 +383,18 @@ impl JouleProfiler {
             .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
         let reader = BufReader::new(stdout);
-        let mut detected_phases = self
-            .detect_and_handle_phases_from_program_output(
-                reader,
-                &regex,
-                output_file.as_mut(),
-                begin_timestamp,
-            )
-            .await?;
+        let mut detected_phases = Vec::with_capacity(2);
+        
+        let start_phase = PhaseInfo::new(PhaseToken::Start, begin_timestamp, None);
+        detected_phases.push(start_phase);
+
+        self.detect_and_handle_phases_from_program_output(
+            &mut detected_phases,
+            reader,
+            &regex,
+            output_file.as_mut(),
+        )
+        .await?;
 
         let end_timestamp = get_timestamp_millis();
         trace!("End timestamp: {}", end_timestamp);
@@ -415,12 +404,11 @@ impl JouleProfiler {
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
 
-        let start_phase_info = PhaseInfo::new(PhaseToken::Start, begin_timestamp, 0, None);
-        let end_phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, 0, None);
-        detected_phases.insert(0, start_phase_info);
+        let duration_ms = end_timestamp - begin_timestamp;
+
+        let end_phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, None);
         detected_phases.push(end_phase_info);
 
-        let duration_ms = end_timestamp - begin_timestamp;
         let status = child.wait()?;
         let exit_code = status.code().unwrap_or(1);
 
@@ -435,16 +423,11 @@ impl JouleProfiler {
 
     async fn detect_and_handle_phases_from_program_output<R: BufRead>(
         &mut self,
+        phases: &mut Vec<PhaseInfo>,
         reader: R,
         regex: &Regex,
         output_file: Option<&mut File>,
-        begin_timestamp: u128,
-    ) -> Result<Vec<PhaseInfo>> {
-        let mut detected_phases = Vec::new();
-
-        let mut current_phase_timestamp = begin_timestamp;
-        // let mut current_phase_line_number = None;
-
+    ) -> Result<()> {
         for (line_number, line_res) in reader.lines().enumerate() {
             let line = match line_res {
                 Ok(l) => l,
@@ -464,30 +447,20 @@ impl JouleProfiler {
 
             if let Some(token) = has_phase_token_in_line(regex, &line) {
                 let phase_timestamp = get_timestamp_millis();
-                let phase_duration = phase_timestamp - current_phase_timestamp;
 
                 debug!("Detected phase at line {}, token '{}'", line_number, token);
-                trace!(
-                    "Phase duration: {} µs (from {})",
-                    phase_duration, current_phase_timestamp
-                );
 
                 self.orchestrator.measure().await?;
                 self.orchestrator.new_phase().await?;
 
-                let phase_info = PhaseInfo::new(
-                    PhaseToken::Token(token),
-                    phase_timestamp,
-                    phase_duration,
-                    Some(line_number),
-                );
+                let phase_info =
+                    PhaseInfo::new(PhaseToken::Token(token), phase_timestamp, Some(line_number));
 
-                current_phase_timestamp = phase_timestamp;
-                detected_phases.push(phase_info);
+                phases.push(phase_info);
             }
         }
 
-        Ok(detected_phases)
+        Ok(())
     }
 }
 
@@ -513,6 +486,21 @@ impl TryFrom<Config> for JouleProfiler {
             displayer,
             sources: vec![rapl.into()],
         })
+    }
+}
+
+pub fn has_phase_token_in_line(regex: &Regex, line: &str) -> Option<String> {
+    if let Some(captures) = regex.captures(line.trim()) {
+        // Get the full match or the first capture group
+        let token = if let Some(capture) = captures.get(1) {
+            capture.as_str().to_string()
+        } else {
+            // Safe unwrap because if regex captures is some then it always has the full matching group
+            captures.get(0).unwrap().as_str().to_string()
+        };
+        Some(token)
+    } else {
+        None
     }
 }
 
@@ -554,9 +542,10 @@ mod tests {
         let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
         let reader = BufReader::new(cursor);
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        let mut phases = Vec::new();
+
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -572,10 +561,10 @@ mod tests {
         let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
         let cursor = Cursor::new("hello\nworld\nno phases here");
         let reader = BufReader::new(cursor);
+        let mut phases = Vec::new();
 
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -588,10 +577,10 @@ mod tests {
         let regex = Regex::new("__PHASE__").unwrap();
         let cursor = Cursor::new("");
         let reader = BufReader::new(cursor);
+        let mut phases = Vec::new();
 
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -604,10 +593,10 @@ mod tests {
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("start __PHASE1__ end");
         let reader = BufReader::new(cursor);
+        let mut phases = Vec::new();
 
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -622,10 +611,10 @@ mod tests {
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("a\nb\n__PHASE1__\nc\n__PHASE2__");
         let reader = BufReader::new(cursor);
+        let mut phases = Vec::new();
 
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -640,10 +629,11 @@ mod tests {
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
         let reader = BufReader::new(cursor);
-
         let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        let mut phases = Vec::new();
+
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
@@ -666,14 +656,14 @@ mod tests {
         let reader = BufReader::new(cursor);
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        let begin_timestamp = get_timestamp_millis();
+        let mut phases = Vec::new();
 
         profiler
             .detect_and_handle_phases_from_program_output(
+                &mut phases,
                 reader,
                 &regex,
                 Some(temp_file.as_file_mut()),
-                begin_timestamp,
             )
             .await
             .unwrap();
@@ -694,28 +684,13 @@ mod tests {
         ];
         let cursor = Cursor::new(bytes);
         let reader = BufReader::new(cursor);
+        let mut phases = Vec::new();
 
-        let begin_timestamp = get_timestamp_millis();
-        let phases = profiler
-            .detect_and_handle_phases_from_program_output(reader, &regex, None, begin_timestamp)
+        profiler
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
             .await
             .unwrap();
 
         assert_eq!(phases.len(), 1);
-    }
-}
-
-pub fn has_phase_token_in_line(regex: &Regex, line: &str) -> Option<String> {
-    if let Some(captures) = regex.captures(line.trim()) {
-        // Get the full match or the first capture group
-        let token = if let Some(capture) = captures.get(1) {
-            capture.as_str().to_string()
-        } else {
-            // Safe unwrap because if regex captures is some then it always has the full matching group
-            captures.get(0).unwrap().as_str().to_string()
-        };
-        Some(token)
-    } else {
-        None
     }
 }

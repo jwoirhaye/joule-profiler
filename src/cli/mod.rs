@@ -9,7 +9,10 @@ mod commands;
 /// joule-profiler: measure program energy consumption using Intel RAPL
 #[derive(Parser, Debug)]
 #[command(name = "joule-profiler")]
-#[command(version, about = "Measure program energy consumption using Intel RAPL")]
+#[command(
+    version,
+    about = "Measure program metrics from various sources like RAPL"
+)]
 pub struct Cli {
     /// Verbosity (-v, -vv, -vvv)
     #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
