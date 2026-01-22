@@ -21,14 +21,14 @@
 //! let mut profiler = JouleProfiler::try_from(config).unwrap();
 //! ```
 
+use log::{debug, info, trace};
+use regex::Regex;
+use std::io::BufWriter;
 use std::{
     fs::File,
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
 };
-
-use log::{debug, info, trace};
-use regex::Regex;
 
 pub mod error;
 
@@ -344,14 +344,22 @@ impl JouleProfiler {
             JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
         })?;
 
-        let mut output_file: Option<File> = if let Some(path) = &config.stdout_file {
+        let mut file_sink: Option<BufWriter<File>> = if let Some(path) = &config.stdout_file {
             let file = create_file_with_user_permissions(path).map_err(|err| {
                 JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
             })?;
 
-            Some(file)
+            Some(BufWriter::new(file))
         } else {
             None
+        };
+
+        let mut stdout_sink = BufWriter::new(std::io::stdout().lock());
+
+        let sink: &mut dyn Write = if let Some(f) = file_sink.as_mut() {
+            f
+        } else {
+            &mut stdout_sink
         };
 
         self.orchestrator.start_polling().await?;
@@ -377,24 +385,25 @@ impl JouleProfiler {
             }
         })?;
 
-        let stdout = child
+        let child_stdout = child
             .stdout
             .take()
             .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
-        let reader = BufReader::new(stdout);
-        let mut detected_phases = Vec::with_capacity(2);
+        let reader = BufReader::new(child_stdout);
 
-        let start_phase = PhaseInfo::new(PhaseToken::Start, begin_timestamp, None);
-        detected_phases.push(start_phase);
+        let mut detected_phases = Vec::with_capacity(2);
+        detected_phases.push(PhaseInfo::new(PhaseToken::Start, begin_timestamp, None));
 
         self.detect_and_handle_phases_from_program_output(
             &mut detected_phases,
             reader,
             &regex,
-            output_file.as_mut(),
+            sink,
         )
         .await?;
+
+        sink.flush()?;
 
         let end_timestamp = get_timestamp_millis();
         trace!("End timestamp: {}", end_timestamp);
@@ -424,28 +433,42 @@ impl JouleProfiler {
     async fn detect_and_handle_phases_from_program_output<R: BufRead>(
         &mut self,
         phases: &mut Vec<PhaseInfo>,
-        reader: R,
+        mut reader: R,
         regex: &Regex,
-        output_file: Option<&mut File>,
+        sink: &mut dyn Write,
     ) -> Result<()> {
-        for (line_number, line_res) in reader.lines().enumerate() {
-            let line = match line_res {
-                Ok(l) => l,
+        let mut line = String::new();
+        let mut line_number: usize = 0;
+
+        loop {
+            line.clear();
+
+            let n = match reader.read_line(&mut line) {
+                Ok(n) => n,
                 Err(e) if e.kind() == ErrorKind::InvalidData => {
                     trace!("Skipping invalid UTF-8 output at line {}", line_number);
+                    line_number += 1;
                     continue;
                 }
                 Err(e) => return Err(e.into()),
             };
-            trace!("STDOUT[{}]: {}", line_number, line);
 
-            if let Some(mut f) = output_file.as_deref() {
-                writeln!(f, "{}", line)?;
-            } else {
-                println!("{}", line);
+            if n == 0 {
+                break;
             }
 
-            if let Some(token) = has_phase_token_in_line(regex, &line) {
+            if line.ends_with('\n') {
+                line.pop();
+                if line.ends_with('\r') {
+                    line.pop();
+                }
+            }
+
+            trace!("STDOUT[{}]: {}", line_number, line);
+
+            writeln!(sink, "{}", line)?;
+
+            if let Some(token) = phase_token_in_line(regex, &line) {
                 let phase_timestamp = get_timestamp_millis();
 
                 debug!("Detected phase at line {}, token '{}'", line_number, token);
@@ -453,11 +476,14 @@ impl JouleProfiler {
                 self.orchestrator.measure().await?;
                 self.orchestrator.new_phase().await?;
 
-                let phase_info =
-                    PhaseInfo::new(PhaseToken::Token(token.to_owned()), phase_timestamp, Some(line_number));
-
-                phases.push(phase_info);
+                phases.push(PhaseInfo::new(
+                    PhaseToken::Token(token.to_owned()),
+                    phase_timestamp,
+                    Some(line_number),
+                ));
             }
+
+            line_number += 1;
         }
 
         Ok(())
@@ -489,8 +515,8 @@ impl TryFrom<Config> for JouleProfiler {
     }
 }
 
-pub fn has_phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> {
-        regex.find(line).map(|mat| mat.as_str())
+pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> {
+    regex.find(line).map(|mat| mat.as_str())
 }
 
 #[cfg(test)]
@@ -532,9 +558,10 @@ mod tests {
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -551,9 +578,9 @@ mod tests {
         let cursor = Cursor::new("hello\nworld\nno phases here");
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
-
+        let mut sink: Vec<u8> = Vec::new();
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -567,9 +594,10 @@ mod tests {
         let cursor = Cursor::new("");
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -583,9 +611,10 @@ mod tests {
         let cursor = Cursor::new("start __PHASE1__ end");
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -601,9 +630,10 @@ mod tests {
         let cursor = Cursor::new("a\nb\n__PHASE1__\nc\n__PHASE2__");
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -620,9 +650,10 @@ mod tests {
         let reader = BufReader::new(cursor);
         let begin_timestamp = get_timestamp_millis();
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -652,7 +683,7 @@ mod tests {
                 &mut phases,
                 reader,
                 &regex,
-                Some(temp_file.as_file_mut()),
+                temp_file.as_file_mut(),
             )
             .await
             .unwrap();
@@ -674,9 +705,10 @@ mod tests {
         let cursor = Cursor::new(bytes);
         let reader = BufReader::new(cursor);
         let mut phases = Vec::new();
+        let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, None)
+            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
             .await
             .unwrap();
 
