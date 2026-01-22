@@ -384,7 +384,7 @@ impl JouleProfiler {
 
         let reader = BufReader::new(stdout);
         let mut detected_phases = Vec::with_capacity(2);
-        
+
         let start_phase = PhaseInfo::new(PhaseToken::Start, begin_timestamp, None);
         detected_phases.push(start_phase);
 
