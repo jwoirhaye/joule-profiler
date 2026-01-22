@@ -120,7 +120,10 @@ impl Rapl {
         sockets: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
-        trace!("RAPL: rapl_path={}, sockets={:?}", rapl_path, sockets);
+        trace!(
+            "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
+            rapl_path, sockets
+        );
 
         check_os()?;
 
