@@ -161,6 +161,7 @@ impl Displayer for TerminalOutput {
         iteration: &Iteration,
     ) -> Result<()> {
         self.display_command(cmd);
+        println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH));
         self.display_iteration(iteration, "")?;
 
         Ok(())
