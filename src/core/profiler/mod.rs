@@ -454,7 +454,7 @@ impl JouleProfiler {
                 self.orchestrator.new_phase().await?;
 
                 let phase_info =
-                    PhaseInfo::new(PhaseToken::Token(token), phase_timestamp, Some(line_number));
+                    PhaseInfo::new(PhaseToken::Token(token.to_owned()), phase_timestamp, Some(line_number));
 
                 phases.push(phase_info);
             }
@@ -489,19 +489,8 @@ impl TryFrom<Config> for JouleProfiler {
     }
 }
 
-pub fn has_phase_token_in_line(regex: &Regex, line: &str) -> Option<String> {
-    if let Some(captures) = regex.captures(line.trim()) {
-        // Get the full match or the first capture group
-        let token = if let Some(capture) = captures.get(1) {
-            capture.as_str().to_string()
-        } else {
-            // Safe unwrap because if regex captures is some then it always has the full matching group
-            captures.get(0).unwrap().as_str().to_string()
-        };
-        Some(token)
-    } else {
-        None
-    }
+pub fn has_phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> {
+        regex.find(line).map(|mat| mat.as_str())
 }
 
 #[cfg(test)]
