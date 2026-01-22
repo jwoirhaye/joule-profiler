@@ -16,7 +16,6 @@ impl TerminalOutput {
     /// Display command header
     fn display_command(&self, command: &[String]) {
         if !command.is_empty() {
-            println!();
             self.print_header("Command");
             println!("  {}", command.join(" "));
         }
@@ -61,7 +60,7 @@ impl TerminalOutput {
             .collect();
         keys.sort_unstable();
 
-        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+        println!(" {}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
 
         for metric in &phase.metrics {
             println!(
@@ -70,7 +69,7 @@ impl TerminalOutput {
             );
         }
 
-        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+        println!(" {}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
 
         Ok(())
     }
@@ -138,6 +137,7 @@ impl TerminalOutput {
 impl Displayer for TerminalOutput {
     fn simple_single(&mut self, cmd: &[String], iteration: &Iteration) -> Result<()> {
         self.display_command(cmd);
+        println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH));
         self.display_iteration(iteration, "")?;
         Ok(())
     }
