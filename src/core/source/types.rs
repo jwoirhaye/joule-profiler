@@ -76,9 +76,6 @@ pub struct RawIteration<V> {
 
     /// Total elapsed duration for the iteration
     pub total_elapsed: Duration,
-
-    /// Number of measurements performed
-    pub poll_count: u64,
 }
 
 impl<V: Into<Metrics>> From<RawIteration<V>> for SensorIteration {
@@ -89,12 +86,6 @@ impl<V: Into<Metrics>> From<RawIteration<V>> for SensorIteration {
             .map(|phase| phase.into())
             .collect();
 
-        let poll_delta = if iteration.poll_count > 1 {
-            (iteration.total_elapsed.as_micros() / (iteration.poll_count - 1) as u128) as u64
-        } else {
-            0
-        };
-
-        SensorIteration::new(phases, poll_delta, iteration.poll_count)
+        SensorIteration::new(phases)
     }
 }

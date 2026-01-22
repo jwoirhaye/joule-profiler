@@ -19,17 +19,21 @@ pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
 
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
-    let uid = env::var(ROOT_UID_ENV_VAR)
+    let uid_result = env::var(ROOT_UID_ENV_VAR)
         .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_UID not set"))?
         .parse::<u32>()
-        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_UID"))?;
+        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_UID"));
 
-    let gid = env::var(ROOT_GID_ENV_VAR)
+    let gid_result = env::var(ROOT_GID_ENV_VAR)
         .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_GID not set"))?
         .parse::<u32>()
-        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_GID"))?;
+        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_GID"));
 
-    chown(path, Some(uid), Some(gid))?;
+    if let Ok(uid) = uid_result
+        && let Ok(gid) = gid_result
+    {
+        chown(path, Some(uid), Some(gid))?;
+    }
 
     Ok(file)
 }

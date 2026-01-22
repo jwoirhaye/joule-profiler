@@ -11,15 +11,19 @@ pub struct Phase {
     /// Token marking the end of the phase
     pub end_token: PhaseToken,
 
-    /// Start timestamp in microseconds
+    /// Start timestamp in milliseconds
     pub timestamp: u128,
 
     /// Duration of the phase in milliseconds
     pub duration_ms: u128,
 
-    /// Optional line number associated with the phase
+    /// Optional start line number associated with the phase
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_number: Option<usize>,
+    pub start_line: Option<usize>,
+
+    /// Optional end line number associated with the phase
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
 
     /// Metrics collected during the phase
     pub metrics: Metrics,
@@ -34,7 +38,8 @@ impl Phase {
         end_token: PhaseToken,
         timestamp: u128,
         duration_ms: u128,
-        line_number: Option<usize>,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
     ) -> Self {
         Self {
             metrics,
@@ -42,7 +47,8 @@ impl Phase {
             end_token,
             timestamp,
             duration_ms,
-            line_number,
+            start_line,
+            end_line,
         }
     }
 
@@ -57,7 +63,7 @@ pub struct Iteration {
     /// Index of the iteration
     pub index: usize,
 
-    /// Start timestamp in microseconds
+    /// Start timestamp in milliseconds
     pub timestamp: u128,
 
     /// Duration of the iteration in milliseconds
@@ -65,12 +71,6 @@ pub struct Iteration {
 
     /// Exit code of the profiled command
     pub exit_code: i32,
-
-    /// Number of measurements performed
-    pub poll_count: u64,
-
-    /// Time between measurements in microseconds
-    pub poll_delta: u64,
 
     /// Phases detected in the iteration
     pub phases: Vec<Phase>,
@@ -84,8 +84,6 @@ impl Iteration {
         timestamp: u128,
         duration_ms: u128,
         exit_code: i32,
-        poll_count: u64,
-        poll_delta: u64,
     ) -> Self {
         Self {
             phases,
@@ -93,8 +91,6 @@ impl Iteration {
             timestamp,
             duration_ms,
             exit_code,
-            poll_count,
-            poll_delta,
         }
     }
 }

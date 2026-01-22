@@ -7,22 +7,12 @@ use crate::core::aggregate::phase::SensorPhase;
 pub struct SensorIteration {
     /// Measured phases for this iteration
     pub phases: Vec<SensorPhase>,
-
-    /// Interval between measurements
-    pub poll_delta: u64,
-
-    /// Number of collected measurements
-    pub poll_count: u64,
 }
 
 impl SensorIteration {
     /// Creates a new sensor iteration
-    pub fn new(phases: Vec<SensorPhase>, poll_delta: u64, poll_count: u64) -> Self {
-        Self {
-            phases,
-            poll_delta,
-            poll_count,
-        }
+    pub fn new(phases: Vec<SensorPhase>) -> Self {
+        Self { phases }
     }
 }
 

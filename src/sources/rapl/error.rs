@@ -2,7 +2,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RaplError {
-    #[error("Intel RAPL not available at {0}")]
+    #[error("Intel RAPL not available: {0}")]
     RaplNotAvailable(String),
 
     #[error("No RAPL domains found")]

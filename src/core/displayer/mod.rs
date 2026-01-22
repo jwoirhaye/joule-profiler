@@ -24,7 +24,7 @@ use crate::{
     config::Config,
     core::{profiler::types::Iteration, sensor::Sensor},
     output::{CsvOutput, JsonOutput, OutputFormat, TerminalOutput},
-    util::time::get_timestamp_micros,
+    util::time::get_timestamp_millis,
 };
 
 mod error;
@@ -147,5 +147,5 @@ impl Default for Box<dyn Displayer> {
 
 /// Generates a default filename for iteration data
 pub(crate) fn default_iterations_filename(ext: &str) -> String {
-    format!("data{}.{}", get_timestamp_micros(), ext)
+    format!("data{}.{}", get_timestamp_millis(), ext)
 }

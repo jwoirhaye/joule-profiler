@@ -32,7 +32,7 @@ pub enum MetricSourceError {
     NoPhaseInIteration,
 
     #[error("Rapl error")]
-    Rapl(
+    RaplError(
         #[from]
         #[source]
         RaplError,
