@@ -8,6 +8,8 @@ Install the latest version with a single command:
 curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash
 ```
 
+---
+
 ## Custom Installation
 
 Install to custom directory:

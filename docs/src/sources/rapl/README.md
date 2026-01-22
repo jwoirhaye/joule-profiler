@@ -10,6 +10,8 @@ RAPL provides energy measurements at different scales, enabling you to measure e
 
 It allows fine-grained energy profiling of CPU cores, memory subsystem, and uncore components.
 
+---
+
 ## Architecture
 
 RAPL interface exposes multiple power domains that allow measuring energy consumption of different parts of the processor and memory subsystem.
@@ -17,7 +19,7 @@ Domains metrics are accessible through model-specific registers (MSRs) on the ho
 
 | Domain | Description |
 |--------|------------|
-| **Package** | Measures the total energy consumption of the entire CPU socket. This includes cores and uncore components. |
+| **Package/PKG** | Measures the total energy consumption of the entire CPU socket. This includes cores and uncore components. |
 | **Core/PP0** | Represents the CPU cores only. Useful for profiling per-core energy consumption. |
 | **Uncore/PP1** | Covers the energy consumption of last-level caches, memory controller, and may include the integrated GPU depending on the CPU generation. |
 | **DRAM** | Measures the energy consumption of dynamic random access memory attached to the integrated memory controller if supported. |
@@ -29,6 +31,7 @@ Architecture of RAPL[^dissecting_software-based_measurement]:
 
 ![RAPL architecture](./figures/rapl_architecture.png)
 
+---
 
 ## Powercap
 
@@ -69,7 +72,7 @@ The structure typically looks like this:
 
 To retrieve the domains measure energy consumption, the following files are accessed:
 
-* **`name`**: The name of the corresponding domain (Package, Core, or DRAM).
+* **`name`**: The name of the corresponding domain (Package, Core, Uncore, DRAM or Psys).
 * **`energy_uj`**: This is the core metric. It provides the current energy consumption in microjoules (µj).
 * **`max_energy_range_uj`**: This file gives the maximum value before the counter wraps back to zero.
 
@@ -82,12 +85,14 @@ The `max_energy_range_uj` file to indicate this threshold. To ensure accurate me
 To handle these overflows, the measurement worker thread performs **frequent polling** of the `energy_uj` files. By sampling the counters at a rate significantly higher than the theoretical minimum time it takes for a counter to wrap around, we can safely detect an overflow and correct it. The polling rate must be higher than the minimal period of an overflow, otherwise, an overflow could not be always detected.
 In the future, we might implement an overflow period to minimize polling and reduce the overhead it introduces, even so it is not huge .
 
+---
+
 ## Limitations
 
 - Although RAPL interface provides multiple domains enabling fine-grained energy profiling, it does not offer per-process energy attribution, making it difficult to accurately assess the energy consumption of individual processes.
 - Some domains like **DRAM** or **PSYS** might not be available and the **Uncore** domain may not include the same components depending on the CPU generation, moreover, the **DRAM** domains might not be included in the **Package** domain.
 - Short lived events with variations and quick workloads might not be captured due to the limited resolution of hardware counters.
 
-[^dissecting_software-based_measurement]: Guillaume Raffin, Denis Trystram. Dissecting the software-based measurement of CPU energy consumption: a comparative analysis. IEEE Transactions on Parallel and Distributed Systems, 2024, 36 (1), pp.96. ⟨10.1109/TPDS.2024.3492336⟩. ⟨hal-04420527v3⟩
+[^dissecting_software-based_measurement]: G. Raffin and D. Trystram, "Dissecting the Software-Based Measurement of CPU Energy Consumption: A Comparative Analysis," in IEEE Transactions on Parallel and Distributed Systems, vol. 36, no. 1, pp. 96-107, Jan. 2025, doi: 10.1109/TPDS.2024.3492336.
 
 [^powercap]: [Powercap documentation](https://docs.kernel.org/power/powercap/powercap.html)

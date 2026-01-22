@@ -1,0 +1,15 @@
+.labelBkg {
+  background-color: var(--bg) !important;
+}
+
+.edgeLabel p {
+  background-color: transparent !important;
+}
+
+.cluster > rect, circle {
+  fill: var(--bg) !important;
+}
+
+rect {
+  fill: var(--bg) !important;
+}

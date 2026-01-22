@@ -1,6 +1,6 @@
 # Architecture
 
-**Joule Profiler** is designed to minimize measurement overhead while maintaining high performance, modularity, extensibility, and a strong separation of concerns.  
+**Joule Profiler** is designed to minimize measurement overhead while maintaining high performance, modularity, extensibility, and a strong separation of concerns.
 To achieve this, the project adopts a flexible domain-driven architecture centered around a core domain.
 
 This architecture enables:
@@ -8,6 +8,53 @@ This architecture enables:
 - Low-overhead metric collection
 - Easy integration of new metric sources
 - User-defined metric source extensions without modifying the core codebase
+
+```mermaid
+flowchart LR
+%%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 20}}}%%
+
+subgraph Accumulators
+    RAPL
+    NVML
+    PERF
+end
+
+JouleProfiler((JouleProfiler))
+Orchestrator
+
+subgraph OUTPUTS[Output formats]
+    Terminal
+    JSON
+    CSV
+end
+
+JouleProfiler e1@-->|Measure phases| Orchestrator
+e1@{ animate: true }
+
+JouleProfiler -->|Retrieve event| Orchestrator
+Orchestrator -->|Join + retrieve results| JouleProfiler
+
+Orchestrator e2@-->|Schedule| Accumulators
+e2@{ animate: fast }
+
+Orchestrator -->|Join tasks| Accumulators
+Orchestrator e3@-->|Measure events| Accumulators
+e3@{ animate: true }
+
+JouleProfiler --> Terminal
+JouleProfiler --> JSON
+JouleProfiler --> CSV
+
+linkStyle 0 stroke:#e67e22, stroke-width:2px
+linkStyle 1 stroke:#e74c3c, stroke-width:2px
+linkStyle 2 stroke:#e74c3c, stroke-width:2px
+linkStyle 3 stroke:#9b59b6, stroke-width:2px
+linkStyle 4 stroke:#e74c3c, stroke-width:2px
+linkStyle 5 stroke:#e67e22, stroke-width:2px
+linkStyle 6 stroke:#27ae60, stroke-width:2px
+linkStyle 7 stroke:#27ae60, stroke-width:2px
+linkStyle 8 stroke:#27ae60, stroke-width:2px
+```
 
 ## High-Level Design
 
@@ -20,7 +67,7 @@ At a high level, Joule Profiler is composed of three main layers:
 
 ## Domain-Driven Architecture
 
-The `core` module represents the domain boundary of the profiler.  
+The `core` module represents the domain boundary of the profiler.
 It does not depend on any concrete metric source or output format.
 
 Key properties:
@@ -68,7 +115,7 @@ During startup, metric sources are handled dynamically through the `MetricSource
 
 All types implementing `MetricReader` can be converted into `Box<dyn MetricSource>`, enabling dynamic initialization and configuration.
 
-This wrapping allows sources to be initialized dynamically and resolved into their concrete, monomorphized types before metric collection starts.  
+This wrapping allows sources to be initialized dynamically and resolved into their concrete, monomorphized types before metric collection starts.
 As a result, dynamic dispatch is confined to initialization, and metric collection itself incurs zero overhead from dynamic typing.
 
 This design also enables:
@@ -160,7 +207,7 @@ Each worker returns both its results and a freshly reset metric source, allowing
 
 The profiler adopts a fail-fast error model.
 
-Any error occurring in a metric source immediately stops the entire profiling process.  
+Any error occurring in a metric source immediately stops the entire profiling process.
 This includes:
 - Errors returned by a `MetricReader`
 - Failures in a source scheduler
