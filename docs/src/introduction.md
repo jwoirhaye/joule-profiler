@@ -1,25 +1,24 @@
 # Introduction
 
-**Joule Profiler** is a tool for measuring programs metrics on Linux systems.
-It measures programs energy consumption and other metrics of CPU, DRAM and more at different scopes.
+**Joule Profiler** is a tool for measuring program metrics on Linux systems, with a focus on energy consumption.  
+It supports profiling CPU, DRAM and other system metrics at different scopes and is designed for low-overhead measurement using asynchronous scheduling and a modular architecture.
 
-For now it is available on Intel processors, but in the future we will add various sources to profile GPU, AMD and ARM processors support.
-Some traits are accessible through the crate API to able users to implement their own metrics sources easily. 
+The profiler is available today on Intel processors via the RAPL powercap framework.  
+Support for additional platforms (AMD, ARM, GPU, etc.) will be added in the future through extensible metric sources.  
+Some traits are exposed through the crate API to allow users to implement custom metric sources easily.
 
-For now, **Joule Profiler** uses only Intel RAPL with powercap framework to leverage programs energy consumption.
-
-It is heavily inspired by JouleIt[^jouleit], but with enhanced features and written in Rust for better performance.
+**Joule Profiler** is heavily inspired by JouleIt[^jouleit], but provides enhanced features and is written in Rust for better performance, safety, and portability.
 
 ## Phase mode
 
-The main goal of **Joule Profiler** and the thing that differenciate it from other profilers like Alumet[^alumet] or Scaphandre[^scaphandre] is that it implements
-a phase mode which is energy profiling on different parts of the program called phases. It allows to study and find what parts of a program lead to more consumption.
+The main feature that distinguishes **Joule Profiler** from other profilers such as Alumet[^alumet] or Scaphandre[^scaphandre] is its **phase mode**.  
+Phase mode enables energy profiling on different parts of a program, called phases, allowing developers to identify which sections contribute most to energy consumption.
 
-Phases are detected through tokens printed in the standard output, matching a configurable regular expression, this approach can introduce overhead and noise in the results
-depending on the system's I/O performance.
+Phases are detected through tokens printed to standard output, matched using a configurable regular expression.  
+This approach may introduce overhead and noise depending on the system’s I/O performance.
 
-In the future, another approach may be implemented using inter-process communication with wrappers in multiple languages to minimize the introduced overhead.
+In the future, an alternative approach may be implemented using inter-process communication with language-specific wrappers to minimize overhead.
 
-[^jouleit]: [Jouleit](github.com/powerapi-ng/jouleit)
-[^alumet]: [Alumet](https://alumet.dev)
+[^jouleit]: [Jouleit](github.com/powerapi-ng/jouleit)  
+[^alumet]: [Alumet](https://alumet.dev)  
 [^scaphandre]: [Scaphandre](https://github.com/hubblo-org/scaphandre)
