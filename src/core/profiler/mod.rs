@@ -528,7 +528,9 @@ mod tests {
     use crate::{
         JouleProfiler,
         config::{Command, Config, ListSensorsConfig},
-        core::{orchestrator::SourceOrchestrator, phase::PhaseToken},
+        core::{
+            orchestrator::SourceOrchestrator, phase::PhaseToken, profiler::phase_token_in_line,
+        },
         output::{OutputFormat, TerminalOutput},
         util::time::get_timestamp_millis,
     };
@@ -713,5 +715,41 @@ mod tests {
             .unwrap();
 
         assert_eq!(phases.len(), 1);
+    }
+
+    #[test]
+    fn phase_token_in_line_returns_none_when_no_match() {
+        let regex = Regex::new("X").unwrap();
+        assert_eq!(phase_token_in_line(&regex, "abc"), None);
+    }
+
+    #[test]
+    fn phase_token_in_line_returns_some_when_match_exists() {
+        let regex = Regex::new("X").unwrap();
+        assert_eq!(phase_token_in_line(&regex, "aXc"), Some("X"));
+    }
+
+    #[test]
+    fn phase_token_in_line_returns_first_match_only() {
+        let regex = Regex::new("X").unwrap();
+        assert_eq!(phase_token_in_line(&regex, "XX"), Some("X"));
+    }
+
+    #[test]
+    fn phase_token_in_line_does_not_trim_or_modify_input() {
+        let regex = Regex::new("X").unwrap();
+        assert_eq!(phase_token_in_line(&regex, "  X  "), Some("X"));
+    }
+
+    #[test]
+    fn phase_token_in_line_returns_slice_from_input() {
+        let regex = Regex::new("X").unwrap();
+        let line = String::from("aXc");
+
+        let token = phase_token_in_line(&regex, &line).unwrap();
+
+        let line_ptr = line.as_ptr() as usize;
+        let tok_ptr = token.as_ptr() as usize;
+        assert!(tok_ptr >= line_ptr && tok_ptr < line_ptr + line.len());
     }
 }
