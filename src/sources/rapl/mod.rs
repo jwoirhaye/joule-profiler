@@ -276,6 +276,7 @@ impl MetricReader for Rapl {
 
 /// Check if the program can read RAPL powercap files
 fn check_rapl_access(base: &str) -> Result<()> {
+    debug!("Checking RAPL access using base path: {}", base);
     let path = Path::new(base);
 
     let entries = fs::read_dir(path).map_err(|e| match e.kind() {
