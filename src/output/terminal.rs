@@ -1,8 +1,6 @@
 use crate::core::{
-    aggregate::Metric,
     displayer::{Displayer, Result},
-    phase::PhaseToken,
-    profiler::types::Iteration,
+    profiler::types::{Iteration, Phase},
     sensor::Sensor,
 };
 
@@ -42,7 +40,7 @@ impl TerminalOutput {
             "{}│ {:<width$}│",
             prefix,
             title,
-            width = BOX_WIDTH - prefix.len() - 3
+            width = BOX_WIDTH - prefix.len() - 1
         );
         println!(
             "{}└{}┘",
@@ -52,21 +50,45 @@ impl TerminalOutput {
     }
 
     /// Display a single measurement result
-    fn display_result(&self, metrics: &[Metric], prefix: &str) -> Result<()> {
+    fn display_phase(&self, phase: &Phase, prefix: &str) -> Result<()> {
         println!();
-        println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
 
-        let mut keys: Vec<_> = metrics.iter().map(|metric| &metric.name).cloned().collect();
+        let mut keys: Vec<_> = phase
+            .metrics
+            .iter()
+            .map(|metric| &metric.name)
+            .cloned()
+            .collect();
         keys.sort_unstable();
 
-        for metric in metrics {
+        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+
+        for metric in &phase.metrics {
             println!(
                 "{}  {:<20}: {:10.6} {}",
                 prefix, metric.name, metric.value, metric.unit
             );
         }
 
-        println!("{}{}", prefix, BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("{}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+
+        Ok(())
+    }
+
+    fn display_iteration(&self, iteration: &Iteration, prefix: &str) -> Result<()> {
+        println!(
+            "{}  {:<20}: {:>10} ms",
+            prefix, "Duration", iteration.duration_ms
+        );
+        println!(
+            "{}  {:<20}: {:>10}",
+            prefix, "Exit code", iteration.exit_code
+        );
+
+        for phase in &iteration.phases {
+            self.display_phase_header(phase, prefix);
+            self.display_phase(phase, prefix)?;
+        }
 
         Ok(())
     }
@@ -84,15 +106,8 @@ impl TerminalOutput {
     }
 
     /// Display phase header with token information
-    fn display_phase_header(
-        &self,
-        start_token: &PhaseToken,
-        end_token: &PhaseToken,
-        start_line: Option<usize>,
-        prefix: &str,
-    ) {
-        let phase_name = &format!("{} -> {}", start_token, end_token);
-
+    fn display_phase_header(&self, phase: &Phase, prefix: &str) {
+        let phase_name = phase.get_name();
         println!();
         if prefix.is_empty() {
             println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
@@ -103,28 +118,37 @@ impl TerminalOutput {
         }
 
         // Display token information
-        let start_info = if let Some(line) = start_line {
-            format!("{} (line {})", start_token, line)
+        let start_info = if let Some(line) = phase.start_line {
+            format!("{} (line {})", phase.start_token, line)
         } else {
-            start_token.to_string()
+            phase.start_token.to_string()
+        };
+
+        let end_info = if let Some(line) = phase.end_line {
+            format!("{} (line {})", phase.end_token, line)
+        } else {
+            phase.end_token.to_string()
         };
         println!("{}  Start token: {}", prefix, start_info);
+        println!("{}  End token: {}", prefix, end_info);
+        println!("{}  Duration: {} ms", prefix, phase.duration_ms);
     }
 }
 
 impl Displayer for TerminalOutput {
-    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
+    fn simple_single(&mut self, cmd: &[String], iteration: &Iteration) -> Result<()> {
         self.display_command(cmd);
-        self.display_result(&result.phases[0].metrics, "")?;
+        self.display_iteration(iteration, "")?;
         Ok(())
     }
 
     fn simple_iterations(&mut self, cmd: &[String], results: &[Iteration]) -> Result<()> {
         self.display_command(cmd);
 
-        for (idx, result) in results.iter().enumerate() {
+        for (idx, iteration) in results.iter().enumerate() {
             self.display_iteration_header(idx, results.len());
-            self.display_result(&result.phases[0].metrics, "")?;
+            self.display_iteration(iteration, "")?;
+            println!();
         }
 
         Ok(())
@@ -137,11 +161,7 @@ impl Displayer for TerminalOutput {
         iteration: &Iteration,
     ) -> Result<()> {
         self.display_command(cmd);
-
-        for phase in &iteration.phases {
-            self.display_phase_header(&phase.start_token, &phase.end_token, phase.line_number, "");
-            self.display_result(&phase.metrics, "")?;
-        }
+        self.display_iteration(iteration, "")?;
 
         Ok(())
     }
@@ -155,18 +175,10 @@ impl Displayer for TerminalOutput {
         self.display_command(cmd);
         let nb_iterations = iterations.len();
 
-        for (idx, iteration_results) in iterations.iter().enumerate() {
+        for (idx, iteration) in iterations.iter().enumerate() {
             self.display_iteration_header(idx, nb_iterations);
-
-            for phase in &iteration_results.phases {
-                self.display_phase_header(
-                    &phase.start_token,
-                    &phase.end_token,
-                    phase.line_number,
-                    "  ",
-                );
-                self.display_result(&phase.metrics, "  ")?;
-            }
+            self.display_iteration(iteration, "")?;
+            println!();
         }
 
         Ok(())

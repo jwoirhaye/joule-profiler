@@ -51,7 +51,7 @@ use std::{
 };
 
 use futures::{StreamExt, future::pending};
-use log::{debug, error, info, trace};
+use log::{debug, info, trace};
 use tokio_timerfd::Interval;
 
 use crate::{
@@ -72,6 +72,7 @@ pub(crate) mod error;
 mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
+const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
 
 /// Custom result type for Rapl
 type Result<T> = std::result::Result<T, RaplError>;
@@ -119,13 +120,9 @@ impl Rapl {
         sockets: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
-        debug!("Initializing RAPL reader");
-        trace!("rapl_path={}", rapl_path);
-        trace!("sockets={:?}", sockets);
-        trace!("polling_rate_s={:?}", polling_rate_s);
+        trace!("RAPL: rapl_path={}, sockets={:?}", rapl_path, sockets);
 
         check_os()?;
-        check_rapl(rapl_path)?;
 
         let domains = get_domains(rapl_path, sockets)?;
         info!("Discovered {} RAPL domain(s)", domains.len());
@@ -137,7 +134,7 @@ impl Rapl {
             let timerfd_interval = Interval::new_interval(duration)?;
             Some(timerfd_interval)
         } else {
-            debug!("RAPL polling disabled (on-demand only)");
+            debug!("RAPL polling disabled");
             None
         };
 
@@ -197,7 +194,7 @@ impl TryFrom<&Config> for Rapl {
 
         let (sockets, rapl_polling) = match &config.command {
             Command::Profile(profile_config) => {
-                check_root_rights(&base_path)?;
+                check_rapl_access(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
             }
             Command::ListSensors(_) => (None, None),
@@ -225,10 +222,8 @@ impl MetricReader for Rapl {
 
             trace!("Computed {} metric(s)", metrics.len());
             self.current_counters += Snapshot::new(metrics);
-        } else {
-            trace!("First snapshot recorded (no delta)");
-            self.last_snapshot = Some(new_snapshot);
         }
+        self.last_snapshot = Some(new_snapshot);
 
         Ok(())
     }
@@ -279,29 +274,8 @@ impl MetricReader for Rapl {
     }
 }
 
-/// Checks if the RAPL interface is available at the given base path.
-fn check_rapl(base: &str) -> Result<()> {
-    debug!("Checking RAPL base path: {}", base);
-    trace!("Validating filesystem entry");
-
-    let path = Path::new(base);
-
-    if !path.exists() {
-        error!("RAPL path does not exist: {}", base);
-        return Err(RaplError::RaplNotAvailable(base.into()));
-    }
-
-    if !path.is_dir() {
-        error!("RAPL path is not a directory: {}", base);
-        return Err(RaplError::InvalidRaplPath(base.into()));
-    }
-
-    info!("RAPL interface found at {}", base);
-    Ok(())
-}
-
 /// Check if the program can read RAPL powercap files
-fn check_root_rights(base: &str) -> Result<()> {
+fn check_rapl_access(base: &str) -> Result<()> {
     let path = Path::new(base);
 
     let entries = fs::read_dir(path).map_err(|e| match e.kind() {
@@ -323,7 +297,10 @@ fn check_root_rights(base: &str) -> Result<()> {
         }
     }
 
-    Err(RaplError::RaplNotAvailable(base.into()))
+    Err(RaplError::RaplNotAvailable(format!(
+        "{} is not an RAPL folder",
+        base
+    )))
 }
 
 /// Resolves the RAPL base path from configuration and environment.
@@ -336,8 +313,7 @@ fn rapl_base_path(config_override: Option<&str>) -> String {
         return env_path;
     }
 
-    let default_path = "/sys/devices/virtual/powercap/intel-rapl";
-    default_path.to_string()
+    DEFAULT_RAPL_PATH.to_string()
 }
 
 /// Checks if the operating system is Linux.

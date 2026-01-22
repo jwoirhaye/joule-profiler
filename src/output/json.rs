@@ -26,8 +26,6 @@ impl Displayer for JsonOutput {
             "metrics": phase.metrics,
             "duration_ms": phase.duration_ms,
             "exit_code": result.exit_code,
-            "poll_count": result.poll_count,
-            "poll_delta": result.poll_delta,
         });
         self.write_json(&obj)
     }
@@ -55,8 +53,6 @@ impl Displayer for JsonOutput {
             "token_pattern": token_pattern,
             "exit_code": result.exit_code,
             "phases": result.phases,
-            "poll_count": result.poll_count,
-            "poll_delta": result.poll_delta,
         });
         self.write_json(&obj)
     }

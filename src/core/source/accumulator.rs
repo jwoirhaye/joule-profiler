@@ -26,9 +26,6 @@ pub(crate) struct MetricAccumulator<R: MetricReader> {
     /// Current ongoing iteration
     current_iteration: RawIteration<R::Type>,
 
-    /// Count of polling measurements
-    poll_count: u64,
-
     /// Monotonic timestamp of last snapshot
     last_instant: Option<Instant>,
 
@@ -45,7 +42,6 @@ impl<R: MetricReader> MetricAccumulator<R> {
             iterations: Vec::new(),
             current_iteration: RawIteration::default(),
             last_instant: None,
-            poll_count: 0,
             running: false,
         }
     }
@@ -93,19 +89,11 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
     /// Initialize a new iteration
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
-        debug!(
-            "Finalizing iteration (phases={}, polls={})",
-            self.current_iteration.phases.len(),
-            self.poll_count
-        );
-
         if !self.current_iteration.phases.is_empty() {
-            let mut iteration = std::mem::take(&mut self.current_iteration);
-            iteration.poll_count = self.poll_count;
+            let iteration = std::mem::take(&mut self.current_iteration);
 
             trace!("Iteration total elapsed: {:?}", iteration.total_elapsed);
 
-            self.poll_count = 0;
             self.current_iteration.total_elapsed = Duration::ZERO;
             self.last_instant = None;
 
@@ -167,9 +155,6 @@ impl<R: MetricReader> MetricAccumulator<R> {
                 },
 
                 res = self.metric_reader.scheduler(), if self.running => {
-                    self.poll_count += 1;
-                    trace!("Scheduler tick (poll #{})", self.poll_count);
-
                     if let Err(err) = res {
                         warn!("Scheduler error: {}", err);
                         return Err(err.into_metric_source_error());

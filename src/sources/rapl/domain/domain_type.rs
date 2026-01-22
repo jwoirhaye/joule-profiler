@@ -5,19 +5,29 @@ use crate::sources::rapl::error::RaplError;
 /// Types of RAPL (Running Average Power Limit) energy/power measurement domains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RaplDomainType {
-    /// The entire CPU package.
+    /// Entire processor socket.
+    ///
+    /// Includes all cores, integrated GPU, caches, memory controller, and interconnects.
+    /// Available on all Intel processor since Sandy Bridge generation.
+    /// Also known as PKG.
     Package,
 
-    /// Individual CPU cores.
+    /// CPU cores only.
+    ///
+    /// Also known as PP0.
     Core,
 
-    /// Uncore parts of the CPU (e.g., L3 cache, interconnect).
+    /// Integrated graphics device if available.
+    ///
+    /// Also known as PP1.
     Uncore,
 
-    /// DRAM memory.
+    /// Random access memory attached to the CPU memory controller.
     Dram,
 
-    /// Platform/system power domain (platform or PSU-level measurements).
+    /// Platform-level power (System on Chip).
+    ///
+    /// Measures total platform power including Package and additional SoC components.
     Psys,
 }
 
@@ -45,19 +55,15 @@ impl TryInto<RaplDomainType> for String {
     type Error = RaplError;
 
     fn try_into(self) -> Result<RaplDomainType, RaplError> {
-        let lowercase = self.to_lowercase();
-        let domain_type = if lowercase.starts_with("package") {
-            RaplDomainType::Package
-        } else if lowercase.starts_with("core") {
-            RaplDomainType::Core
-        } else if lowercase.starts_with("uncore") {
-            RaplDomainType::Uncore
-        } else if lowercase.starts_with("dram") {
-            RaplDomainType::Dram
-        } else if lowercase.starts_with("psys") {
-            RaplDomainType::Psys
-        } else {
-            return Err(RaplError::UnknownDomain(lowercase));
+        let name_lower = self.to_lowercase();
+
+        let domain_type = match name_lower.as_str() {
+            domain if domain.starts_with("package") => RaplDomainType::Package,
+            "core" | "pp0" => RaplDomainType::Core,
+            "uncore" | "pp1" => RaplDomainType::Uncore,
+            "dram" | "ram" => RaplDomainType::Dram,
+            "psys" | "platform" => RaplDomainType::Psys,
+            _ => return Err(RaplError::UnknownDomain(name_lower)),
         };
         Ok(domain_type)
     }
