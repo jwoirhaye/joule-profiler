@@ -55,27 +55,6 @@ impl CsvOutput {
         Ok(())
     }
 
-    /// Write a CSV row for a simple iteration.
-    fn write_row(
-        &mut self,
-        command: &[String],
-        result: &Iteration,
-        iteration: Option<usize>,
-    ) -> Result<()> {
-        if let Some(idx) = iteration {
-            write!(self.file, "{};", idx)?;
-        }
-        write!(self.file, "'{}';", command.join(" "))?;
-
-        let phase = &result.phases[0];
-        for metric in &phase.metrics {
-            write!(self.file, "{};", metric.value)?;
-        }
-
-        writeln!(self.file, "{};{}", result.duration_ms, result.exit_code)?;
-        Ok(())
-    }
-
     /// Write a CSV row for a single phase.
     fn write_phase_row(&mut self, phase: &Phase, iteration_index: Option<usize>) -> Result<()> {
         if let Some(i) = iteration_index {
