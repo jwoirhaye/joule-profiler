@@ -1,10 +1,12 @@
 use clap::{ArgAction, Parser};
 
+use crate::config::Config;
+use crate::JouleProfilerError;
 pub use commands::ProfilerCommand;
 
-use crate::JouleProfilerError;
-
 mod commands;
+mod logging;
+mod mapper;
 
 /// joule-profiler: measure program energy consumption
 #[derive(Parser, Debug)]
@@ -13,7 +15,7 @@ mod commands;
     version,
     about = "Measure program metrics from various sources like RAPL"
 )]
-pub struct Cli {
+pub struct CliArgs {
     /// Verbosity (-v, -vv, -vvv)
     #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
     pub verbose: u8,
@@ -50,9 +52,15 @@ pub struct Cli {
     pub command: ProfilerCommand,
 }
 
-impl Cli {
-    pub fn from_args() -> Result<Cli, JouleProfilerError> {
-        let cli = Cli::try_parse()?;
+impl CliArgs {
+    pub fn from_args() -> Result<CliArgs, JouleProfilerError> {
+        let cli = CliArgs::try_parse()?;
         Ok(cli)
     }
+}
+
+pub fn parse_config() -> Result<Config, JouleProfilerError> {
+    let cli = CliArgs::from_args()?;
+    logging::init_logging(cli.verbose);
+    Ok(mapper::cli_to_config(cli))
 }

@@ -27,10 +27,7 @@
 
 use std::collections::HashSet;
 
-use crate::{
-    cli::{Cli, ProfilerCommand},
-    output::{output_format, OutputFormat},
-};
+use crate::output::OutputFormat;
 
 /// Top-level configuration for Joule Profiler.
 ///
@@ -73,70 +70,6 @@ pub struct Config {
     pub output_file: Option<String>,
 }
 
-/// Converts a [`Cli`] instance into a [`Config`] for the Joule Profiler.
-///
-/// This implementation allows constructing a `Config` from the parsed CLI
-/// arguments. It maps the user's command-line options into the profiler's
-/// internal configuration structure.
-///
-/// # Behavior
-///
-/// - Parses `cli.sockets` from a comma-separated string into a `Vec<u32>`.
-/// - Maps the CLI command into the corresponding [`Command`] variant:
-///     - [`ProfilerCommand::Simple`] into [`Command::Profile`] with [`Mode::SimpleMode`].
-///     - [`ProfilerCommand::Phases`] into [`Command::Profile`] with [`Mode::PhaseMode`] containing
-///       a [`PhasesConfig`].
-///     - [`ProfilerCommand::ListSensors`] into [`Command::ListSensors`] with [`ListSensorsConfig`].
-/// - Sets `rapl_path`, `output_format`, and `output_file` according to CLI options.
-///
-/// # Examples
-///
-/// ```no_run
-/// use joule_profiler::{
-///     config::Config,
-///     cli::Cli,
-/// };
-///
-/// let cli = Cli::from_args().expect("Failed to parse CLI arguments");
-/// let config: Config = cli.into();
-/// ```
-impl From<Cli> for Config {
-    fn from(cli: Cli) -> Self {
-        let sockets = cli.sockets.map(|s| {
-            s.split(',')
-                .filter_map(|x| x.trim().parse::<u32>().ok())
-                .collect()
-        });
-
-        let mode = match cli.command {
-            ProfilerCommand::Phases(phases) => {
-                let common = phases.common;
-                Command::Profile(ProfileConfig {
-                    iterations: common.iterations.unwrap_or(1),
-                    stdout_file: common.stdout_file,
-                    cmd: common.cmd,
-                    rapl_polling: common.rapl_polling,
-                    mode: Mode::PhaseMode(PhasesConfig {
-                        token_pattern: phases.token_pattern,
-                    }),
-                    sockets,
-                })
-            }
-
-            ProfilerCommand::ListSensors(list) => Command::ListSensors(ListSensorsConfig {
-                output_format: output_format(list.json, list.csv),
-            }),
-        };
-
-        Config {
-            command: mode,
-            rapl_path: cli.rapl_path,
-            output_format: output_format(cli.json, cli.csv),
-            output_file: cli.output_file,
-        }
-    }
-}
-
 /// Represents a command that the Joule Profiler can execute.
 ///
 /// # Variants
@@ -147,17 +80,6 @@ impl From<Cli> for Config {
 pub enum Command {
     Profile(ProfileConfig),
     ListSensors(ListSensorsConfig),
-}
-
-/// Mode of profiling.
-///
-/// # Variants
-///
-/// - [`Mode::SimpleMode`]: Run the profiler in simple mode, measuring the whole command as one phase.
-/// - [`Mode::PhaseMode`] ([`PhasesConfig`]): Run the profiler in phase mode, splitting the command output based on tokens.
-#[derive(Debug, Clone)]
-pub enum Mode {
-    PhaseMode(PhasesConfig),
 }
 
 /// Profiling configuration for a command.
@@ -192,28 +114,9 @@ pub struct ProfileConfig {
     pub cmd: Vec<String>,
     pub sockets: Option<HashSet<u32>>,
     pub rapl_polling: Option<f64>,
-    pub mode: Mode,
-}
-
-/// Phase-based profiling configuration.
-///
-/// # Fields
-///
-/// - `token_pattern`: Regex pattern to detect start and end tokens in command output.
-///
-/// # Example
-///
-/// ```
-/// use joule_profiler::config::PhasesConfig;
-///
-/// let phases = PhasesConfig {
-///     token_pattern: "[PHASE]".to_string(),
-/// };
-/// ```
-#[derive(Debug, Clone)]
-pub struct PhasesConfig {
     pub token_pattern: String,
 }
+
 
 /// Configuration for listing sensors.
 ///

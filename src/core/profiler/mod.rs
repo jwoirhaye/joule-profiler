@@ -35,8 +35,7 @@ pub mod error;
 pub use error::JouleProfilerError;
 
 use crate::{
-    cli::Cli,
-    config::{Command, Config, Mode, PhasesConfig, ProfileConfig},
+    config::{Command, Config, ProfileConfig},
     core::{
         aggregate::iteration::SensorIteration,
         displayer::Displayer,
@@ -47,10 +46,7 @@ use crate::{
         source::{error::MetricSourceError, reader::MetricReader, MetricSource},
     },
     sources::Rapl,
-    util::{
-        command::run_command, file::create_file_with_user_permissions, logging::init_logging,
-        time::get_timestamp_millis,
-    },
+    util::{file::create_file_with_user_permissions, time::get_timestamp_millis},
 };
 
 pub mod types;
@@ -89,23 +85,6 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
-    /// Creates a JouleProfiler from the CLI arguments.
-    ///
-    /// Uses clap to parse arguments.
-    pub fn from_cli() -> Result<Self> {
-        let cli = Cli::from_args()?;
-        init_logging(cli.verbose);
-
-        info!("Starting JouleProfiler");
-        debug!("CLI parsed successfully");
-        trace!("CLI args: {:?}", cli);
-
-        let config = Config::from(cli);
-        trace!("Profiler config: {:?}", config);
-
-        JouleProfiler::try_from(config)
-    }
-
     /// Run the profiler asynchronously.
     ///
     /// Executes the configured command and collects metrics. Also supports
@@ -139,9 +118,7 @@ impl JouleProfiler {
 
     /// Profile in the configured mode
     async fn profile(&mut self, profile_config: ProfileConfig) -> Result<()> {
-        match profile_config.mode.clone() {
-            Mode::PhaseMode(phases_config) => self.run_phases(profile_config, phases_config).await,
-        }
+        self.run_phases(profile_config).await
     }
 
     /// List the sensors of the provided sources.
@@ -167,14 +144,10 @@ impl JouleProfiler {
     }
 
     /// Run phase-based profiling mode.
-    pub async fn run_phases(
-        &mut self,
-        config: ProfileConfig,
-        phases_config: PhasesConfig,
-    ) -> Result<()> {
+    pub async fn run_phases(&mut self, config: ProfileConfig) -> Result<()> {
         info!("Running phase-based profiling");
         debug!("Iterations: {}", config.iterations);
-        debug!("Phase regex: {}", phases_config.token_pattern);
+        debug!("Phase regex: {}", config.token_pattern);
 
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
@@ -184,7 +157,7 @@ impl JouleProfiler {
 
         for i in 0..config.iterations {
             info!("Starting iteration {}", i);
-            let iteration = self.measure_phases(&config, &phases_config).await?;
+            let iteration = self.measure_phases(&config).await?;
             command_results.push(iteration);
         }
 
@@ -196,9 +169,9 @@ impl JouleProfiler {
             .zip(sources_results.iterations.into_iter().enumerate())
             .map(
                 |(
-                     (duration_ms, begin_timestamp, exit_code, detected_phases),
-                     (index, iteration),
-                 ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
+                    (duration_ms, begin_timestamp, exit_code, detected_phases),
+                    (index, iteration),
+                ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
                     let mut phases: Vec<_> = detected_phases
                         .windows(2)
                         .zip(&iteration.phases)
@@ -239,14 +212,11 @@ impl JouleProfiler {
             .collect();
 
         if config.iterations > 1 {
-            self.displayer.phases_iterations(
-                &config.cmd,
-                &phases_config.token_pattern,
-                &results,
-            )?;
+            self.displayer
+                .phases_iterations(&config.cmd, &config.token_pattern, &results)?;
         } else {
             self.displayer
-                .phases_single(&config.cmd, &phases_config.token_pattern, &results[0])?;
+                .phases_single(&config.cmd, &config.token_pattern, &results[0])?;
         }
 
         debug!("Collected {} sensor iteration(s)", results.len());
@@ -255,15 +225,11 @@ impl JouleProfiler {
     }
 
     /// Measure one iteration in phases mode
-    async fn measure_phases(
-        &mut self,
-        config: &ProfileConfig,
-        phases_config: &PhasesConfig,
-    ) -> Result<MeasurePhasesReturnType> {
+    async fn measure_phases(&mut self, config: &ProfileConfig) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 
-        let regex = Regex::new(&phases_config.token_pattern).map_err(|err| {
-            JouleProfilerError::InvalidPattern(format!("{}: {}", phases_config.token_pattern, err))
+        let regex = Regex::new(&config.token_pattern).map_err(|err| {
+            JouleProfilerError::InvalidPattern(format!("{}: {}", config.token_pattern, err))
         })?;
 
         let mut file_sink: Option<BufWriter<File>> = if let Some(path) = &config.stdout_file {
@@ -323,7 +289,7 @@ impl JouleProfiler {
             &regex,
             sink,
         )
-            .await?;
+        .await?;
 
         sink.flush()?;
 
