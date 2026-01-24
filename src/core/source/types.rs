@@ -1,8 +1,8 @@
 use std::{fmt::Debug, pin::Pin, time::Duration};
 
 use crate::core::{
-    aggregate::{iteration::SensorIteration, sensor_result::SensorResult, Metrics},
-    source::{error::MetricSourceError, MetricSource},
+    aggregate::{Metrics, iteration::SensorIteration, sensor_result::SensorResult},
+    source::{MetricSource, error::MetricSourceError},
 };
 
 /// Trait for types returned by a [`crate::reader::MetricReader`].
@@ -27,8 +27,8 @@ impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
 /// Future returned by a metric source worker
 pub type MetricSourceFuture = Pin<
     Box<
-        dyn Future<Output=Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
-        + Send,
+        dyn Future<Output = Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
+            + Send,
     >,
 >;
 

@@ -43,7 +43,7 @@ use crate::{
         phase::{PhaseInfo, PhaseToken},
         profiler::types::{Iteration, Phase},
         sensor::{Sensor, Sensors},
-        source::{error::MetricSourceError, reader::MetricReader, MetricSource},
+        source::{MetricSource, error::MetricSourceError, reader::MetricReader},
     },
     sources::Rapl,
     util::{file::create_file_with_user_permissions, time::get_timestamp_millis},
@@ -414,13 +414,13 @@ mod tests {
     use regex::Regex;
 
     use crate::{
+        JouleProfiler,
         config::{Command, Config, ListSensorsConfig},
         core::{
             orchestrator::SourceOrchestrator, phase::PhaseToken, profiler::phase_token_in_line,
         },
         output::{OutputFormat, TerminalOutput},
         util::time::get_timestamp_millis,
-        JouleProfiler,
     };
 
     fn joule_profiler() -> JouleProfiler {
