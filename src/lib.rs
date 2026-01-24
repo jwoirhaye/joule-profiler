@@ -51,4 +51,4 @@ mod util;
 pub use core::aggregate as metrics;
 pub use core::displayer;
 pub use core::sensor;
-pub use core::{source as reader, JouleProfiler, JouleProfilerError};
+pub use core::{JouleProfiler, JouleProfilerError, source as reader};
