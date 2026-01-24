@@ -44,7 +44,7 @@ use crate::{
         phase::{PhaseInfo, PhaseToken},
         profiler::types::{Iteration, Phase},
         sensor::{Sensor, Sensors},
-        source::{MetricSource, error::MetricSourceError, reader::MetricReader},
+        source::{error::MetricSourceError, reader::MetricReader, MetricSource},
     },
     sources::Rapl,
     util::{
@@ -58,7 +58,6 @@ pub mod types;
 /// Result type for profiler operations
 type Result<T> = std::result::Result<T, JouleProfilerError>;
 
-type MeasureSimpleReturnType = (u128, u128, i32);
 type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 
 /// Main profiler orchestrating command execution and metrics collection.
@@ -109,8 +108,7 @@ impl JouleProfiler {
 
     /// Run the profiler asynchronously.
     ///
-    /// Executes the configured command and collects metrics according
-    /// to the selected mode (simple or phase-based). Also supports
+    /// Executes the configured command and collects metrics. Also supports
     /// listing sensors.
     pub async fn run(&mut self) -> Result<()> {
         info!("Profiler run started");
@@ -142,7 +140,6 @@ impl JouleProfiler {
     /// Profile in the configured mode
     async fn profile(&mut self, profile_config: ProfileConfig) -> Result<()> {
         match profile_config.mode.clone() {
-            Mode::SimpleMode => self.run_simple(profile_config).await,
             Mode::PhaseMode(phases_config) => self.run_phases(profile_config, phases_config).await,
         }
     }
@@ -166,60 +163,6 @@ impl JouleProfiler {
 
         info!("Discovered {} sensor(s)", sensors.len());
         self.displayer.list_sensors(&sensors)?;
-        Ok(())
-    }
-
-    /// Run simple profiling mode.
-    pub async fn run_simple(&mut self, config: ProfileConfig) -> Result<()> {
-        info!("Running simple mode");
-
-        let sources = std::mem::take(&mut self.sources);
-        self.orchestrator.start(sources).await;
-
-        let mut command_results = Vec::with_capacity(config.iterations);
-
-        debug!("Simple mode with {} iteration(s)", config.iterations);
-        for _ in 0..config.iterations {
-            let iteration = self.measure_simple(&config).await?;
-            command_results.push(iteration);
-        }
-
-        let (sources_results, sources) = self.orchestrator.retrieve().await?;
-        self.sources = sources;
-
-        let results: Vec<Iteration> = command_results
-            .into_iter()
-            .zip(sources_results.iterations.into_iter().enumerate())
-            .map(
-                |((duration_ms, begin_timestamp, exit_code), (index, iteration))| {
-                    let phases =
-                        if let Some(mut phase) = iteration.phases.into_iter().take(1).next() {
-                            phase.metrics.sort_by_key(|metric| metric.name.clone());
-                            let phase = Phase::new(
-                                phase.metrics,
-                                PhaseToken::Start,
-                                PhaseToken::End,
-                                begin_timestamp,
-                                duration_ms,
-                                None,
-                                None,
-                            );
-
-                            vec![phase]
-                        } else {
-                            Vec::new()
-                        };
-
-                    Iteration::new(phases, index, begin_timestamp, duration_ms, exit_code)
-                },
-            )
-            .collect();
-
-        if config.iterations > 1 {
-            self.displayer.simple_iterations(&config.cmd, &results)?;
-        } else {
-            self.displayer.simple_single(&config.cmd, &results[0])?;
-        }
         Ok(())
     }
 
@@ -253,9 +196,9 @@ impl JouleProfiler {
             .zip(sources_results.iterations.into_iter().enumerate())
             .map(
                 |(
-                    (duration_ms, begin_timestamp, exit_code, detected_phases),
-                    (index, iteration),
-                ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
+                     (duration_ms, begin_timestamp, exit_code, detected_phases),
+                     (index, iteration),
+                 ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
                     let mut phases: Vec<_> = detected_phases
                         .windows(2)
                         .zip(&iteration.phases)
@@ -309,27 +252,6 @@ impl JouleProfiler {
         debug!("Collected {} sensor iteration(s)", results.len());
 
         Ok(())
-    }
-
-    /// Measure one iteration in simple mode
-    async fn measure_simple(&mut self, config: &ProfileConfig) -> Result<MeasureSimpleReturnType> {
-        self.orchestrator.start_polling().await?;
-        self.orchestrator.measure().await?;
-
-        let begin_timestamp = get_timestamp_millis();
-
-        let (exit_code, _) = run_command(&config.cmd, config.stdout_file.as_ref())?;
-
-        let end_timestamp = get_timestamp_millis();
-
-        self.orchestrator.measure().await?;
-        self.orchestrator.stop_polling().await?;
-        self.orchestrator.new_phase().await?;
-        self.orchestrator.new_iteration().await?;
-
-        let duration_ms = end_timestamp - begin_timestamp;
-
-        Ok((duration_ms, begin_timestamp, exit_code))
     }
 
     /// Measure one iteration in phases mode
@@ -401,7 +323,7 @@ impl JouleProfiler {
             &regex,
             sink,
         )
-        .await?;
+            .await?;
 
         sink.flush()?;
 
@@ -526,13 +448,13 @@ mod tests {
     use regex::Regex;
 
     use crate::{
-        JouleProfiler,
         config::{Command, Config, ListSensorsConfig},
         core::{
             orchestrator::SourceOrchestrator, phase::PhaseToken, profiler::phase_token_in_line,
         },
         output::{OutputFormat, TerminalOutput},
         util::time::get_timestamp_millis,
+        JouleProfiler,
     };
 
     fn joule_profiler() -> JouleProfiler {

@@ -135,25 +135,6 @@ impl TerminalOutput {
 }
 
 impl Displayer for TerminalOutput {
-    fn simple_single(&mut self, cmd: &[String], iteration: &Iteration) -> Result<()> {
-        self.display_command(cmd);
-        println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH));
-        self.display_iteration(iteration, "")?;
-        Ok(())
-    }
-
-    fn simple_iterations(&mut self, cmd: &[String], results: &[Iteration]) -> Result<()> {
-        self.display_command(cmd);
-
-        for (idx, iteration) in results.iter().enumerate() {
-            self.display_iteration_header(idx, results.len());
-            self.display_iteration(iteration, "")?;
-            println!();
-        }
-
-        Ok(())
-    }
-
     fn phases_single(
         &mut self,
         cmd: &[String],

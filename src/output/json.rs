@@ -3,7 +3,7 @@ use std::io::Write;
 
 use serde_json::json;
 
-use crate::core::displayer::{Displayer, Result, default_iterations_filename};
+use crate::core::displayer::{default_iterations_filename, Displayer, Result};
 use crate::core::profiler::types::Iteration;
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
@@ -18,29 +18,6 @@ pub struct JsonOutput {
 }
 
 impl Displayer for JsonOutput {
-    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
-        let phase = &result.phases[0];
-        let obj = json!({
-            "command": cmd.join(" "),
-            "mode": "simple",
-            "metrics": phase.metrics,
-            "duration_ms": phase.duration_ms,
-            "exit_code": result.exit_code,
-        });
-        self.write_json(&obj)
-    }
-
-    fn simple_iterations(&mut self, cmd: &[String], iterations: &[Iteration]) -> Result<()> {
-        let obj = json!({
-            "command": cmd.join(" "),
-            "mode": "simple-iterations",
-            "nb_iterations": iterations.len(),
-            "iterations": iterations
-        });
-
-        self.write_json(&obj)
-    }
-
     fn phases_single(
         &mut self,
         cmd: &[String],

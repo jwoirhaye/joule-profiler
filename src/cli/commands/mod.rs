@@ -1,17 +1,13 @@
 use clap::{Parser, Subcommand};
 
-use crate::cli::commands::{list_sensors::ListSensorsArgs, phases::PhasesArgs, simple::SimpleArgs};
+use crate::cli::commands::{list_sensors::ListSensorsArgs, phases::PhasesArgs};
 
 pub mod list_sensors;
 pub mod phases;
-pub mod simple;
 
 /// Subcommands of joule-profiler
 #[derive(Subcommand, Debug)]
 pub enum ProfilerCommand {
-    /// Standard measurement mode (single or repeated).
-    Simple(SimpleArgs),
-
     /// Phase-based measurement mode (with start/end tokens).
     Phases(PhasesArgs),
 

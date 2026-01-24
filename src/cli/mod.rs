@@ -6,7 +6,7 @@ use crate::JouleProfilerError;
 
 mod commands;
 
-/// joule-profiler: measure program energy consumption using Intel RAPL
+/// joule-profiler: measure program energy consumption
 #[derive(Parser, Debug)]
 #[command(name = "joule-profiler")]
 #[command(

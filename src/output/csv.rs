@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 
-use crate::core::displayer::{Displayer, Result, default_iterations_filename};
+use crate::core::displayer::{default_iterations_filename, Displayer, Result};
 use crate::core::profiler::types::{Iteration, Phase};
 use crate::core::sensor::Sensor;
 use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
@@ -142,42 +142,6 @@ impl CsvOutput {
 }
 
 impl Displayer for CsvOutput {
-    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()> {
-        let keys: Vec<&String> = result.phases[0]
-            .metrics
-            .iter()
-            .map(|metric| &metric.name)
-            .collect();
-
-        self.write_header(&keys, false, false)?;
-        self.write_row(cmd, result, None)?;
-
-        self.finalize();
-        Ok(())
-    }
-
-    fn simple_iterations(&mut self, cmd: &[String], results: &[Iteration]) -> Result<()> {
-        if results.is_empty() {
-            return Ok(());
-        }
-
-        let first = &results[0];
-        let keys: Vec<&String> = first.phases[0]
-            .metrics
-            .iter()
-            .map(|metric| &metric.name)
-            .collect();
-
-        self.write_header(&keys, true, false)?;
-
-        for (idx, result) in results.iter().enumerate() {
-            self.write_row(cmd, result, Some(idx))?;
-        }
-
-        self.finalize();
-        Ok(())
-    }
-
     fn phases_single(
         &mut self,
         cmd: &[String],
