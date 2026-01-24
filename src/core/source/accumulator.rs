@@ -7,10 +7,10 @@ use crate::core::{
     aggregate::sensor_result::SensorResult,
     sensor::Sensors,
     source::{
-        MetricSource,
         error::MetricSourceError,
         reader::MetricReader,
         types::{RawIteration, RawPhase, SourceEvent},
+        MetricSource,
     },
 };
 

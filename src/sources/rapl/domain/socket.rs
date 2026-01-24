@@ -28,8 +28,8 @@ mod test {
     use std::collections::HashSet;
 
     use crate::sources::rapl::domain::{
-        RaplDomain, RaplDomainType,
-        socket::{discover_sockets, filter_sockets, parse_or_all_sockets},
+        socket::{discover_sockets, filter_sockets, parse_or_all_sockets}, RaplDomain,
+        RaplDomainType,
     };
 
     #[test]

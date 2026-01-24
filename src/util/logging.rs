@@ -1,5 +1,5 @@
 use env_logger::Builder;
-use log::{LevelFilter, debug, info, trace};
+use log::{debug, info, trace, LevelFilter};
 
 /// Initializes the logging system based on verbosity flags.
 pub fn init_logging(level: u8) {

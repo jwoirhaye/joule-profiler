@@ -29,7 +29,7 @@ use std::collections::HashSet;
 
 use crate::{
     cli::{Cli, ProfilerCommand},
-    output::{OutputFormat, output_format},
+    output::{output_format, OutputFormat},
 };
 
 /// Top-level configuration for Joule Profiler.
@@ -109,17 +109,6 @@ impl From<Cli> for Config {
         });
 
         let mode = match cli.command {
-            ProfilerCommand::Simple(simple) => {
-                let common = simple.common;
-                Command::Profile(ProfileConfig {
-                    iterations: common.iterations.unwrap_or(1),
-                    stdout_file: common.stdout_file,
-                    cmd: common.cmd,
-                    rapl_polling: common.rapl_polling,
-                    mode: Mode::SimpleMode,
-                    sockets,
-                })
-            }
             ProfilerCommand::Phases(phases) => {
                 let common = phases.common;
                 Command::Profile(ProfileConfig {
@@ -168,7 +157,6 @@ pub enum Command {
 /// - [`Mode::PhaseMode`] ([`PhasesConfig`]): Run the profiler in phase mode, splitting the command output based on tokens.
 #[derive(Debug, Clone)]
 pub enum Mode {
-    SimpleMode,
     PhaseMode(PhasesConfig),
 }
 

@@ -50,7 +50,7 @@ use std::{
     time::Duration,
 };
 
-use futures::{StreamExt, future::pending};
+use futures::{future::pending, StreamExt};
 use log::{debug, info, trace};
 use tokio_timerfd::Interval;
 
@@ -61,9 +61,9 @@ use crate::{
         source::reader::MetricReader,
     },
     sources::rapl::{
-        domain::{RaplDomain, get_domains, read_energy},
+        domain::{get_domains, read_energy, RaplDomain},
         error::RaplError,
-        snapshot::{Snapshot, compute_measurement_from_snapshots},
+        snapshot::{compute_measurement_from_snapshots, Snapshot},
     },
 };
 

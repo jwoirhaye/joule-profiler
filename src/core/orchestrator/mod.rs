@@ -1,13 +1,13 @@
 use log::error;
 use tokio::{
-    sync::mpsc::{Sender, channel},
+    sync::mpsc::{channel, Sender},
     task::JoinHandle,
 };
 
 use crate::core::{
     aggregate::sensor_result::SensorResult,
     orchestrator::error::OrchestratorError,
-    source::{MetricSource, error::MetricSourceError, types::SourceEvent},
+    source::{error::MetricSourceError, types::SourceEvent, MetricSource},
 };
 
 pub mod error;
