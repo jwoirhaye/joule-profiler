@@ -48,7 +48,7 @@ pub trait MetricReader: Send + 'static {
     /// Optional internal scheduler invoked by the accumulator periodically
     ///
     /// By default, this is a no-op returning a pending future.
-    fn scheduler(&mut self) -> impl Future<Output=Result<(), Self::Error>> + Send {
+    fn scheduler(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         trace!("Internal scheduler not implemented for this source");
         pending()
     }

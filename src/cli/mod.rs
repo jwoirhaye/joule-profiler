@@ -1,7 +1,7 @@
 use clap::{ArgAction, Parser};
 
-use crate::config::Config;
 use crate::JouleProfilerError;
+use crate::config::Config;
 pub use commands::ProfilerCommand;
 
 mod commands;

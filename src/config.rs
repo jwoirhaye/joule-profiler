@@ -117,7 +117,6 @@ pub struct ProfileConfig {
     pub token_pattern: String,
 }
 
-
 /// Configuration for listing sensors.
 ///
 /// # Fields
