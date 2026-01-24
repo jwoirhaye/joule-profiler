@@ -1,7 +1,5 @@
 use clap::Parser;
 
-use super::CommonArgs;
-
 /// Arguments for Phase-based mode
 #[derive(Parser, Debug)]
 pub struct PhasesArgs {
@@ -20,7 +18,19 @@ pub struct PhasesArgs {
     )]
     pub token_pattern: String,
 
-    /// The common arguments between profiler commands
-    #[command(flatten)]
-    pub common: CommonArgs,
+    /// Number of iterations (>=1).
+    #[arg(short = 'n', long = "iterations")]
+    pub iterations: Option<usize>,
+
+    /// Redirect profiled program stdout to this file.
+    #[arg(short = 'o', long = "stdout-file")]
+    pub stdout_file: Option<String>,
+
+    /// Command to execute (everything after `--`).
+    #[arg(last = true, required = true)]
+    pub cmd: Vec<String>,
+
+    /// Rapl polling frequency in second.
+    #[arg(long = "rapl-polling")]
+    pub rapl_polling: Option<f64>,
 }
