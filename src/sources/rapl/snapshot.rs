@@ -164,19 +164,19 @@ mod tests {
 
     #[test]
     fn energy_diff_without_overflow() {
-        let diff = super::energy_diff(100, 250, 1_000);
+        let diff = energy_diff(100, 250, 1_000);
         assert_eq!(diff, 150);
     }
 
     #[test]
     fn energy_diff_with_overflow() {
-        let diff = super::energy_diff(900, 100, 1_000);
+        let diff = energy_diff(900, 100, 1_000);
         assert_eq!(diff, 200);
     }
 
     #[test]
     fn energy_diff_exact_wrap() {
-        let diff = super::energy_diff(900, 0, 1_000);
+        let diff = energy_diff(900, 0, 1_000);
         assert_eq!(diff, 100);
     }
 

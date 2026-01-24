@@ -44,7 +44,7 @@ pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
     let absolute_path = if path.is_absolute() {
         path
     } else {
-        std::env::current_dir()?.join(path)
+        env::current_dir()?.join(path)
     };
 
     Ok(absolute_path.display().to_string())
