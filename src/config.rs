@@ -1,26 +1,27 @@
-//! Configuration module for Joule Profiler.
+//! Configuration for Joule Profiler.
 //!
-//! This module defines all configuration structures used to setup the profiler,
-//! including commands to run, profiling modes, output formats, and sensor selection.
+//! This module defines the configuration structures used to run the profiler:
+//! which command to execute, how many iterations, output options, and RAPL settings.
 //!
-//! # Examples
+//! # Example
 //!
 //! ```no_run
-//! use joule_profiler::config::{Config, ProfileConfig, Mode, Command};
+//! use joule_profiler::config::{Config, Command, ProfileConfig};
+//! use joule_profiler::output::OutputFormat;
 //!
-//! let profile_config = ProfileConfig {
-//!     iterations: 3,
+//! let profile = ProfileConfig {
+//!     iterations: 1,
 //!     stdout_file: None,
 //!     cmd: vec!["sleep".into(), "1".into()],
 //!     sockets: None,
 //!     rapl_polling: Some(0.5),
-//!     mode: Mode::SimpleMode,
+//!     token_pattern: "__[A-Z0-9_]+__".into(),
 //! };
 //!
 //! let config = Config {
-//!     command: Command::Profile(profile_config),
+//!     command: Command::Profile(profile),
 //!     rapl_path: None,
-//!     output_format: Default::default(),
+//!     output_format: OutputFormat::default(),
 //!     output_file: None,
 //! };
 //! ```
@@ -30,99 +31,56 @@ use std::collections::HashSet;
 use crate::output::OutputFormat;
 
 /// Top-level configuration for Joule Profiler.
-///
-/// # Fields
-///
-/// - `command` ([`Command`]) - Execution mode of the profiler (e.g., [`Mode::SimpleMode`] or Phase).
-/// - `rapl_path` (`Option<String>`) - Path to RAPL domains. Defaults to the standard RAPL path if not provided.
-/// - `output_format` ([`OutputFormat`]) - Format for outputting results (e.g., terminal, JSON, CSV).
-/// - `output_file` (`Option<String>`) - File to store results, if any.
-///
-/// # Examples
-///
-/// ```no_run
-/// use joule_profiler::{
-///     config::{Config, ProfileConfig, Command, Mode},
-///     output::OutputFormat
-/// };
-///
-/// let profile_config = ProfileConfig {
-///     iterations: 1,
-///     stdout_file: None,
-///     cmd: vec!["sleep".into(), "1".into()],
-///     rapl_polling: None,
-///     mode: Mode::SimpleMode,
-///     sockets: None,
-/// };
-///
-/// let s = Config {
-///     command: Command::Profile(profile_config),
-///     rapl_path: None,
-///     output_format: OutputFormat::default(),
-///     output_file: None,
-/// };
-/// ```
 #[derive(Debug)]
 pub struct Config {
+    /// Action to run (profile a program or list sensors).
     pub command: Command,
+
+    /// Override the base path used to read Intel RAPL counters.
     pub rapl_path: Option<String>,
+
+    /// Output format (terminal, JSON, CSV).
     pub output_format: OutputFormat,
+
+    /// Optional output file for JSON/CSV exports.
     pub output_file: Option<String>,
 }
 
-/// Represents a command that the Joule Profiler can execute.
-///
-/// # Variants
-///
-/// - [`Command::Profile`] ([`ProfileConfig`]): Run a command in either simple or phase mode.
-/// - [`Command::ListSensors`] ([`ListSensorsConfig`]): List available sensors in a given output format.
+/// Command executed by the profiler.
 #[derive(Debug, Clone)]
 pub enum Command {
+    /// Run a program and collect metrics.
     Profile(ProfileConfig),
+
+    /// List available sensors.
     ListSensors(ListSensorsConfig),
 }
 
-/// Profiling configuration for a command.
-///
-/// # Fields
-///
-/// - `iterations` (`usize`): Number of iterations to run the command.
-/// - `stdout_file` (`Option<String>`): Optional file to redirect stdout.
-/// - `cmd` (`Vec<String>`): Command and arguments to profile.
-/// - `sockets` (`Option<HashSet<u32>>`): Optional set of CPU sockets to monitor.
-/// - `rapl_polling` (`Option<f64>`): Optional RAPL polling interval in seconds.
-/// - `mode` ([`Mode`]): Profiling mode (simple or phases).
-///
-/// # Examples
-///
-/// ```no_run
-/// use joule_profiler::config::{ProfileConfig, Mode};
-///
-/// let config = ProfileConfig {
-///     iterations: 3,
-///     stdout_file: None,
-///     cmd: vec!["sleep".into(), "1".into()],
-///     sockets: None,
-///     rapl_polling: Some(0.5),
-///     mode: Mode::SimpleMode,
-/// };
-/// ```
+/// Configuration for profiling a program.
 #[derive(Debug, Clone)]
 pub struct ProfileConfig {
+    /// Number of iterations (>= 1).
     pub iterations: usize,
+
+    /// Optional file to redirect the profiled program stdout.
     pub stdout_file: Option<String>,
+
+    /// Command and arguments to execute.
     pub cmd: Vec<String>,
+
+    /// Optional set of CPU sockets to monitor.
     pub sockets: Option<HashSet<u32>>,
+
+    /// Optional RAPL polling interval in seconds.
     pub rapl_polling: Option<f64>,
+
+    /// Regex used to detect phase tokens in program output.
     pub token_pattern: String,
 }
 
 /// Configuration for listing sensors.
-///
-/// # Fields
-///
-/// - `output_format` ([`OutputFormat`]): Output format for the sensor list.
 #[derive(Debug, Clone)]
 pub struct ListSensorsConfig {
+    /// Output format for the sensor list.
     pub output_format: OutputFormat,
 }

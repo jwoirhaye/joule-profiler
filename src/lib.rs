@@ -20,16 +20,6 @@
 //! and extend its functionalities. It maintains low overhead, which is crucial
 //! when measuring energy consumption and system metrics.
 //!
-//! # Getting Started
-//!
-//! ```no_run
-//! use joule_profiler::{JouleProfiler, JouleProfilerError};
-//!
-//! pub async fn run() -> Result<(), JouleProfilerError> {
-//!     JouleProfiler::from_cli()?.run().await
-//! }
-//! ```
-//!
 //! # Extending
 //!
 //! To add a new metric source, you must meet a few requirements:

@@ -266,7 +266,7 @@ impl JouleProfiler {
         debug!("Spawning command: {:?}", config.cmd);
 
         let mut child = command.spawn().map_err(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
+            if err.kind() == ErrorKind::NotFound {
                 JouleProfilerError::CommandNotFound(config.cmd[0].clone())
             } else {
                 JouleProfilerError::CommandExecutionFailed(err.to_string())
