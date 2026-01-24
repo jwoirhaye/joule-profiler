@@ -4,10 +4,10 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
-use crate::sources::rapl::Result;
 use crate::sources::rapl::domain::domain_type::RaplDomainType;
 use crate::sources::rapl::domain::socket::parse_or_all_sockets;
 use crate::sources::rapl::error::RaplError;
+use crate::sources::rapl::Result;
 use log::{debug, error, info, trace, warn};
 
 pub mod domain_type;

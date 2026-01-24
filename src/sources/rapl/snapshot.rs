@@ -5,9 +5,9 @@ use log::{debug, error, info, trace};
 use crate::{
     core::aggregate::{Metric, Metrics},
     sources::rapl::{
-        POWERCAP_SOURCE_NAME, Result,
-        domain::{RaplDomain, domain_type::RaplDomainType},
-        error::RaplError,
+        domain::{domain_type::RaplDomainType, RaplDomain}, error::RaplError,
+        Result,
+        POWERCAP_SOURCE_NAME,
     },
 };
 

@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{File, OpenOptions, Permissions},
     io::ErrorKind,
-    os::unix::fs::{PermissionsExt, chown},
+    os::unix::fs::{chown, PermissionsExt},
     path::PathBuf,
 };
 

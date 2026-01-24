@@ -41,30 +41,6 @@ pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
 /// [`DisplayerError::NotImplementedForFormat`] if the method is not supported
 /// for a given format.
 pub trait Displayer {
-    /// Display a single iteration in simple format.
-    ///
-    /// # Parameters
-    ///
-    /// - `cmd` — Command and arguments that were profiled.
-    /// - `result` — Metrics of the iteration to display.
-    ///
-    /// # Returns
-    ///
-    /// `Result<(), DisplayerError>` indicating success or failure.
-    fn simple_single(&mut self, cmd: &[String], result: &Iteration) -> Result<()>;
-
-    /// Display multiple iterations in simple format.
-    ///
-    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
-    ///
-    /// # Parameters
-    ///
-    /// - `_cmd` — Command and arguments that were profiled.
-    /// - `_results` — Metrics of the iterations to display.
-    fn simple_iterations(&mut self, _cmd: &[String], _results: &[Iteration]) -> Result<()> {
-        Err(DisplayerError::NotImplementedForFormat)
-    }
-
     /// Display phases for a single iteration.
     ///
     /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
