@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 
 use crate::cli::commands::{list_sensors::ListSensorsArgs, phases::PhasesArgs};
 
@@ -13,24 +13,4 @@ pub enum ProfilerCommand {
 
     /// List available sensors.
     ListSensors(ListSensorsArgs),
-}
-
-/// Fields common to both Simple and Phases modes.
-#[derive(Parser, Debug)]
-pub struct CommonArgs {
-    /// Number of iterations (>=1).
-    #[arg(short = 'n', long = "iterations")]
-    pub iterations: Option<usize>,
-
-    /// Redirect profiled program stdout to this file.
-    #[arg(short = 'o', long = "stdout-file")]
-    pub stdout_file: Option<String>,
-
-    /// Command to execute (everything after `--`).
-    #[arg(last = true)]
-    pub cmd: Vec<String>,
-
-    /// Rapl polling frequency in second.
-    #[arg(long = "rapl-polling")]
-    pub rapl_polling: Option<f64>,
 }
