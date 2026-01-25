@@ -1,11 +1,14 @@
 [package]
 name = "joule-profiler-core"
-version = "1.0.0"
+version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core library for joule-profiler, handling orchestration and energy measurements"
+keywords = ["energy", "profiling"]
 
 [dependencies]
-anyhow.workspace = true
-env_logger.workspace = true
 log.workspace = true
 serde.workspace = true
 tokio.workspace = true
