@@ -1,7 +1,12 @@
 [package]
 name = "source-rapl"
-version = "1.0.0"
+version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Intel RAPL energy measurement source for joule-profiler"
+keywords = ["energy", "rapl", "intel", "hardware", "powercap"]
 
 [dependencies]
 joule-profiler-core.workspace = true

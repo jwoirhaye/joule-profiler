@@ -1,19 +1,23 @@
 [package]
 name = "joule-profiler-cli"
-version = "1.0.0"
+version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
 repository.workspace = true
+readme.workspace = true
+description = "CLI tool to measure program energy consumption"
+keywords = ["energy", "profiling", "rapl", "cli"]
 
 [[bin]]
 name = "joule-profiler"
 path = "src/bin/main.rs"
 
 [dependencies]
-joule-profiler-core = { path = "../core" }
+joule-profiler-core.workspace = true
 source-rapl = { path = "../sources/rapl" }
 clap = { version = "4.5.53", features = ["derive"] }
 tokio.workspace = true
 anyhow.workspace = true
-thiserror.workspace = true
 env_logger.workspace = true
 log.workspace = true
