@@ -5,6 +5,9 @@ use serde::Serialize;
 /// Represents a profiling phase with metrics and timing
 #[derive(Debug, Serialize)]
 pub struct Phase {
+    /// The index of the phase
+    pub index: usize,
+
     /// Token marking the start of the phase
     pub start_token: PhaseToken,
 
@@ -31,27 +34,6 @@ pub struct Phase {
 
 /// Represents a profiling phase with metrics and timing
 impl Phase {
-    /// Create a new Phase
-    pub fn new(
-        metrics: Metrics,
-        start_token: PhaseToken,
-        end_token: PhaseToken,
-        timestamp: u128,
-        duration_ms: u128,
-        start_line: Option<usize>,
-        end_line: Option<usize>,
-    ) -> Self {
-        Self {
-            metrics,
-            start_token,
-            end_token,
-            timestamp,
-            duration_ms,
-            start_line,
-            end_line,
-        }
-    }
-
     pub fn get_name(&self) -> String {
         format!("{} -> {}", self.start_token, self.end_token)
     }
