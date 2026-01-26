@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{
+use joule_profiler_core::{
     aggregate::Metric,
-    displayer::{Displayer, Result},
+    displayer::{Displayer, DisplayerError},
     profiler::types::{Iteration, Phase},
     sensor::Sensor,
 };
@@ -11,6 +11,8 @@ use crate::{
 const BORDER_DOUBLE: &str = "═";
 const BORDER_SINGLE: &str = "─";
 const BOX_WIDTH: usize = 50;
+
+type Result<T> = std::result::Result<T, DisplayerError>;
 
 #[derive(Debug, Clone, Default)]
 pub struct TerminalOutput;

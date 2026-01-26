@@ -11,14 +11,6 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-mod csv;
-mod json;
-mod terminal;
-
-pub use csv::CsvOutput;
-pub use json::JsonOutput;
-pub use terminal::TerminalOutput;
-
 /// Represents the supported output formats for JouleProfiler.
 ///
 /// This enum defines how metrics are displayed or exported. It is used

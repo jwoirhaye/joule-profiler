@@ -20,13 +20,7 @@
 //! // displayer.simple_single(&cmd, &iteration)?;
 //! ```
 
-use crate::{
-    config::Config,
-    output::{CsvOutput, JsonOutput, OutputFormat, TerminalOutput},
-    util::time::get_timestamp_millis,
-};
-
-mod error;
+pub mod error;
 use crate::profiler::types::Iteration;
 use crate::sensor::Sensor;
 pub use error::DisplayerError;
@@ -90,39 +84,9 @@ pub trait Displayer {
     }
 }
 
-impl TryFrom<&Config> for Box<dyn Displayer> {
-    type Error = DisplayerError;
-
-    /// Creates a boxed [`Displayer`] from a [`Config`] object.
-    ///
-    /// Chooses the appropriate output format based on `Config::output_format`
-    /// and returns an error if initialization fails (e.g., file creation for JSON/CSV).
-    fn try_from(config: &Config) -> Result<Self> {
-        let output_file = config.output_file.clone();
-        let displayer = match config.output_format {
-            OutputFormat::Terminal => TerminalOutput.into(),
-            OutputFormat::Json => JsonOutput::new(output_file)?.into(),
-            OutputFormat::Csv => CsvOutput::try_new(output_file)?.into(),
-        };
-        Ok(displayer)
-    }
-}
-
 impl<T: Displayer + 'static> From<T> for Box<dyn Displayer> {
     /// Boxes a displayer for dynamic dispatch
     fn from(displayer: T) -> Self {
         Box::new(displayer)
     }
-}
-
-impl Default for Box<dyn Displayer> {
-    /// Returns a boxed [`TerminalOutput`] as the default displayer.
-    fn default() -> Self {
-        TerminalOutput.into()
-    }
-}
-
-/// Generates a default filename for iteration data
-pub(crate) fn default_iterations_filename(ext: &str) -> String {
-    format!("data{}.{}", get_timestamp_millis(), ext)
 }

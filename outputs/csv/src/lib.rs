@@ -1,12 +1,14 @@
 use std::fs::File;
 use std::io::Write;
 
-use crate::{
-    displayer::{Displayer, Result, default_iterations_filename},
-    profiler::types::{Iteration, Phase},
-    sensor::Sensor,
-    util::file::{create_file_with_user_permissions, get_absolute_path},
+use joule_profiler_core::displayer::{Displayer, DisplayerError};
+use joule_profiler_core::profiler::types::{Iteration, Phase};
+use joule_profiler_core::sensor::Sensor;
+use joule_profiler_core::util::file::{
+    create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
 };
+
+type Result<T> = std::result::Result<T, DisplayerError>;
 
 /// CSV output writer to a file.
 pub struct CsvOutput {
