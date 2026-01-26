@@ -13,5 +13,6 @@ async fn main() -> Result<()> {
     JouleProfiler::try_from((config, vec![rapl.into()]))?
         .run()
         .await?;
+
     Ok(())
 }

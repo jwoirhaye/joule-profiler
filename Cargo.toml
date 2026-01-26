@@ -4,7 +4,7 @@ members = [
     "core",
     "cli",
     "sources/rapl"
-]
+, "outputs/csv", "outputs/terminal", "outputs/json"]
 
 [workspace.package]
 edition = "2024"

@@ -1,12 +1,16 @@
 use std::fs::File;
 use std::io::Write;
 
+use joule_profiler_core::displayer::error::IntoDisplayerError;
+use joule_profiler_core::displayer::{Displayer, DisplayerError};
+use joule_profiler_core::profiler::types::Iteration;
+use joule_profiler_core::sensor::Sensor;
+use joule_profiler_core::util::file::{
+    create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
+};
 use serde_json::json;
 
-use crate::displayer::{Displayer, Result};
-use crate::profiler::types::Iteration;
-use crate::sensor::Sensor;
-use crate::util::file::{create_file_with_user_permissions, default_iterations_filename, get_absolute_path};
+type Result<T> = std::result::Result<T, DisplayerError>;
 
 /// JSON output writer to a file
 pub struct JsonOutput {
@@ -51,7 +55,9 @@ impl Displayer for JsonOutput {
     }
 
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {
-        self.write_json(&serde_json::to_value(sensors)?)
+        self.write_json(
+            &serde_json::to_value(sensors).map_err(IntoDisplayerError::into_displayer_error)?,
+        )
     }
 }
 
@@ -73,7 +79,8 @@ impl JsonOutput {
 
     /// Write a JSON value to the output file
     fn write_json(&mut self, value: &serde_json::Value) -> Result<()> {
-        let json_str = serde_json::to_string_pretty(value)?;
+        let json_str = serde_json::to_string_pretty(value)
+            .map_err(IntoDisplayerError::into_displayer_error)?;
         writeln!(self.writer, "{}", json_str)?;
         println!("✔ JSON written to: {}", self.filename);
         Ok(())

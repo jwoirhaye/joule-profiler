@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use crate::aggregate::sensor_result::SensorResult;
 use crate::sensor::Sensors;
+use crate::source::error::IntoMetricSourceError;
 use crate::source::types::{RawIteration, RawPhase, SourceEvent};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use log::{debug, trace, warn};
@@ -94,7 +95,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
             Ok(())
         } else {
             warn!("Attempted to create iteration with no phases");
-            Err(MetricSourceError::NoPhaseInIteration)
+            Err(MetricSourceError::NoPhaseInIterationError)
         }
     }
 
@@ -164,18 +165,5 @@ impl<R: MetricReader> MetricAccumulator<R> {
         self.metric_reader
             .get_sensors()
             .map_err(IntoMetricSourceError::into_metric_source_error)
-    }
-}
-
-pub trait IntoMetricSourceError {
-    fn into_metric_source_error(self) -> MetricSourceError;
-}
-
-impl<T> IntoMetricSourceError for T
-where
-    T: std::error::Error + Send + Sync + 'static,
-{
-    fn into_metric_source_error(self) -> MetricSourceError {
-        MetricSourceError::External(Box::new(self))
     }
 }
