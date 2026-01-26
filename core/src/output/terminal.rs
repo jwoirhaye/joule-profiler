@@ -1,6 +1,11 @@
-use crate::displayer::{Displayer, Result};
-use crate::profiler::types::{Iteration, Phase};
-use crate::sensor::Sensor;
+use std::collections::HashMap;
+
+use crate::{
+    aggregate::Metric,
+    displayer::{Displayer, Result},
+    profiler::types::{Iteration, Phase},
+    sensor::Sensor,
+};
 
 /// Constants for formatting
 const BORDER_DOUBLE: &str = "═";
@@ -21,9 +26,9 @@ impl TerminalOutput {
 
     /// Print a formatted header
     fn print_header(&self, title: &str) {
-        println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
-        println!("║  {:<width$} ║", title, width = BOX_WIDTH - 3);
-        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
+        println!("║  {:<width$} ║", title, width = BOX_WIDTH - 5);
+        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
     }
 
     /// Print a formatted sub-header
@@ -58,16 +63,23 @@ impl TerminalOutput {
             .collect();
         keys.sort_unstable();
 
-        println!(" {}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
-
+        let mut metrics_per_source: HashMap<&String, Vec<&Metric>> = HashMap::new();
         for metric in &phase.metrics {
-            println!(
-                "{}  {:<20}: {:10.6} {}",
-                prefix, metric.name, metric.value, metric.unit
-            );
+            metrics_per_source
+                .entry(&metric.source)
+                .or_default()
+                .push(metric)
         }
 
-        println!(" {}{}", prefix, BORDER_SINGLE.repeat(BOX_WIDTH));
+        for metrics in metrics_per_source.values() {
+            println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
+            for metric in metrics {
+                println!(
+                    "{}  {:<20}: {:10.6} {}",
+                    prefix, metric.name, metric.value, metric.unit
+                );
+            }
+        }
 
         Ok(())
     }
@@ -92,14 +104,14 @@ impl TerminalOutput {
 
     /// Display iteration header
     fn display_iteration_header(&self, idx: usize, total: usize) {
-        println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
         println!(
             "║  Iteration {} / {:<width$} ║",
             idx + 1,
             total,
-            width = BOX_WIDTH - 17
+            width = BOX_WIDTH - 19
         );
-        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
     }
 
     /// Display phase header with token information
@@ -107,9 +119,9 @@ impl TerminalOutput {
         let phase_name = phase.get_name();
         println!();
         if prefix.is_empty() {
-            println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH));
-            println!("║  Phase: {:<width$} ║", phase_name, width = BOX_WIDTH - 10);
-            println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH));
+            println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
+            println!("║  Phase: {:<width$} ║", phase_name, width = BOX_WIDTH - 12);
+            println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
         } else {
             self.print_subheader(&format!("Phase: {}", phase_name), prefix);
         }
@@ -126,9 +138,15 @@ impl TerminalOutput {
         } else {
             phase.end_token.to_string()
         };
-        println!("{}  Start token: {}", prefix, start_info);
-        println!("{}  End token: {}", prefix, end_info);
-        println!("{}  Duration: {} ms", prefix, phase.duration_ms);
+
+        println!(
+            "{}  {:<20}: {:>10} ms",
+            prefix, "Duration", phase.duration_ms
+        );
+
+        println!("{}  {:<20}: {:>10}", prefix, "Start token", start_info);
+
+        println!("{}  {:<20}: {:>10}", prefix, "End token", end_info);
     }
 }
 
@@ -171,17 +189,26 @@ impl Displayer for TerminalOutput {
         }
         self.print_header("Available Sensors");
 
-        println!("  {:<20} | {:<10} | {:<15}", "Name", "Unit", "Source");
-        println!("  {}", BORDER_SINGLE.repeat(45));
+        println!("  {:<20} | {:<5} | {:<15}", "Name", "Unit", "Source");
 
+        let mut sensors_by_source: HashMap<&String, Vec<&Sensor>> = HashMap::new();
         for sensor in sensors {
-            println!(
-                "  {:<20} | {:<10} | {:<15}",
-                sensor.name, sensor.unit, sensor.source
-            );
+            sensors_by_source
+                .entry(&sensor.source)
+                .or_default()
+                .push(sensor)
         }
 
-        println!("{}", BORDER_DOUBLE.repeat(BOX_WIDTH));
+        for source_sensors in sensors_by_source.values() {
+            println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
+            for sensor in source_sensors {
+                println!(
+                    "  {:<20} | {:<5} | {:<15}",
+                    sensor.name, sensor.unit, sensor.source
+                );
+            }
+        }
+
         Ok(())
     }
 }
