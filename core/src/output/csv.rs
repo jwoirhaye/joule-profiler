@@ -1,9 +1,12 @@
-use crate::displayer::{Displayer, Result, default_iterations_filename};
-use crate::profiler::types::{Iteration, Phase};
-use crate::sensor::Sensor;
-use crate::util::file::{create_file_with_user_permissions, get_absolute_path};
 use std::fs::File;
 use std::io::Write;
+
+use crate::{
+    displayer::{Displayer, Result, default_iterations_filename},
+    profiler::types::{Iteration, Phase},
+    sensor::Sensor,
+    util::file::{create_file_with_user_permissions, get_absolute_path},
+};
 
 /// CSV output writer to a file.
 pub struct CsvOutput {
@@ -31,85 +34,81 @@ impl CsvOutput {
     }
 
     /// Write CSV header row.
-    fn write_header(
-        &mut self,
-        keys: &[&String],
-        include_iteration: bool,
-        include_phase: bool,
-    ) -> Result<()> {
-        if include_iteration {
-            write!(self.file, "iteration;")?;
-        }
-        write!(self.file, "command;")?;
-
-        if include_phase {
-            write!(self.file, "start_token;end_token;start_line;end_line;")?;
+    fn write_header(&mut self, with_iteration_id: bool) -> Result<()> {
+        if with_iteration_id {
+            write!(self.file, "iteration_id;")?;
         }
 
-        for key in keys {
-            write!(self.file, "{};", key)?;
-        }
+        write!(self.file, "phase_id;phase_name;phase_duration_ms;")?;
+        write!(
+            self.file,
+            "metric_name;metric_value;metric_unit;metric_source;"
+        )?;
+        write!(
+            self.file,
+            "start_token;end_token;start_line;end_line;timestamp;"
+        )?;
+        write!(self.file, "command;exit_code;token_pattern")?;
+        writeln!(self.file)?;
 
-        writeln!(self.file, "duration_ms;exit_code")?;
         Ok(())
     }
 
     /// Write a CSV row for a single phase.
-    fn write_phase_row(&mut self, phase: &Phase, iteration_index: Option<usize>) -> Result<()> {
-        if let Some(i) = iteration_index {
-            write!(self.file, "{};", i)?;
-        }
-
-        // command
-        write!(self.file, ";")?;
-
-        write!(
-            self.file,
-            "{};{};{};{};",
-            phase.start_token,
-            phase.end_token,
-            phase.start_line.map(|l| l.to_string()).unwrap_or_default(),
-            phase.end_line.map(|l| l.to_string()).unwrap_or_default(),
-        )?;
-
+    fn write_phase(
+        &mut self,
+        phase: &Phase,
+        iteration: &Iteration,
+        cmd: &str,
+        token_pattern: &str,
+        with_iteration_index: bool,
+    ) -> Result<()> {
         for metric in &phase.metrics {
-            write!(self.file, "{};", metric.value)?;
+            if with_iteration_index {
+                write!(self.file, "{};", iteration.index)?;
+            }
+
+            let start_line = phase.start_line.map(|l| l.to_string()).unwrap_or_default();
+            let end_line = phase.end_line.map(|l| l.to_string()).unwrap_or_default();
+
+            write!(
+                self.file,
+                "{};\"{}\";{};",
+                phase.index,
+                phase.get_name(),
+                phase.duration_ms
+            )?;
+            write!(
+                self.file,
+                "{};{};{};{};",
+                metric.name, metric.value, metric.unit, metric.source
+            )?;
+            write!(
+                self.file,
+                "{};{};{};{};{};",
+                phase.start_token, phase.end_token, start_line, end_line, phase.timestamp
+            )?;
+            write!(
+                self.file,
+                "\"{}\";{};\"{}\"",
+                cmd, iteration.exit_code, token_pattern
+            )?;
+            writeln!(self.file)?;
         }
-
-        write!(self.file, "{};", phase.duration_ms)?;
-
-        // iteration collumns
-        writeln!(self.file, ";;")?;
 
         Ok(())
     }
 
-    fn write_iteration_row(
+    fn write_iteration(
         &mut self,
-        command: &[String],
         iteration: &Iteration,
-        index: Option<usize>,
+        cmd: &str,
+        token_pattern: &str,
+        with_iteration_index: bool,
     ) -> Result<()> {
-        // iteration index
-        if let Some(i) = index {
-            write!(self.file, "{};", i)?;
+        for phase in &iteration.phases {
+            self.write_phase(phase, iteration, cmd, token_pattern, with_iteration_index)?;
         }
-        write!(self.file, "'{}';", command.join(" "))?;
-
-        // phase columns
-        write!(self.file, ";;;;")?;
-
-        let phase = &iteration.phases[0];
-        for _ in &phase.metrics {
-            write!(self.file, ";")?;
-        }
-
-        write!(
-            self.file,
-            "{};{}",
-            iteration.duration_ms, iteration.exit_code
-        )?;
-
         Ok(())
     }
 
@@ -123,26 +122,17 @@ impl Displayer for CsvOutput {
     fn phases_single(
         &mut self,
         cmd: &[String],
-        _token_pattern: &str,
+        token_pattern: &str,
         result: &Iteration,
     ) -> Result<()> {
         if result.phases.is_empty() {
             return Ok(());
         }
 
-        let keys: Vec<&String> = result.phases[0]
-            .metrics
-            .iter()
-            .map(|metric| &metric.name)
-            .collect();
+        let command = cmd.join(" ");
 
-        self.write_header(&keys, false, true)?;
-        self.write_iteration_row(cmd, result, None)?;
-        writeln!(self.file)?;
-
-        for phase in &result.phases {
-            self.write_phase_row(phase, None)?;
-        }
+        self.write_header(false)?;
+        self.write_iteration(result, command.as_str(), token_pattern, false)?;
 
         self.finalize();
         Ok(())
@@ -151,33 +141,18 @@ impl Displayer for CsvOutput {
     fn phases_iterations(
         &mut self,
         cmd: &[String],
-        _token_pattern: &str,
+        token_pattern: &str,
         iterations: &[Iteration],
     ) -> Result<()> {
-        if iterations.is_empty() {
+        if iterations.is_empty() || iterations[0].phases.is_empty() {
             return Ok(());
         }
 
-        let first_result = &iterations[0];
+        let command = cmd.join(" ");
 
-        if first_result.phases.is_empty() {
-            return Ok(());
-        }
-
-        let keys: Vec<&String> = iterations[0].phases[0]
-            .metrics
-            .iter()
-            .map(|metric| &metric.name)
-            .collect();
-
-        self.write_header(&keys, true, true)?;
-
-        for (i, iteration) in iterations.iter().enumerate() {
-            self.write_iteration_row(cmd, iteration, Some(i))?;
-            writeln!(self.file)?;
-            for phase in &iteration.phases {
-                self.write_phase_row(phase, Some(i))?;
-            }
+        self.write_header(true)?;
+        for iteration in iterations {
+            self.write_iteration(iteration, &command, token_pattern, true)?;
         }
 
         self.finalize();

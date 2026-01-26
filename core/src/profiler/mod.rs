@@ -169,35 +169,38 @@ impl JouleProfiler {
                 ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
                     let mut phases: Vec<_> = detected_phases
                         .windows(2)
+                        .enumerate()
                         .zip(&iteration.phases)
-                        .map(|(window, real_phase)| {
+                        .map(|((index, window), real_phase)| {
                             let (d1, d2) = (&window[0], &window[1]);
                             let mut phase_metrics = real_phase.metrics.clone();
                             phase_metrics.sort_by_key(|metric| metric.name.clone());
-                            Phase::new(
-                                phase_metrics,
-                                d1.token.clone(),
-                                d2.token.clone(),
-                                d1.timestamp,
-                                d2.timestamp - d1.timestamp,
-                                d1.line_number,
-                                d2.line_number,
-                            )
+                            Phase {
+                                index,
+                                metrics: phase_metrics,
+                                start_token: d1.token.clone(),
+                                end_token: d2.token.clone(),
+                                timestamp: d1.timestamp,
+                                duration_ms: d2.timestamp - d1.timestamp,
+                                start_line: d1.line_number,
+                                end_line: d2.line_number,
+                            }
                         })
                         .collect();
 
                     if phases.is_empty()
                         && let Some(end_phase) = iteration.phases.into_iter().last()
                     {
-                        let phase = Phase::new(
-                            end_phase.metrics,
-                            PhaseToken::Start,
-                            PhaseToken::End,
-                            begin_timestamp,
+                        let phase = Phase {
+                            index: 0,
+                            metrics: end_phase.metrics,
+                            start_token: PhaseToken::Start,
+                            end_token: PhaseToken::End,
+                            timestamp: begin_timestamp,
                             duration_ms,
-                            None,
-                            None,
-                        );
+                            start_line: None,
+                            end_line: None,
+                        };
                         phases.push(phase);
                     }
 
