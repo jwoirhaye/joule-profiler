@@ -28,8 +28,6 @@
 
 use std::collections::HashSet;
 
-use crate::output::OutputFormat;
-
 /// Top-level configuration for Joule Profiler.
 #[derive(Debug)]
 pub struct Config {
@@ -38,12 +36,6 @@ pub struct Config {
 
     /// Override the base path used to read Intel RAPL counters.
     pub rapl_path: Option<String>,
-
-    /// Output format (terminal, JSON, CSV).
-    pub output_format: OutputFormat,
-
-    /// Optional output file for JSON/CSV exports.
-    pub output_file: Option<String>,
 }
 
 /// Command executed by the profiler.
@@ -53,7 +45,7 @@ pub enum Command {
     Profile(ProfileConfig),
 
     /// List available sensors.
-    ListSensors(ListSensorsConfig),
+    ListSensors,
 }
 
 /// Configuration for profiling a program.
@@ -76,11 +68,4 @@ pub struct ProfileConfig {
 
     /// Regex used to detect phase tokens in program output.
     pub token_pattern: String,
-}
-
-/// Configuration for listing sensors.
-#[derive(Debug, Clone)]
-pub struct ListSensorsConfig {
-    /// Output format for the sensor list.
-    pub output_format: OutputFormat,
 }

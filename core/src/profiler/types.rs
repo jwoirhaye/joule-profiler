@@ -39,6 +39,8 @@ impl Phase {
     }
 }
 
+pub type Phases = Vec<Phase>;
+
 /// Represents a profiler iteration with its phases and metrics
 #[derive(Debug, Serialize)]
 pub struct Iteration {
@@ -55,13 +57,13 @@ pub struct Iteration {
     pub exit_code: i32,
 
     /// Phases detected in the iteration
-    pub phases: Vec<Phase>,
+    pub phases: Phases,
 }
 
 impl Iteration {
     /// Create a new Iteration
     pub fn new(
-        phases: Vec<Phase>,
+        phases: Phases,
         index: usize,
         timestamp: u128,
         duration_ms: u128,
@@ -76,3 +78,5 @@ impl Iteration {
         }
     }
 }
+
+pub type Iterations = Vec<Iteration>;

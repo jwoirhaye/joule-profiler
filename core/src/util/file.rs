@@ -1,7 +1,6 @@
 use std::{
     env,
     fs::{File, OpenOptions, Permissions},
-    io::ErrorKind,
     os::unix::fs::{PermissionsExt, chown},
     path::PathBuf,
 };
@@ -12,6 +11,7 @@ const ROOT_UID_ENV_VAR: &str = "SUDO_UID";
 const ROOT_GID_ENV_VAR: &str = "SUDO_GID";
 const URW_GRW_OR_PERMS: u32 = 0o664;
 
+/// Creates a file with user permissions even if the current user is root.
 pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
     let file = OpenOptions::new()
         .write(true)
@@ -21,21 +21,15 @@ pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
 
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
-    let uid_result = env::var(ROOT_UID_ENV_VAR)
-        .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_UID not set"))?
-        .parse::<u32>()
-        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_UID"));
+    let uid = env::var(ROOT_UID_ENV_VAR)
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok());
 
-    let gid_result = env::var(ROOT_GID_ENV_VAR)
-        .map_err(|_| std::io::Error::new(ErrorKind::NotFound, "ROOT_GID not set"))?
-        .parse::<u32>()
-        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid ROOT_GID"));
+    let gid = env::var(ROOT_GID_ENV_VAR)
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok());
 
-    if let Ok(uid) = uid_result
-        && let Ok(gid) = gid_result
-    {
-        chown(path, Some(uid), Some(gid))?;
-    }
+    chown(path, uid, gid)?;
 
     Ok(file)
 }
@@ -52,7 +46,7 @@ pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
     Ok(absolute_path.display().to_string())
 }
 
-/// Generates a default filename for iteration data
+/// Generates a default filename for iteration data.
 pub fn default_iterations_filename(ext: &str) -> String {
     format!("data{}.{}", get_timestamp_millis(), ext)
 }
