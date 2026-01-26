@@ -27,12 +27,25 @@ pub enum MetricSourceError {
     ErrorRetrievingCounters,
 
     #[error("Cannot build iteration without at least one phase")]
-    NoPhaseInIteration,
+    NoPhaseInIterationError,
 
-    #[error("External source error: {0}")]
-    External(
+    #[error("Metric source error: {0}")]
+    SourceError(
         #[from]
         #[source]
         Box<dyn std::error::Error + Send + Sync>,
     ),
+}
+
+pub trait IntoMetricSourceError {
+    fn into_metric_source_error(self) -> MetricSourceError;
+}
+
+impl<T> IntoMetricSourceError for T
+where
+    T: std::error::Error + Send + Sync + 'static,
+{
+    fn into_metric_source_error(self) -> MetricSourceError {
+        MetricSourceError::SourceError(Box::new(self))
+    }
 }

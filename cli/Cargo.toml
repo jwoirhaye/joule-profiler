@@ -16,6 +16,9 @@ path = "src/bin/main.rs"
 [dependencies]
 joule-profiler-core.workspace = true
 source-rapl = { path = "../sources/rapl" }
+displayer-terminal = { path = "../outputs/terminal" }
+displayer-csv = { path = "../outputs/csv" }
+displayer-json = { path = "../outputs/json" }
 clap = { version = "4.5.53", features = ["derive"] }
 tokio.workspace = true
 anyhow.workspace = true

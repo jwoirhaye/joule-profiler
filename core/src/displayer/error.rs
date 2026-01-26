@@ -27,10 +27,23 @@ pub enum DisplayerError {
         std::io::Error,
     ),
 
-    #[error("Serialization error")]
-    SerializeError(
+    #[error("Metric source error: {0}")]
+    DisplayerError(
         #[from]
         #[source]
-        serde_json::Error,
+        Box<dyn std::error::Error + Send + Sync>,
     ),
+}
+
+pub trait IntoDisplayerError {
+    fn into_displayer_error(self) -> DisplayerError;
+}
+
+impl<T> IntoDisplayerError for T
+where
+    T: std::error::Error + Send + Sync + 'static,
+{
+    fn into_displayer_error(self) -> DisplayerError {
+        DisplayerError::DisplayerError(Box::new(self))
+    }
 }

@@ -90,7 +90,7 @@
 use tokio::sync::mpsc::Receiver;
 
 pub(crate) mod accumulator;
-pub(crate) mod error;
+pub mod error;
 pub(crate) mod reader;
 pub(crate) mod types;
 
