@@ -33,10 +33,11 @@ use std::{
 pub mod error;
 
 use crate::aggregate::iteration::SensorIteration;
-use crate::config::{Command, Config, ProfileConfig};
+use crate::config::ProfileConfig;
+use crate::displayer::Displayer;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
-use crate::profiler::types::{Iteration, Phase};
+use crate::profiler::types::{Iteration, Iterations, Phase};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::util::file::create_file_with_user_permissions;
@@ -71,32 +72,14 @@ type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 ///   metrics to terminal, JSON, CSV, etc.
 /// - `sources` (Vec<Box<dyn [`MetricSource`]>): Registered metric sources
 ///   to collect data from (e.g., RAPL, custom sensors).
+#[derive(Default)]
 pub struct JouleProfiler {
-    config: Config,
     orchestrator: SourceOrchestrator,
     sources: Vec<Box<dyn MetricSource>>,
+    displayer: Option<Box<dyn Displayer>>,
 }
 
 impl JouleProfiler {
-    /// Run the profiler asynchronously.
-    ///
-    /// Executes the configured command and collects metrics. Also supports
-    /// listing sensors.
-    pub async fn run(&mut self) -> Result<()> {
-        info!("Profiler run started");
-
-        match self.config.command.clone() {
-            Command::Profile(profile_config) => {
-                info!("Entering profiling mode");
-                self.profile(profile_config).await
-            }
-            Command::ListSensors(_) => {
-                info!("Entering sensor listing mode");
-                self.run_list_sensors()
-            }
-        }
-    }
-
     /// Add a custom metric source to the profiler.
     ///
     /// All sources must implement [`MetricReader`].
@@ -109,13 +92,15 @@ impl JouleProfiler {
         self.sources.push(reader.into());
     }
 
-    /// Profile in the configured mode
-    async fn profile(&mut self, profile_config: ProfileConfig) -> Result<()> {
-        self.run_phases(profile_config).await
+    /// Sets the profiler displayer.
+    ///
+    /// The profiler will display the results.
+    pub fn set_displayer(&mut self, displayer: Box<dyn Displayer>) {
+        self.displayer = Some(displayer);
     }
 
     /// List the sensors of the provided sources.
-    pub fn run_list_sensors(&mut self) -> Result<()> {
+    pub fn run_list_sensors(&mut self) -> Result<Sensors> {
         debug!("Listing sensors from {} source(s)", self.sources.len());
 
         let sensors: Vec<Sensor> = self
@@ -132,12 +117,16 @@ impl JouleProfiler {
             .collect();
 
         info!("Discovered {} sensor(s)", sensors.len());
-        // self.displayer.list_sensors(&sensors)?;
-        Ok(())
+
+        if let Some(displayer) = &mut self.displayer {
+            displayer.list_sensors(&sensors)?;
+        }
+
+        Ok(sensors)
     }
 
     /// Run phase-based profiling mode.
-    pub async fn run_phases(&mut self, config: ProfileConfig) -> Result<()> {
+    pub async fn run_phases(&mut self, config: ProfileConfig) -> Result<Iterations> {
         info!("Running phase-based profiling");
         debug!("Iterations: {}", config.iterations);
         debug!("Phase regex: {}", config.token_pattern);
@@ -157,7 +146,7 @@ impl JouleProfiler {
         let (sources_results, sources) = self.orchestrator.retrieve().await?;
         self.sources = sources;
 
-        let results: Vec<Iteration> = command_results
+        let results: Iterations = command_results
             .into_iter()
             .zip(sources_results.iterations.into_iter().enumerate())
             .map(
@@ -207,17 +196,17 @@ impl JouleProfiler {
             )
             .collect();
 
-        // if config.iterations > 1 {
-        //     self.displayer
-        //         .phases_iterations(&config.cmd, &config.token_pattern, &results)?;
-        // } else {
-        //     self.displayer
-        //         .phases_single(&config.cmd, &config.token_pattern, &results[0])?;
-        // }
+        if let Some(displayer) = &mut self.displayer {
+            if config.iterations > 1 {
+                displayer.phases_iterations(&config.cmd, &config.token_pattern, &results)?;
+            } else {
+                displayer.phases_single(&config.cmd, &config.token_pattern, &results[0])?;
+            }
+        }
 
         debug!("Collected {} sensor iteration(s)", results.len());
 
-        Ok(())
+        Ok(results)
     }
 
     /// Measure one iteration in phases mode
@@ -374,26 +363,6 @@ impl JouleProfiler {
     }
 }
 
-impl TryFrom<(Config, Vec<Box<dyn MetricSource>>)> for JouleProfiler {
-    type Error = JouleProfilerError;
-
-    /// Convert a configuration into a ready-to-run profiler.
-    ///
-    /// Automatically sets up the displayer and built-in RAPL source.
-    fn try_from((config, sources): (Config, Vec<Box<dyn MetricSource>>)) -> Result<Self> {
-        info!("Building JouleProfiler from config");
-        trace!("Profiler config: {:?}", config);
-
-        let orchestrator = SourceOrchestrator::new();
-
-        Ok(Self {
-            orchestrator,
-            config,
-            sources,
-        })
-    }
-}
-
 pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> {
     regex.find(line).map(|mat| mat.as_str())
 }
@@ -407,27 +376,13 @@ mod tests {
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
     use crate::profiler::phase_token_in_line;
-    use crate::{
-        JouleProfiler,
-        config::{Command, Config, ListSensorsConfig},
-        output::OutputFormat,
-        util::time::get_timestamp_millis,
-    };
+    use crate::{JouleProfiler, util::time::get_timestamp_millis};
 
     fn joule_profiler() -> JouleProfiler {
-        let list_sensors_config = ListSensorsConfig {
-            output_format: OutputFormat::Terminal,
-        };
-        let config = Config {
-            command: Command::ListSensors(list_sensors_config),
-            output_file: None,
-            output_format: OutputFormat::Terminal,
-            rapl_path: None,
-        };
         JouleProfiler {
-            config,
             orchestrator: SourceOrchestrator::new(),
             sources: Vec::new(),
+            displayer: None,
         }
     }
 

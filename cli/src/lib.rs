@@ -1,11 +1,21 @@
+use std::collections::HashSet;
+
 use clap::{ArgAction, Parser};
 
 use anyhow::Result;
 pub use commands::ProfilerCommand;
-use joule_profiler_core::config::Config;
+use displayer_csv::CsvOutput;
+use displayer_json::JsonOutput;
+use displayer_terminal::TerminalOutput;
+use joule_profiler_core::{
+    config::{Command, Config, ProfileConfig},
+    displayer::Displayer,
+};
+
+use crate::output::{OutputFormat, output_format};
 mod commands;
 mod logging;
-mod mapper;
+mod output;
 
 /// joule-profiler: measure program energy consumption
 #[derive(Parser, Debug)]
@@ -57,8 +67,48 @@ impl CliArgs {
     }
 }
 
-pub fn parse_config() -> Result<Config> {
-    let cli = CliArgs::from_args()?;
+impl From<CliArgs> for Config {
+    fn from(cli_args: CliArgs) -> Self {
+        let sockets: Option<HashSet<u32>> = cli_args.sockets.map(|s| {
+            s.split(',')
+                .filter_map(|x| x.trim().parse::<u32>().ok())
+                .collect()
+        });
+
+        let command = match cli_args.command {
+            ProfilerCommand::Phases(phases) => Command::Profile(ProfileConfig {
+                iterations: phases.iterations.unwrap_or(1),
+                stdout_file: phases.stdout_file,
+                cmd: phases.cmd,
+                rapl_polling: phases.rapl_polling,
+                token_pattern: phases.token_pattern,
+                sockets,
+            }),
+
+            ProfilerCommand::ListSensors => Command::ListSensors,
+        };
+
+        Config {
+            command,
+            rapl_path: cli_args.rapl_path,
+        }
+    }
+}
+
+pub fn output_format_to_displayer(cli: &CliArgs) -> Result<Box<dyn Displayer>> {
+    let output_format = output_format(cli.json, cli.csv);
+    let output_file = cli.output_file.clone();
+
+    let displayer = match output_format {
+        OutputFormat::Terminal => TerminalOutput.into(),
+        OutputFormat::Json => JsonOutput::new(output_file)?.into(),
+        OutputFormat::Csv => CsvOutput::try_new(output_file)?.into(),
+    };
+
+    Ok(displayer)
+}
+
+pub fn parse_config(cli: CliArgs) -> Result<Config> {
     logging::init_logging(cli.verbose);
-    Ok(mapper::cli_to_config(cli))
+    Ok(cli.into())
 }

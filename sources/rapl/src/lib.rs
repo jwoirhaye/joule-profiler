@@ -192,7 +192,7 @@ impl TryFrom<&Config> for Rapl {
                 check_rapl_access(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
             }
-            Command::ListSensors(_) => (None, None),
+            Command::ListSensors => (None, None),
         };
 
         let rapl = Rapl::try_new(&base_path, sockets, rapl_polling)?;
