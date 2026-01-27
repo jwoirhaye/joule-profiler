@@ -1,5 +1,3 @@
-use std::future::poll_fn;
-use std::task::Poll;
 use std::time::Duration;
 
 use crate::aggregate::sensor_result::SensorResult;
@@ -120,10 +118,10 @@ impl<R: MetricReader> MetricAccumulator<R> {
     }
 
     pub async fn run_worker(
-        mut self,
+        self,
         rx: Receiver<SourceEvent>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        if self.has_scheduler().await {
+        if self.metric_reader.has_scheduler() {
             self.run_worker_with_scheduler(rx).await
         } else {
             self.run_worker_without_scheduler(rx).await
@@ -198,23 +196,5 @@ impl<R: MetricReader> MetricAccumulator<R> {
                 }
             }
         }
-    }
-
-    async fn has_scheduler(&mut self) -> bool {
-        let has_scheduler = poll_fn(|cx| {
-            let fut = std::pin::pin!(self.metric_reader.scheduler());
-            match fut.poll(cx) {
-                Poll::Ready(_) => Poll::Ready(false),
-                Poll::Pending => Poll::Ready(true),
-            }
-        })
-        .await;
-
-        if has_scheduler {
-            debug!("Scheduler detected for source {}", R::get_name())
-        } else {
-            debug!("No scheduler detected for source {}", R::get_name())
-        }
-        has_scheduler
     }
 }
