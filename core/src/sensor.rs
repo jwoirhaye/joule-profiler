@@ -63,31 +63,5 @@ pub struct Sensor {
     pub source: String,
 }
 
-impl Sensor {
-    /// Create a new sensor
-    ///
-    /// # Arguments
-    ///
-    /// - `name` (`String`) - The sensor name
-    /// - `unit` (`String`) - Unit of measurement
-    /// - `source` (`String`) - The origin of the sensor
-    ///
-    /// # Returns
-    ///
-    /// - 'Self' - The sensor
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use joule_profiler_core::sensor::Sensor;
-    ///
-    /// let sensor = Sensor::new("CPU Energy".to_string(), "Joule".to_string(), "RAPL".to_string());
-    /// assert_eq!(sensor.name, "CPU Energy");
-    /// ```
-    pub fn new(name: String, unit: String, source: String) -> Self {
-        Self { name, unit, source }
-    }
-}
-
 /// A collection of sensors.
 pub type Sensors = Vec<Sensor>;

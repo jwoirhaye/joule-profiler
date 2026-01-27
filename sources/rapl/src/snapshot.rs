@@ -20,13 +20,6 @@ pub struct Snapshot {
     pub metrics: HashMap<RaplDomainIndex, u64>,
 }
 
-impl Snapshot {
-    /// Create a new snapshot from a metrics map
-    pub fn new(metrics: HashMap<RaplDomainIndex, u64>) -> Self {
-        Self { metrics }
-    }
-}
-
 impl AddAssign<Snapshot> for Snapshot {
     fn add_assign(&mut self, rhs: Snapshot) {
         for (domain, value) in rhs.metrics {
@@ -40,13 +33,11 @@ impl From<Snapshot> for Metrics {
         snapshot
             .metrics
             .into_iter()
-            .map(|((domain, socket), value)| {
-                Metric::new(
-                    domain.to_string_socket(socket),
-                    value,
-                    MICRO_JOULE_UNIT.to_string(),
-                    POWERCAP_SOURCE_NAME.to_lowercase(),
-                )
+            .map(|((domain, socket), value)| Metric {
+                name: domain.to_string_socket(socket),
+                value,
+                unit: MICRO_JOULE_UNIT.to_string(),
+                source: POWERCAP_SOURCE_NAME.to_lowercase(),
             })
             .collect()
     }

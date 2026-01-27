@@ -37,17 +37,5 @@ pub struct Metric {
     pub source: String,
 }
 
-impl Metric {
-    /// Create a new metric with the given name, value, unit, and source.
-    pub fn new(name: String, value: u64, unit: String, source: String) -> Self {
-        Metric {
-            name,
-            value,
-            unit,
-            source,
-        }
-    }
-}
-
 /// A collection of metrics.
 pub type Metrics = Vec<Metric>;
