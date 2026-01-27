@@ -60,23 +60,4 @@ pub struct Iteration {
     pub phases: Phases,
 }
 
-impl Iteration {
-    /// Create a new Iteration
-    pub fn new(
-        phases: Phases,
-        index: usize,
-        timestamp: u128,
-        duration_ms: u128,
-        exit_code: i32,
-    ) -> Self {
-        Self {
-            phases,
-            index,
-            timestamp,
-            duration_ms,
-            exit_code,
-        }
-    }
-}
-
 pub type Iterations = Vec<Iteration>;

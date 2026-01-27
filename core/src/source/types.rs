@@ -60,13 +60,6 @@ pub struct RawPhase<V> {
     pub metrics: V,
 }
 
-impl<V> RawPhase<V> {
-    /// Create a new RawPhase with the given metrics
-    pub fn new(metrics: V) -> Self {
-        Self { metrics }
-    }
-}
-
 /// Represents a single iteration from a metrics source
 #[derive(Debug, Default, Clone)]
 pub struct RawIteration<V> {
@@ -79,12 +72,12 @@ pub struct RawIteration<V> {
 
 impl<V: Into<Metrics>> From<RawIteration<V>> for SensorIteration {
     fn from(iteration: RawIteration<V>) -> Self {
-        let phases = iteration
-            .phases
-            .into_iter()
-            .map(|phase| phase.into())
-            .collect();
-
-        SensorIteration::new(phases)
+        SensorIteration {
+            phases: iteration
+                .phases
+                .into_iter()
+                .map(|phase| phase.into())
+                .collect(),
+        }
     }
 }
