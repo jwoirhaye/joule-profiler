@@ -1,5 +1,4 @@
 use log::trace;
-use std::future::ready;
 
 use crate::sensor::Sensors;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
@@ -28,10 +27,10 @@ use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 ///   By default, this is a no-op and returns a pending future. Implement this
 ///   if your source supports automatic periodic polling.
 pub trait MetricReader: Send + 'static {
-    /// Type of metrics returned by the reader
+    /// Type of metrics returned by the reader.
     type Type: MetricReaderTypeBound;
 
-    /// Error type produced by the reader
+    /// Error type produced by the reader.
     type Error: MetricReaderErrorBound;
 
     /// Measure the sensors metrics and update internal state
@@ -48,7 +47,11 @@ pub trait MetricReader: Send + 'static {
     /// By default, this is a no-op returning a pending future.
     fn scheduler(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         trace!("Internal scheduler not implemented for this source");
-        ready(Ok(()))
+        async { Ok(()) }
+    }
+
+    fn has_scheduler(&self) -> bool {
+        false
     }
 
     fn get_name() -> &'static str;
