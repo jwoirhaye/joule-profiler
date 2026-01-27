@@ -1,5 +1,5 @@
 use log::trace;
-use std::future::pending;
+use std::future::ready;
 
 use crate::sensor::Sensors;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
@@ -48,7 +48,7 @@ pub trait MetricReader: Send + 'static {
     /// By default, this is a no-op returning a pending future.
     fn scheduler(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         trace!("Internal scheduler not implemented for this source");
-        pending()
+        ready(Ok(()))
     }
 
     fn get_name() -> &'static str;
