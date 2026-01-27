@@ -45,7 +45,7 @@
 use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::snapshot::{Snapshot, compute_measurement_from_snapshots};
-use futures::{StreamExt, future::pending};
+use futures::StreamExt;
 use joule_profiler_core::config::Command;
 use joule_profiler_core::config::Config;
 use joule_profiler_core::sensor::{Sensor, Sensors};
@@ -223,7 +223,7 @@ impl MetricReader for Rapl {
             trace!("RAPL scheduler tick fired");
             self.measure()
         } else {
-            pending().await
+            Ok(())
         }
     }
 

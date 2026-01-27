@@ -1,3 +1,5 @@
+use std::future::poll_fn;
+use std::task::Poll;
 use std::time::Duration;
 
 use crate::aggregate::sensor_result::SensorResult;
@@ -117,18 +119,38 @@ impl<R: MetricReader> MetricAccumulator<R> {
         Ok((result, boxed_source))
     }
 
-    /// Start a worker to process events and measure metrics
     pub async fn run_worker(
+        mut self,
+        rx: Receiver<SourceEvent>,
+    ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
+        if self.has_scheduler().await {
+            self.run_worker_with_scheduler(rx).await
+        } else {
+            self.run_worker_without_scheduler(rx).await
+        }
+    }
+
+    /// Return all sensors from the reader
+    pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
+        trace!("Retrieving sensors from metric reader {}", R::get_name());
+
+        self.metric_reader
+            .get_sensors()
+            .map_err(IntoMetricSourceError::into_metric_source_error)
+    }
+
+    async fn run_worker_with_scheduler(
         mut self,
         mut rx: Receiver<SourceEvent>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        debug!("MetricAccumulator worker started");
+        debug!("Running worker {} with scheduler", R::get_name());
 
         loop {
             select! {
+                biased;
+
                 Some(event) = rx.recv() => {
                     trace!("Worker received event: {:?}", event);
-
                     match event {
                         SourceEvent::Measure => self.measure()?,
                         SourceEvent::NewPhase => self.new_phase()?,
@@ -146,7 +168,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
                             return self.retrieve();
                         }
                     }
-                },
+                }
 
                 res = self.metric_reader.scheduler(), if self.running => {
                     if let Err(err) = res {
@@ -158,12 +180,41 @@ impl<R: MetricReader> MetricAccumulator<R> {
         }
     }
 
-    /// Return all sensors from the reader
-    pub fn get_sensors(&self) -> Result<Sensors, MetricSourceError> {
-        trace!("Retrieving sensors from metric reader {}", R::get_name());
+    async fn run_worker_without_scheduler(
+        mut self,
+        mut rx: Receiver<SourceEvent>,
+    ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
+        debug!("Running worker {} without scheduler", R::get_name());
 
-        self.metric_reader
-            .get_sensors()
-            .map_err(IntoMetricSourceError::into_metric_source_error)
+        loop {
+            if let Some(event) = rx.recv().await {
+                trace!("Worker received event: {:?}", event);
+                match event {
+                    SourceEvent::Measure => self.measure()?,
+                    SourceEvent::NewPhase => self.new_phase()?,
+                    SourceEvent::NewIteration => self.new_iteration()?,
+                    SourceEvent::JoinWorker => return self.retrieve(),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    async fn has_scheduler(&mut self) -> bool {
+        let has_scheduler = poll_fn(|cx| {
+            let fut = std::pin::pin!(self.metric_reader.scheduler());
+            match fut.poll(cx) {
+                Poll::Ready(_) => Poll::Ready(false),
+                Poll::Pending => Poll::Ready(true),
+            }
+        })
+        .await;
+
+        if has_scheduler {
+            debug!("Scheduler detected for source {}", R::get_name())
+        } else {
+            debug!("No scheduler detected for source {}", R::get_name())
+        }
+        has_scheduler
     }
 }
