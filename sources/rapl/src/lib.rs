@@ -246,6 +246,10 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
+    fn has_scheduler(&self) -> bool {
+        self.ticker.is_some()
+    }
+
     fn retrieve(&mut self) -> Result<Self::Type> {
         trace!(
             "Retrieving RAPL counters ({} entries)",
