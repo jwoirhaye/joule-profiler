@@ -195,7 +195,13 @@ impl JouleProfiler {
                         phases.push(phase);
                     }
 
-                    Iteration::new(phases, index, begin_timestamp, duration_ms, exit_code)
+                    Iteration {
+                        phases,
+                        index,
+                        timestamp: begin_timestamp,
+                        duration_ms,
+                        exit_code,
+                    }
                 },
             )
             .collect();

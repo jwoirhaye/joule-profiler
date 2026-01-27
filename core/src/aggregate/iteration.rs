@@ -8,13 +8,6 @@ pub struct SensorIteration {
     pub phases: Vec<SensorPhase>,
 }
 
-impl SensorIteration {
-    /// Creates a new sensor iteration
-    pub fn new(phases: Vec<SensorPhase>) -> Self {
-        Self { phases }
-    }
-}
-
 impl AddAssign for SensorIteration {
     /// Aggregates another iteration into this one
     fn add_assign(&mut self, rhs: Self) {

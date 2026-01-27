@@ -9,11 +9,6 @@ pub struct SensorResult {
 }
 
 impl SensorResult {
-    /// Create a new SensorResult from iterations
-    pub fn new(iterations: Vec<SensorIteration>) -> Self {
-        Self { iterations }
-    }
-
     /// Merge multiple SensorResults into one, returns None if empty
     pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
         results.into_iter().reduce(|acc, result| acc + result)

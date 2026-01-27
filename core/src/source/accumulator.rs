@@ -69,9 +69,10 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
         match self.metric_reader.retrieve() {
             Ok(phase_counters) => {
-                let phase = RawPhase::new(phase_counters);
                 trace!("Phase counters retrieved");
-                self.current_iteration.phases.push(phase);
+                self.current_iteration.phases.push(RawPhase {
+                    metrics: phase_counters,
+                });
                 Ok(())
             }
             Err(_) => {
@@ -109,10 +110,9 @@ impl<R: MetricReader> MetricAccumulator<R> {
             .map(|iteration| iteration.into())
             .collect();
 
-        let result = SensorResult::new(iterations);
-
         trace!("Resetting {} metric source for reuse", R::get_name());
         let boxed_source = Box::new(MetricAccumulator::new(self.metric_reader));
+        let result = SensorResult { iterations };
 
         Ok((result, boxed_source))
     }

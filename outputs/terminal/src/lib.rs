@@ -38,18 +38,18 @@ impl TerminalOutput {
         println!(
             "{}┌{}┐",
             prefix,
-            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len())
+            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len() - 2)
         );
         println!(
             "{}│ {:<width$}│",
             prefix,
             title,
-            width = BOX_WIDTH - prefix.len() - 1
+            width = BOX_WIDTH - prefix.len() - 3
         );
         println!(
             "{}└{}┘",
             prefix,
-            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len())
+            BORDER_SINGLE.repeat(BOX_WIDTH - prefix.len() - 2)
         );
     }
 
@@ -73,8 +73,9 @@ impl TerminalOutput {
                 .push(metric)
         }
 
-        for metrics in metrics_per_source.values() {
-            println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
+        for (source, metrics) in metrics_per_source {
+            self.print_subheader(source, prefix);
+
             for metric in metrics {
                 println!(
                     "{}  {:<20}: {:10.6} {}",
@@ -160,7 +161,7 @@ impl Displayer for TerminalOutput {
         iteration: &Iteration,
     ) -> Result<()> {
         self.display_command(cmd);
-        println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH));
+        println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
         self.display_iteration(iteration, "")?;
 
         Ok(())

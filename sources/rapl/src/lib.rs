@@ -64,6 +64,7 @@ pub(crate) mod error;
 mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
+const MICRO_JOULE_UNIT: &str = "µJ";
 const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
 
 /// Custom result type for Rapl
@@ -107,7 +108,7 @@ impl Rapl {
     /// - RAPL interface is unavailable
     /// - Path is invalid
     /// - Permissions are insufficient
-    pub fn try_new(
+    pub fn new(
         rapl_path: &str,
         sockets: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
@@ -126,29 +127,23 @@ impl Rapl {
 
         let ticker = if let Some(duration) = poll_interval {
             debug!("Enabling RAPL polling every {:?}", duration);
-            let timerfd_interval = Interval::new_interval(duration)?;
-            Some(timerfd_interval)
+            Some(Interval::new_interval(duration)?)
         } else {
             debug!("RAPL polling disabled");
             None
         };
 
-        Ok(Rapl::new(domains, ticker))
-    }
-
-    /// Create a new RAPL instance with domains and optional ticker.
-    fn new(domains: Vec<RaplDomain>, ticker: Option<Interval>) -> Self {
         trace!(
             "Creating Rapl instance (domains={}, ticker={})",
             domains.len(),
             ticker.is_some()
         );
 
-        Self {
+        Ok(Rapl {
             domains,
             ticker,
             ..Default::default()
-        }
+        })
     }
 
     /// Reads a snapshot of current energy counters for all domains.
@@ -194,9 +189,7 @@ impl TryFrom<&Config> for Rapl {
             }
             Command::ListSensors => (None, None),
         };
-
-        let rapl = Rapl::try_new(&base_path, sockets, rapl_polling)?;
-        Ok(rapl)
+        Rapl::new(&base_path, sockets, rapl_polling)
     }
 }
 
@@ -216,7 +209,7 @@ impl MetricReader for Rapl {
                 compute_measurement_from_snapshots(&self.domains, last_snapshot, &new_snapshot)?;
 
             trace!("Computed {} metric(s)", metrics.len());
-            self.current_counters += Snapshot::new(metrics);
+            self.current_counters += Snapshot { metrics };
         }
         self.last_snapshot = Some(new_snapshot);
 
@@ -242,12 +235,11 @@ impl MetricReader for Rapl {
             .iter()
             .map(|domain| {
                 trace!("Registering sensor: {}", domain.get_name());
-
-                Sensor::new(
-                    domain.get_name(),
-                    "µJ".to_string(),
-                    Self::get_name().to_lowercase(),
-                )
+                Sensor {
+                    name: domain.get_name(),
+                    unit: MICRO_JOULE_UNIT.to_string(),
+                    source: Self::get_name().to_lowercase(),
+                }
             })
             .collect();
 
@@ -259,9 +251,7 @@ impl MetricReader for Rapl {
             "Retrieving RAPL counters ({} entries)",
             self.current_counters.metrics.len()
         );
-
-        let counters = std::mem::take(&mut self.current_counters);
-        Ok(counters)
+        Ok(std::mem::take(&mut self.current_counters))
     }
 
     fn get_name() -> &'static str {

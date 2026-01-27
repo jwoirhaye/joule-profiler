@@ -26,10 +26,7 @@ pub struct SourceOrchestrator {
 impl SourceOrchestrator {
     /// Creates a new source orchestrator
     pub fn new() -> Self {
-        Self {
-            senders: Vec::new(),
-            handles: Vec::new(),
-        }
+        Default::default()
     }
 
     /// Start the metrics sources worker threads
@@ -87,8 +84,7 @@ impl SourceOrchestrator {
     ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
         let (results, sources) = self.join_all().await?;
         let merged = SensorResult::merge(results).ok_or(OrchestratorError::NotEnoughSnapshots)?;
-
-        Ok((SensorResult::new(merged.iterations), sources))
+        Ok((merged, sources))
     }
 
     /// Stop the worker thread of each metrics sources to join threads gracefully.
