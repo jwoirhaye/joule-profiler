@@ -80,6 +80,10 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Add a custom metric source to the profiler.
     ///
     /// All sources must implement [`MetricReader`].
@@ -266,7 +270,12 @@ impl JouleProfiler {
         let reader = BufReader::new(child_stdout);
 
         let mut detected_phases = Vec::with_capacity(2);
-        detected_phases.push(PhaseInfo::new(PhaseToken::Start, begin_timestamp, None));
+        let start_phase_info = PhaseInfo {
+            token: PhaseToken::Start,
+            timestamp: begin_timestamp,
+            line_number: None,
+        };
+        detected_phases.push(start_phase_info);
 
         self.detect_and_handle_phases_from_program_output(
             &mut detected_phases,
@@ -288,7 +297,11 @@ impl JouleProfiler {
 
         let duration_ms = end_timestamp - begin_timestamp;
 
-        let end_phase_info = PhaseInfo::new(PhaseToken::End, end_timestamp, None);
+        let end_phase_info = PhaseInfo {
+            token: PhaseToken::End,
+            timestamp: end_timestamp,
+            line_number: None,
+        };
         detected_phases.push(end_phase_info);
 
         let status = child.wait()?;
@@ -303,13 +316,17 @@ impl JouleProfiler {
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
     }
 
-    async fn detect_and_handle_phases_from_program_output<R: BufRead>(
+    async fn detect_and_handle_phases_from_program_output<R, W>(
         &mut self,
         phases: &mut Vec<PhaseInfo>,
         mut reader: R,
         regex: &Regex,
-        sink: &mut dyn Write,
-    ) -> Result<()> {
+        sink: &mut W,
+    ) -> Result<()>
+    where
+        R: BufRead,
+        W: Write + ?Sized,
+    {
         let mut line = String::new();
         let mut line_number: usize = 0;
 
@@ -349,11 +366,13 @@ impl JouleProfiler {
                 self.orchestrator.measure().await?;
                 self.orchestrator.new_phase().await?;
 
-                phases.push(PhaseInfo::new(
-                    PhaseToken::Token(token.to_owned()),
-                    phase_timestamp,
-                    Some(line_number),
-                ));
+                let phase_info = PhaseInfo {
+                    token: PhaseToken::Token(token.to_owned()),
+                    timestamp: phase_timestamp,
+                    line_number: Some(line_number),
+                };
+
+                phases.push(phase_info);
             }
 
             line_number += 1;
