@@ -1,8 +1,8 @@
 use std::fs::File;
 use std::io::Write;
 
-use joule_profiler_core::displayer::error::IntoDisplayerError;
-use joule_profiler_core::displayer::{Displayer, DisplayerError};
+use crate::output::displayer::error::IntoDisplayerError;
+use crate::output::displayer::{Displayer, DisplayerError};
 use joule_profiler_core::profiler::types::Iteration;
 use joule_profiler_core::sensor::Sensor;
 use joule_profiler_core::util::file::{

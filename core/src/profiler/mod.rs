@@ -34,7 +34,6 @@ pub mod error;
 
 use crate::aggregate::iteration::SensorIteration;
 use crate::config::ProfileConfig;
-use crate::displayer::Displayer;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
 use crate::profiler::types::{Iteration, Iterations, Phase};
@@ -76,7 +75,6 @@ type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 pub struct JouleProfiler {
     orchestrator: SourceOrchestrator,
     sources: Vec<Box<dyn MetricSource>>,
-    displayer: Option<Box<dyn Displayer>>,
 }
 
 impl JouleProfiler {
@@ -94,13 +92,6 @@ impl JouleProfiler {
         debug!("Registering additional metric source: {}", T::get_name());
         trace!("MetricReader type: {}", std::any::type_name::<T>());
         self.sources.push(reader.into());
-    }
-
-    /// Sets the profiler displayer.
-    ///
-    /// The profiler will display the results.
-    pub fn set_displayer(&mut self, displayer: Box<dyn Displayer>) {
-        self.displayer = Some(displayer);
     }
 
     /// List the sensors of the provided sources.
@@ -121,16 +112,11 @@ impl JouleProfiler {
             .collect();
 
         info!("Discovered {} sensor(s)", sensors.len());
-
-        if let Some(displayer) = &mut self.displayer {
-            displayer.list_sensors(&sensors)?;
-        }
-
         Ok(sensors)
     }
 
     /// Run phase-based profiling mode.
-    pub async fn run_phases(&mut self, config: ProfileConfig) -> Result<Iterations> {
+    pub async fn run_phases(&mut self, config: &ProfileConfig) -> Result<Iterations> {
         info!("Running phase-based profiling");
         debug!("Iterations: {}", config.iterations);
         debug!("Phase regex: {}", config.token_pattern);
@@ -205,14 +191,6 @@ impl JouleProfiler {
                 },
             )
             .collect();
-
-        if let Some(displayer) = &mut self.displayer {
-            if config.iterations > 1 {
-                displayer.phases_iterations(&config.cmd, &config.token_pattern, &results)?;
-            } else {
-                displayer.phases_single(&config.cmd, &config.token_pattern, &results[0])?;
-            }
-        }
 
         debug!("Collected {} sensor iteration(s)", results.len());
 
@@ -407,7 +385,6 @@ mod tests {
         JouleProfiler {
             orchestrator: SourceOrchestrator::new(),
             sources: Vec::new(),
-            displayer: None,
         }
     }
 
