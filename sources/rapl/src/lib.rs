@@ -46,6 +46,7 @@ use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::snapshot::{Snapshot, compute_measurement_from_snapshots};
 use futures::StreamExt;
+use joule_profiler_core::aggregate::Metrics;
 use joule_profiler_core::config::Command;
 use joule_profiler_core::config::Config;
 use joule_profiler_core::sensor::{Sensor, Sensors};
@@ -260,6 +261,10 @@ impl MetricReader for Rapl {
 
     fn get_name() -> &'static str {
         POWERCAP_SOURCE_NAME
+    }
+    
+    fn to_metrics(&self, result: Self::Type) -> Metrics {
+        result.into()
     }
 }
 
