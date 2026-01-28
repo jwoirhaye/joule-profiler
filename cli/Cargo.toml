@@ -16,11 +16,11 @@ path = "src/bin/main.rs"
 [dependencies]
 joule-profiler-core.workspace = true
 source-rapl = { path = "../sources/rapl" }
-displayer-terminal = { path = "../outputs/terminal" }
-displayer-csv = { path = "../outputs/csv" }
-displayer-json = { path = "../outputs/json" }
 clap = { version = "4.5.53", features = ["derive"] }
 tokio.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json = { version = "1.0.149", features = ["preserve_order"] }

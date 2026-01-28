@@ -1,4 +1,3 @@
-use crate::displayer::DisplayerError;
 use crate::orchestrator::error::OrchestratorError;
 use crate::source::error::MetricSourceError;
 use thiserror::Error;
@@ -70,13 +69,6 @@ pub enum JouleProfilerError {
         #[from]
         #[source]
         MetricSourceError,
-    ),
-
-    #[error("Displayer error")]
-    DisplayerError(
-        #[from]
-        #[source]
-        DisplayerError,
     ),
 
     #[error("Orchestrator error")]
