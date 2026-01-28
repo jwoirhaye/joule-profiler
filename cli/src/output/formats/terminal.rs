@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use joule_profiler_core::{
     aggregate::Metric,
-    displayer::{Displayer, DisplayerError},
     profiler::types::{Iteration, Phase},
     sensor::Sensor,
 };
+
+use crate::output::displayer::{Displayer, DisplayerError};
 
 /// Constants for formatting
 const BORDER_DOUBLE: &str = "═";
