@@ -19,9 +19,17 @@ async fn main() -> Result<()> {
             let results = profiler.run_phases(&profile_config).await?;
 
             if profile_config.iterations > 1 {
-                displayer.phases_iterations(&profile_config.cmd, &profile_config.token_pattern, &results)?;
+                displayer.phases_iterations(
+                    &profile_config.cmd,
+                    &profile_config.token_pattern,
+                    &results,
+                )?;
             } else {
-                displayer.phases_single(&profile_config.cmd, &profile_config.token_pattern, &results[0])?;
+                displayer.phases_single(
+                    &profile_config.cmd,
+                    &profile_config.token_pattern,
+                    &results[0],
+                )?;
             }
         }
         Command::ListSensors => {

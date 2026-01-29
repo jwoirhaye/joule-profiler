@@ -1,3 +1,5 @@
+use tokio::sync::mpsc::Sender;
+
 use crate::aggregate::Metrics;
 use crate::aggregate::iteration::SensorIteration;
 use crate::aggregate::sensor_result::SensorResult;
@@ -43,14 +45,29 @@ pub enum SourceEvent {
     /// Start a new iteration
     NewIteration,
 
-    /// Enable polling for the source
-    StartScheduler,
-
-    /// Disable polling for the source
-    StopScheduler,
-
     /// Signal the worker to finish and join
     JoinWorker,
+
+    Start,
+
+    Stop,
+}
+
+pub struct SourceEventer {
+    tx: Sender<SourceEvent>,
+}
+
+impl SourceEventer {
+    pub fn new(tx: Sender<SourceEvent>) -> Self {
+        Self { tx }
+    }
+
+    pub async fn emit(&mut self) -> Result<(), MetricSourceError> {
+        self.tx
+            .send(SourceEvent::Measure)
+            .await
+            .map_err(|_| MetricSourceError::ErrorRetrievingCounters)
+    }
 }
 
 /// Raw phase containing metrics from a metric reader

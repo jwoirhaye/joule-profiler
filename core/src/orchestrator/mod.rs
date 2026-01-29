@@ -3,10 +3,7 @@ use crate::orchestrator::error::OrchestratorError;
 use crate::source::types::SourceEvent;
 use crate::source::{MetricSource, MetricSourceError};
 use log::error;
-use tokio::{
-    sync::mpsc::{Sender, channel},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 pub mod error;
 
@@ -31,27 +28,19 @@ impl SourceOrchestrator {
 
     /// Start the metrics sources worker threads
     #[inline]
-    pub async fn start(&mut self, sources: Vec<Box<dyn MetricSource>>) {
+    pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>) {
         let nb_sources = sources.len();
         let mut senders = Vec::with_capacity(nb_sources);
         let mut handles = Vec::with_capacity(nb_sources);
 
         for source in sources {
-            let (tx, rx) = channel(4);
-            let handle = tokio::spawn(async move { source.run(rx).await });
-
-            senders.push(tx.clone());
+            let (handle, tx) = source.run();
+            senders.push(tx);
             handles.push(handle);
         }
 
         self.handles = handles;
         self.senders = senders;
-    }
-
-    /// Start polling all metrics sources
-    #[inline]
-    pub async fn start_polling(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::StartScheduler).await
     }
 
     /// Measure the metrics of each metrics source
@@ -66,16 +55,20 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::NewPhase).await
     }
 
-    /// Pause the polling of a metrics source if enabled
-    #[inline]
-    pub async fn stop_polling(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::StopScheduler).await
-    }
-
     /// Initialize a new iteration for each metrics source
     #[inline]
     pub async fn new_iteration(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewIteration).await
+    }
+
+    #[inline]
+    pub async fn start(&mut self) -> Result<(), OrchestratorError> {
+        self.send_event(SourceEvent::Start).await
+    }
+
+    #[inline]
+    pub async fn stop(&mut self) -> Result<(), OrchestratorError> {
+        self.send_event(SourceEvent::Stop).await
     }
 
     /// Retrieve and merge results from all sources

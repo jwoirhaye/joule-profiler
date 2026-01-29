@@ -87,16 +87,17 @@
 //! - Monomorphization ensures that although sources are stored as trait objects,
 //!   the internal metric operations remain statically typed and efficient to minimize overhead.
 
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Sender, channel};
 
-pub(crate) mod accumulator;
+pub mod accumulator;
 pub mod error;
-pub(crate) mod reader;
-pub(crate) mod types;
+pub mod reader;
+pub mod runtime;
+pub mod types;
 
 use crate::sensor::Sensors;
-use crate::source::accumulator::MetricAccumulator;
-use crate::source::types::{MetricSourceFuture, SourceEvent};
+use crate::source::runtime::{Handle, MetricRuntime};
+use crate::source::types::SourceEvent;
 pub use error::MetricSourceError;
 pub use reader::MetricReader;
 pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
@@ -104,24 +105,27 @@ pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// Trait representing a metric source and required to be used in profiler
 pub trait MetricSource: Send {
     /// Runs the worker and returns a future that resolves with the result and the source itself
-    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceFuture;
+    fn run(self: Box<Self>) -> (Handle, Sender<SourceEvent>);
 
     /// List all sensors available from this source
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 }
 
-impl<R> MetricSource for MetricAccumulator<R>
+impl<R> MetricSource for MetricRuntime<R>
 where
     R: MetricReader,
 {
     /// Run the worker for the metric accumulator
-    fn run(self: Box<Self>, rx: Receiver<SourceEvent>) -> MetricSourceFuture {
-        Box::pin(async move { self.run_worker(rx).await })
+    fn run(self: Box<Self>) -> (Handle, Sender<SourceEvent>) {
+        let (tx, rx) = channel(4);
+        let tx_clone = tx.clone();
+        let handle = tokio::spawn(async move { self.run_worker(tx_clone, rx).await });
+        (handle, tx)
     }
 
     /// List all sensors for this accumulator
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError> {
-        self.get_sensors()
+        Ok(Vec::new())
     }
 }
 
@@ -130,7 +134,7 @@ where
     R: MetricReader,
 {
     fn from(reader: R) -> Self {
-        let source = MetricAccumulator::new(reader);
+        let source = MetricRuntime::new(reader);
         Box::new(source)
     }
 }
