@@ -51,6 +51,7 @@ use joule_profiler_core::config::Command;
 use joule_profiler_core::config::Config;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
+use joule_profiler_core::source::types::SourceEventer;
 use log::{debug, info, trace};
 use std::{
     collections::{HashMap, HashSet},
@@ -59,6 +60,7 @@ use std::{
     path::Path,
     time::Duration,
 };
+use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 mod domain;
 pub(crate) mod error;
@@ -89,7 +91,7 @@ type Result<T> = std::result::Result<T, RaplError>;
 pub struct Rapl {
     domains: Vec<RaplDomain>,
 
-    ticker: Option<Interval>,
+    poll_interval: Option<Duration>,
 
     current_counters: Snapshot,
 
@@ -126,23 +128,15 @@ impl Rapl {
 
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
-        let ticker = if let Some(duration) = poll_interval {
-            debug!("Enabling RAPL polling every {:?}", duration);
-            Some(Interval::new_interval(duration)?)
-        } else {
-            debug!("RAPL polling disabled");
-            None
-        };
-
         trace!(
             "Creating Rapl instance (domains={}, ticker={})",
             domains.len(),
-            ticker.is_some()
+            poll_interval.is_some()
         );
 
         Ok(Rapl {
             domains,
-            ticker,
+            poll_interval,
             ..Default::default()
         })
     }
@@ -217,15 +211,25 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    async fn scheduler(&mut self) -> Result<()> {
-        if let Some(ticker) = &mut self.ticker {
-            trace!("Waiting for RAPL scheduler tick");
-            ticker.next().await;
-            trace!("RAPL scheduler tick fired");
-            self.measure()
+    async fn run(&self, mut tx: SourceEventer) -> Result<Option<JoinHandle<Result<()>>>> {
+        let mut ticker = if let Some(interval) = self.poll_interval {
+            Interval::new_interval(interval)?
         } else {
-            Ok(())
-        }
+            return Ok(None);
+        };
+
+        let handle = tokio::spawn(async move {
+            loop {
+                trace!("Waiting for RAPL scheduler tick");
+                ticker.next().await;
+                trace!("RAPL scheduler tick fired");
+                tx.emit()
+                    .await
+                    .map_err(|_| RaplError::RaplReadError("Error".to_string()))?;
+            }
+        });
+
+        Ok(Some(handle))
     }
 
     fn get_sensors(&self) -> Result<Sensors> {
@@ -247,10 +251,6 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    fn has_scheduler(&self) -> bool {
-        self.ticker.is_some()
-    }
-
     fn retrieve(&mut self) -> Result<Self::Type> {
         trace!(
             "Retrieving RAPL counters ({} entries)",
@@ -262,7 +262,7 @@ impl MetricReader for Rapl {
     fn get_name() -> &'static str {
         POWERCAP_SOURCE_NAME
     }
-    
+
     fn to_metrics(&self, result: Self::Type) -> Metrics {
         result.into()
     }

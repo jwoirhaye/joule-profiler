@@ -4,11 +4,14 @@ use clap::{ArgAction, Parser};
 
 use anyhow::Result;
 pub use commands::ProfilerCommand;
-use joule_profiler_core::{
-    config::{Command, Config, ProfileConfig},
-};
+use joule_profiler_core::config::{Command, Config, ProfileConfig};
 
-use crate::output::{displayer::Displayer, formats::{OutputFormat, csv::CsvOutput, json::JsonOutput, output_format, terminal::TerminalOutput}};
+use crate::output::{
+    displayer::Displayer,
+    formats::{
+        OutputFormat, csv::CsvOutput, json::JsonOutput, output_format, terminal::TerminalOutput,
+    },
+};
 
 mod commands;
 mod logging;
