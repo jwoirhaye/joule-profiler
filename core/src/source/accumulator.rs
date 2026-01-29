@@ -1,26 +1,16 @@
-use std::marker::PhantomData;
-use std::time::Duration;
-
 use crate::aggregate::sensor_result::SensorResult;
 use crate::source::types::{RawIteration, RawPhase};
 use crate::source::{MetricReader, MetricSourceError};
 use log::{debug, trace, warn};
-use tokio::time::Instant;
 
 /// Accumulates metrics from a reader and tracks iterations
 #[derive(Debug)]
 pub struct MetricAccumulator<R: MetricReader> {
-    /// The underlying metric reader
-    metric_reader: PhantomData<R>,
-
     /// Completed iterations
     iterations: Vec<RawIteration<R::Type>>,
 
     /// Current ongoing iteration
     current_iteration: RawIteration<R::Type>,
-
-    /// Monotonic timestamp of last snapshot
-    last_instant: Option<Instant>,
 }
 
 impl<R: MetricReader> MetricAccumulator<R> {
@@ -29,10 +19,8 @@ impl<R: MetricReader> MetricAccumulator<R> {
         debug!("Creating MetricAccumulator for reader: {}", R::get_name());
 
         Self {
-            metric_reader: PhantomData,
             iterations: Vec::new(),
             current_iteration: RawIteration::default(),
-            last_instant: None,
         }
     }
 
@@ -53,14 +41,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
     /// Initialize a new iteration
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
         if !self.current_iteration.phases.is_empty() {
-            let iteration = std::mem::take(&mut self.current_iteration);
-
-            trace!("Iteration total elapsed: {:?}", iteration.total_elapsed);
-
-            self.current_iteration.total_elapsed = Duration::ZERO;
-            self.last_instant = None;
-
-            self.iterations.push(iteration);
+            self.iterations.push(std::mem::take(&mut self.current_iteration));
             Ok(())
         } else {
             warn!("Attempted to create iteration with no phases");

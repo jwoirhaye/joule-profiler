@@ -51,7 +51,7 @@ use joule_profiler_core::config::Command;
 use joule_profiler_core::config::Config;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
-use joule_profiler_core::source::types::SourceEventer;
+use joule_profiler_core::source::types::SourceEventEmitter;
 use log::{debug, info, trace};
 use std::{
     collections::{HashMap, HashSet},
@@ -211,7 +211,7 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    async fn run(&self, mut tx: SourceEventer) -> Result<Option<JoinHandle<Result<()>>>> {
+    async fn run(&self, mut tx: SourceEventEmitter) -> Result<Option<JoinHandle<Result<()>>>> {
         let mut ticker = if let Some(interval) = self.poll_interval {
             Interval::new_interval(interval)?
         } else {

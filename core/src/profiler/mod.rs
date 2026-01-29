@@ -133,7 +133,7 @@ impl JouleProfiler {
             command_results.push(iteration);
         }
 
-        let (sources_results, sources) = self.orchestrator.retrieve().await?;
+        let (sources_results, sources) = self.orchestrator.finalize().await?;
         self.sources = sources;
 
         let results: Iterations = command_results

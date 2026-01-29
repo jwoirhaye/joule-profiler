@@ -2,7 +2,7 @@ use tokio::task::JoinHandle;
 
 use crate::aggregate::Metrics;
 use crate::sensor::Sensors;
-use crate::source::types::SourceEventer;
+use crate::source::types::SourceEventEmitter;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 
 /// Trait implemented by a metric source reader.
@@ -46,7 +46,7 @@ pub trait MetricReader: Send + 'static {
 
     fn run(
         &self,
-        _eventer: SourceEventer,
+        _eventer: SourceEventEmitter,
     ) -> impl Future<Output = Result<Option<JoinHandle<Result<(), Self::Error>>>, Self::Error>> + Send
     {
         async { Ok(None) }

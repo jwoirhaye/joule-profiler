@@ -4,7 +4,7 @@ use crate::aggregate::Metrics;
 use crate::aggregate::iteration::SensorIteration;
 use crate::aggregate::sensor_result::SensorResult;
 use crate::source::{MetricSource, MetricSourceError};
-use std::{fmt::Debug, pin::Pin, time::Duration};
+use std::{fmt::Debug, pin::Pin};
 
 /// Trait for types returned by a [`crate::reader::MetricReader`].
 ///
@@ -53,11 +53,11 @@ pub enum SourceEvent {
     Stop,
 }
 
-pub struct SourceEventer {
+pub struct SourceEventEmitter {
     tx: Sender<SourceEvent>,
 }
 
-impl SourceEventer {
+impl SourceEventEmitter {
     pub fn new(tx: Sender<SourceEvent>) -> Self {
         Self { tx }
     }
@@ -82,9 +82,6 @@ pub struct RawPhase<V> {
 pub struct RawIteration<V> {
     /// Raw phases collected during the iteration
     pub phases: Vec<RawPhase<V>>,
-
-    /// Total elapsed duration for the iteration
-    pub total_elapsed: Duration,
 }
 
 impl<V: Into<Metrics>> From<RawIteration<V>> for SensorIteration {

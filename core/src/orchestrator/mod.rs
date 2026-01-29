@@ -72,7 +72,7 @@ impl SourceOrchestrator {
     }
 
     /// Retrieve and merge results from all sources
-    pub async fn retrieve(
+    pub async fn finalize(
         &mut self,
     ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
         let (results, sources) = self.join_all().await?;

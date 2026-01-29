@@ -10,13 +10,13 @@ use crate::{
         MetricReader, MetricSource, MetricSourceError,
         accumulator::MetricAccumulator,
         error::IntoMetricSourceError,
-        types::{SourceEvent, SourceEventer},
+        types::{SourceEvent, SourceEventEmitter},
     },
 };
 
 pub struct MetricRuntime<R: MetricReader> {
-    pub accumulator: MetricAccumulator<R>,
-    pub source: R,
+    accumulator: MetricAccumulator<R>,
+    source: R,
     active: bool,
 }
 
@@ -40,23 +40,20 @@ impl<R: MetricReader> MetricRuntime<R> {
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
         let source_handle = self
             .source
-            .run(SourceEventer::new(tx.clone()))
+            .run(SourceEventEmitter::new(tx.clone()))
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
         loop {
             if let Some(event) = rx.recv().await {
                 match event {
-                    SourceEvent::Measure => {
-                        if self.active {
-                            self.measure_source()?
-                        }
-                    }
+                    SourceEvent::Measure if self.active => self.measure_source()?,
                     SourceEvent::NewPhase => self.new_phase()?,
                     SourceEvent::NewIteration => self.new_iteration()?,
                     SourceEvent::JoinWorker => break,
                     SourceEvent::Start => self.active = true,
                     SourceEvent::Stop => self.active = false,
+                    _ => {}
                 }
             }
         }
@@ -66,7 +63,6 @@ impl<R: MetricReader> MetricRuntime<R> {
         }
 
         let result = self.accumulator.retrieve()?;
-
         Ok((result, self.source.into()))
     }
 
