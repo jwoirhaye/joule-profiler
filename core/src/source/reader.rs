@@ -1,7 +1,8 @@
-use log::trace;
+use tokio::task::JoinHandle;
 
 use crate::aggregate::Metrics;
 use crate::sensor::Sensors;
+use crate::source::types::SourceEventer;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 
 /// Trait implemented by a metric source reader.
@@ -43,20 +44,16 @@ pub trait MetricReader: Send + 'static {
     /// Return all sensors available from this reader
     fn get_sensors(&self) -> Result<Sensors, Self::Error>;
 
+    fn run(
+        &self,
+        _eventer: SourceEventer,
+    ) -> impl Future<Output = Result<Option<JoinHandle<Result<(), Self::Error>>>, Self::Error>> + Send
+    {
+        async { Ok(None) }
+    }
+
     /// Convert the metric reader data to metrics
     fn to_metrics(&self, result: Self::Type) -> Metrics;
-
-    /// Optional internal scheduler invoked by the accumulator periodically
-    ///
-    /// By default, this is a no-op returning a pending future.
-    fn scheduler(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
-        trace!("Internal scheduler not implemented for this source");
-        async { Ok(()) }
-    }
-
-    fn has_scheduler(&self) -> bool {
-        false
-    }
 
     fn get_name() -> &'static str;
 }

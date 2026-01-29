@@ -123,7 +123,7 @@ impl JouleProfiler {
 
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
-        self.orchestrator.start(sources).await;
+        self.orchestrator.run(sources).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
@@ -223,7 +223,7 @@ impl JouleProfiler {
             &mut stdout_sink
         };
 
-        self.orchestrator.start_polling().await?;
+        self.orchestrator.start().await?;
         self.orchestrator.measure().await?;
 
         let mut command = process::Command::new(&config.cmd[0]);
@@ -275,9 +275,9 @@ impl JouleProfiler {
         trace!("End timestamp: {}", end_timestamp);
 
         self.orchestrator.measure().await?;
-        self.orchestrator.stop_polling().await?;
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
+        self.orchestrator.stop().await?;
 
         let duration_ms = end_timestamp - begin_timestamp;
 
