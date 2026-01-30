@@ -22,7 +22,7 @@
 //! use std::collections::HashSet;
 //!
 //! // Initialize a RAPL reader (no polling, monitoring all sockets)
-//! let mut rapl = Rapl::try_new("/sys/devices/virtual/powercap/intel-rapl", None, None).unwrap();
+//! let mut rapl = Rapl::new("/sys/devices/virtual/powercap/intel-rapl", None, None).unwrap();
 //!
 //! // Measure and update internal counters
 //! rapl.measure().unwrap();

@@ -35,13 +35,13 @@
 //! ```no_run
 //! use joule_profiler_core::aggregate::{Metric, Metrics};
 //!
-//! let metric = Metric::new("cpu_power".into(), 42, "u64".into(), "RAPL".into());
-//! let metrics: Metrics = vec![metric].into();
+//! let metric = Metric { name: "cpu_power".into(), value: 42, unit: "u64".into(), source: "RAPL".into() };
+//! let metrics: Metrics = vec![metric];
 //! ```
 
 pub(crate) mod iteration;
 mod metric;
-mod phase;
+pub(crate) mod phase;
 pub(crate) mod sensor_result;
 
 pub use metric::{Metric, Metrics};
