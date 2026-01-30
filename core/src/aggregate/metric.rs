@@ -16,7 +16,7 @@ use serde::Serialize;
 /// # Examples
 ///
 /// ```
-/// use joule_profiler_core::aggregate::Metric;
+/// use joule_profiler_core::types::Metric;
 ///
 /// let energy = Metric {
 ///     name: "energy_pkg".to_string(),
