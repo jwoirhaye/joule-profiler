@@ -33,7 +33,7 @@
 //! # Examples
 //!
 //! ```no_run
-//! use joule_profiler_core::aggregate::{Metric, Metrics};
+//! use joule_profiler_core::types::{Metric, Metrics};
 //!
 //! let metric = Metric { name: "cpu_power".into(), value: 42, unit: "u64".into(), source: "RAPL".into() };
 //! let metrics: Metrics = vec![metric];

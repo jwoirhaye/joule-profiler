@@ -45,8 +45,8 @@
 //! ```no_run
 //! use joule_profiler_core::{
 //!     sensor::Sensors,
-//!     source::{MetricSource, MetricSourceError,MetricReader},
-//!     aggregate::{Metric, Metrics},
+//!     source::{MetricSourceError,MetricReader},
+//!     types::{Metric, Metrics},
 //! };
 //!
 //! use std::vec::Vec;
@@ -71,8 +71,6 @@
 //!         vec![metric]
 //!     }
 //! }
-//!
-//! let source: Box<dyn MetricSource> = Box::from(MyReader);
 //! ```
 //!
 //! # Notes
