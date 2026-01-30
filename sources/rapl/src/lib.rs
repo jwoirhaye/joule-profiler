@@ -91,6 +91,8 @@ pub struct Rapl {
     current_counters: Snapshot,
 
     last_snapshot: Option<Snapshot>,
+
+    handle: Option<JoinHandle<Result<()>>>
 }
 
 impl Rapl {
@@ -134,6 +136,7 @@ impl Rapl {
             poll_interval,
             current_counters: Snapshot::default(),
             last_snapshot: None,
+            handle: None,
         })
     }
 
@@ -211,27 +214,6 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    async fn run(&self, mut tx: SourceEventEmitter) -> Result<Option<JoinHandle<Result<()>>>> {
-        let mut ticker = if let Some(interval) = self.poll_interval {
-            Interval::new_interval(interval)?
-        } else {
-            return Ok(None);
-        };
-
-        let handle = tokio::spawn(async move {
-            loop {
-                trace!("Waiting for RAPL scheduler tick");
-                ticker.next().await;
-                trace!("RAPL scheduler tick fired");
-                tx.emit()
-                    .await
-                    .map_err(|_| RaplError::RaplReadError("Error".to_string()))?;
-            }
-        });
-
-        Ok(Some(handle))
-    }
-
     fn get_sensors(&self) -> Result<Sensors> {
         trace!("Building RAPL sensor list");
 
@@ -265,6 +247,42 @@ impl MetricReader for Rapl {
 
     fn to_metrics(&self, result: Self::Type) -> Metrics {
         result.into()
+    }
+    
+    async fn init(&mut self, mut event_emitter: SourceEventEmitter) -> std::result::Result<(), Self::Error> {
+        let mut ticker = if let Some(interval) = self.poll_interval {
+            Interval::new_interval(interval)?
+        } else {
+            return Ok(());
+        };
+
+        let handle = tokio::spawn(async move {
+            loop {
+                trace!("Waiting for RAPL scheduler tick");
+                ticker.next().await;
+                trace!("RAPL scheduler tick fired");
+                event_emitter.measure()
+                    .await
+                    .map_err(|err| RaplError::EmitterError(err))?;
+            }
+        });
+
+        self.handle = Some(handle);
+
+        Ok(())
+    }
+    
+    async fn join(&mut self) -> Result<()> {
+        if let Some(handle) = self.handle.take() {
+            if handle.is_finished() {
+                if let Ok(res) = handle.await {
+                    return res;
+                }
+            } else {
+                handle.abort();
+            }
+        }
+        Ok(())
     }
 }
 

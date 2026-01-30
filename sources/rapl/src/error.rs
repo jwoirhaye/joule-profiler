@@ -1,3 +1,4 @@
+use joule_profiler_core::source::MetricSourceError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -34,6 +35,9 @@ pub enum RaplError {
 
     #[error(transparent)]
     IoError(std::io::Error),
+
+    #[error("Error emitting event {0}")]
+    EmitterError(MetricSourceError),
 
     #[error("Failed to parse energy value")]
     ParseEnergyError(
