@@ -1,5 +1,3 @@
-use tokio::task::JoinHandle;
-
 use crate::aggregate::Metrics;
 use crate::sensor::Sensors;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound, SourceEventEmitter};
@@ -34,6 +32,14 @@ pub trait MetricReader: Send + 'static {
     /// Error type produced by the reader.
     type Error: MetricReaderErrorBound;
 
+    fn init(&mut self, _event_emitter: SourceEventEmitter) -> impl Future<Output = Result<(), Self::Error>> + Send {
+        async { Ok(()) }
+    }
+
+    fn join(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
+        async { Ok(()) }
+    }
+
     /// Measure the sensors metrics and update internal state
     fn measure(&mut self) -> Result<(), Self::Error>;
 
@@ -42,16 +48,6 @@ pub trait MetricReader: Send + 'static {
 
     /// Return all sensors available from this reader
     fn get_sensors(&self) -> Result<Sensors, Self::Error>;
-
-    #[allow(clippy::type_complexity)]
-    // Return type is intentionally explicit to avoid boxing or trait objects.
-    fn run(
-        &self,
-        _eventer: SourceEventEmitter,
-    ) -> impl Future<Output = Result<Option<JoinHandle<Result<(), Self::Error>>>, Self::Error>> + Send
-    {
-        async { Ok(None) }
-    }
 
     /// Convert the metric reader data to metrics
     fn to_metrics(&self, result: Self::Type) -> Metrics;

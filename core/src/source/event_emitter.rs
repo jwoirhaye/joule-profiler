@@ -15,7 +15,7 @@ impl SourceEventEmitter {
     }
 
     /// Emit a measure event
-    pub async fn emit(&mut self) -> Result<(), MetricSourceError> {
+    pub async fn measure(&mut self) -> Result<(), MetricSourceError> {
         self.tx
             .send(SourceEvent::Measure)
             .await

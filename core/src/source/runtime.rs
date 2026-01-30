@@ -35,9 +35,9 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         tx: Sender<SourceEvent>,
         mut rx: Receiver<SourceEvent>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        let source_handle = self
+        self
             .source
-            .run(SourceEventEmitter::new(tx.clone()))
+            .init(SourceEventEmitter::new(tx.clone()))
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
@@ -55,15 +55,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             }
         }
 
-        if let Some(handle) = source_handle {
-            if handle.is_finished() {
-                if let Err(err) = handle.await {
-                    return Err(err.into_metric_source_error());
-                }
-            } else {
-                handle.abort();
-            }
-        }
+        self.source.join().await.map_err(IntoMetricSourceError::into_metric_source_error)?;
 
         let result = self.retrieve();
         Ok((result, self.source.into()))
