@@ -1,10 +1,11 @@
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
 
 use crate::aggregate::Metrics;
 use crate::aggregate::iteration::SensorIteration;
 use crate::aggregate::sensor_result::SensorResult;
 use crate::source::{MetricSource, MetricSourceError};
-use std::{fmt::Debug, pin::Pin};
+use std::fmt::Debug;
 
 /// Trait for types returned by a [`crate::reader::MetricReader`].
 ///
@@ -12,9 +13,9 @@ use std::{fmt::Debug, pin::Pin};
 /// It must implement `Debug` for logging and debugging, `Send` to be safely
 /// transferred across threads, `Default` for easy initialization, and `Into<Metrics>`
 /// to allow conversion into the unified [`Metrics`] type used by the profiler.
-pub trait MetricReaderTypeBound: Debug + Send + Default + Into<Metrics> {}
+pub trait MetricReaderTypeBound: Debug + Send + Default {}
 
-impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send + Into<Metrics> {}
+impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send {}
 
 /// Trait for errors produced by a [`crate::reader::MetricReader`].
 ///
@@ -25,13 +26,8 @@ pub trait MetricReaderErrorBound: std::error::Error + Send + Sync {}
 
 impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
 
-/// Future returned by a metric source worker
-pub type MetricSourceFuture = Pin<
-    Box<
-        dyn Future<Output = Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>
-            + Send,
-    >,
->;
+pub type SourceWorkerHandle =
+    JoinHandle<Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>;
 
 /// Events sent to a metric source worker
 #[derive(Debug, Clone, Copy)]
@@ -48,20 +44,26 @@ pub enum SourceEvent {
     /// Signal the worker to finish and join
     JoinWorker,
 
+    /// Allow a source to be measured
     Start,
 
+    /// Disallow a source to be measured
     Stop,
 }
 
+/// It is a wrapper of an event sender to abstract eventing from source
+/// and allow to send measure events and not other events like NewPhase.
 pub struct SourceEventEmitter {
     tx: Sender<SourceEvent>,
 }
 
 impl SourceEventEmitter {
+    /// Initialize an event emitter
     pub fn new(tx: Sender<SourceEvent>) -> Self {
         Self { tx }
     }
 
+    /// Emit a measure event
     pub async fn emit(&mut self) -> Result<(), MetricSourceError> {
         self.tx
             .send(SourceEvent::Measure)

@@ -27,8 +27,8 @@ pub enum DisplayerError {
         std::io::Error,
     ),
 
-    #[error("Metric source error: {0}")]
-    DisplayerError(
+    #[error("Displayer error: {0}")]
+    OutputFormatError(
         #[from]
         #[source]
         Box<dyn std::error::Error + Send + Sync>,
@@ -44,6 +44,6 @@ where
     T: std::error::Error + Send + Sync + 'static,
 {
     fn into_displayer_error(self) -> DisplayerError {
-        DisplayerError::DisplayerError(Box::new(self))
+        DisplayerError::OutputFormatError(Box::new(self))
     }
 }

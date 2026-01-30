@@ -7,7 +7,6 @@
 //!
 //! ```no_run
 //! use joule_profiler_core::config::{Config, Command, ProfileConfig};
-//! use joule_profiler_core::output::OutputFormat;
 //!
 //! let profile = ProfileConfig {
 //!     iterations: 1,
@@ -21,8 +20,6 @@
 //! let config = Config {
 //!     command: Command::Profile(profile),
 //!     rapl_path: None,
-//!     output_format: OutputFormat::default(),
-//!     output_file: None,
 //! };
 //! ```
 

@@ -44,6 +44,8 @@ pub trait MetricReader: Send + 'static {
     /// Return all sensors available from this reader
     fn get_sensors(&self) -> Result<Sensors, Self::Error>;
 
+    #[allow(clippy::type_complexity)]
+    // Return type is intentionally explicit to avoid boxing or trait objects.
     fn run(
         &self,
         _eventer: SourceEventEmitter,
@@ -55,5 +57,6 @@ pub trait MetricReader: Send + 'static {
     /// Convert the metric reader data to metrics
     fn to_metrics(&self, result: Self::Type) -> Metrics;
 
+    /// Get the name of the metric source
     fn get_name() -> &'static str;
 }

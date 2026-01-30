@@ -18,12 +18,12 @@ use serde::Serialize;
 /// ```
 /// use joule_profiler_core::aggregate::Metric;
 ///
-/// let energy = Metric::new(
-///     "energy_pkg".to_string(),
-///     123456,
-///     "µJ".to_string(),
-///     "rapl".to_string(),
-/// );
+/// let energy = Metric {
+///     name: "energy_pkg".to_string(),
+///     value: 123456,
+///     unit: "µJ".to_string(),
+///     source: "rapl".to_string(),
+/// };
 /// println!("Metric {}: {} {}", energy.name, energy.value, energy.unit);
 /// ```
 #[derive(Debug, Serialize, Clone)]
