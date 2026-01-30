@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::Write;
 
-use joule_profiler_core::profiler::types::{Iteration, Phase};
-use joule_profiler_core::sensor::Sensor;
-use joule_profiler_core::util::file::{
+use joule_profiler_core::fs::{
     create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
 };
+use joule_profiler_core::sensor::Sensor;
+use joule_profiler_core::types::{Iteration, Phase};
 
 use crate::output::displayer::{Displayer, DisplayerError};
 

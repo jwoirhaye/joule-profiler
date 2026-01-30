@@ -25,6 +25,10 @@
 
 use std::collections::HashSet;
 
+use derive_builder::Builder;
+
+const PHASE_TOKEN_DEFAULT_REGEX_PATTERN: &str = "__[A-Z0-9_]+__";
+
 /// Top-level configuration for Joule Profiler.
 #[derive(Debug)]
 pub struct Config {
@@ -45,24 +49,29 @@ pub enum Command {
     ListSensors,
 }
 
-/// Configuration for profiling a program.
-#[derive(Debug, Clone)]
+/// Configuration for program profiling.
+#[derive(Debug, Clone, Builder)]
 pub struct ProfileConfig {
     /// Number of iterations (>= 1).
+    #[builder(default = 1)]
     pub iterations: usize,
 
     /// Optional file to redirect the profiled program stdout.
+    #[builder(default, setter(strip_option))]
     pub stdout_file: Option<String>,
 
     /// Command and arguments to execute.
     pub cmd: Vec<String>,
 
     /// Optional set of CPU sockets to monitor.
+    #[builder(default, setter(strip_option))]
     pub sockets: Option<HashSet<u32>>,
 
     /// Optional RAPL polling interval in seconds.
+    #[builder(default, setter(strip_option))]
     pub rapl_polling: Option<f64>,
 
     /// Regex used to detect phase tokens in program output.
+    #[builder(default = PHASE_TOKEN_DEFAULT_REGEX_PATTERN.to_string())]
     pub token_pattern: String,
 }

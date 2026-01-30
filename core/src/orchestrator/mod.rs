@@ -21,11 +21,6 @@ pub struct SourceOrchestrator {
 }
 
 impl SourceOrchestrator {
-    /// Creates a new source orchestrator
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     /// Start the metrics sources worker threads
     #[inline]
     pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>) {

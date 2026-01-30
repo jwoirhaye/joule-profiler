@@ -2,8 +2,7 @@ use tokio::task::JoinHandle;
 
 use crate::aggregate::Metrics;
 use crate::sensor::Sensors;
-use crate::source::types::SourceEventEmitter;
-use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
+use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound, SourceEventEmitter};
 
 /// Trait implemented by a metric source reader.
 ///

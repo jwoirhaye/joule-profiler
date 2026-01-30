@@ -1,12 +1,18 @@
-pub mod aggregate;
+mod aggregate;
 pub mod config;
-pub mod orchestrator;
-pub mod phase;
-pub mod profiler;
+mod orchestrator;
+mod phase;
+mod profiler;
 pub mod sensor;
 
-pub mod util;
+mod util;
+pub use util::fs;
 
 pub mod source;
 
 pub use profiler::{JouleProfiler, JouleProfilerError};
+
+pub mod types {
+    pub use super::aggregate::{Metric, Metrics, sensor_result::SensorResult};
+    pub use super::profiler::types::{Iteration, Iterations, Phase, Phases};
+}
