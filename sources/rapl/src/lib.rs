@@ -46,24 +46,20 @@ use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::snapshot::{Snapshot, compute_measurement_from_snapshots};
 use futures::StreamExt;
-use joule_profiler_core::aggregate::Metrics;
-use joule_profiler_core::config::Command;
-use joule_profiler_core::config::Config;
+use joule_profiler_core::config::{Command, Config};
 use joule_profiler_core::sensor::{Sensor, Sensors};
-use joule_profiler_core::source::MetricReader;
-use joule_profiler_core::source::types::SourceEventEmitter;
-use log::{debug, info, trace};
+use joule_profiler_core::source::{MetricReader, SourceEventEmitter};
+use joule_profiler_core::types::Metrics;
+use log::{info, trace};
 use std::{
     collections::{HashMap, HashSet},
-    env, fs,
-    io::ErrorKind,
-    path::Path,
+    env,
     time::Duration,
 };
 use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 mod domain;
-pub(crate) mod error;
+pub mod error;
 mod snapshot;
 
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
@@ -87,7 +83,6 @@ type Result<T> = std::result::Result<T, RaplError>;
 ///   [`Self::measure`] and returned by [`Self::retrieve`].
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
 ///   between measurements.
-#[derive(Default)]
 pub struct Rapl {
     domains: Vec<RaplDomain>,
 
@@ -137,8 +132,13 @@ impl Rapl {
         Ok(Rapl {
             domains,
             poll_interval,
-            ..Default::default()
+            current_counters: Snapshot::default(),
+            last_snapshot: None,
         })
+    }
+
+    pub fn with_default_path() -> Result<Self> {
+        Rapl::new(DEFAULT_RAPL_PATH, None, None)
     }
 
     /// Reads a snapshot of current energy counters for all domains.
@@ -179,7 +179,7 @@ impl TryFrom<&Config> for Rapl {
 
         let (sockets, rapl_polling) = match &config.command {
             Command::Profile(profile_config) => {
-                check_rapl_access(&base_path)?;
+                // check_rapl_access(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
             }
             Command::ListSensors => (None, None),
@@ -266,36 +266,6 @@ impl MetricReader for Rapl {
     fn to_metrics(&self, result: Self::Type) -> Metrics {
         result.into()
     }
-}
-
-/// Check if the program can read RAPL powercap files
-fn check_rapl_access(base: &str) -> Result<()> {
-    debug!("Checking RAPL access using base path: {}", base);
-    let path = Path::new(base);
-
-    let entries = fs::read_dir(path).map_err(|e| match e.kind() {
-        ErrorKind::PermissionDenied => RaplError::InsufficientPermissions,
-        _ => e.into(),
-    })?;
-
-    for entry in entries.flatten() {
-        let energy_path = entry.path().join("energy_uj");
-        if energy_path.exists() {
-            fs::read_to_string(&energy_path).map_err(|e| {
-                if e.kind() == ErrorKind::PermissionDenied {
-                    RaplError::InsufficientPermissions
-                } else {
-                    e.into()
-                }
-            })?;
-            return Ok(());
-        }
-    }
-
-    Err(RaplError::RaplNotAvailable(format!(
-        "{} is not an RAPL folder",
-        base
-    )))
 }
 
 /// Resolves the RAPL base path from configuration and environment.

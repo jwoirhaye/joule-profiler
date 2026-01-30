@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use joule_profiler_core::{
-    aggregate::Metric,
-    profiler::types::{Iteration, Phase},
     sensor::Sensor,
+    types::{Iteration, Metric, Phase},
 };
 
 use crate::output::displayer::{Displayer, DisplayerError};

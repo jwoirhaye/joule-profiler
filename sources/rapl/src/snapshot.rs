@@ -5,7 +5,8 @@ use crate::Result;
 use crate::domain::RaplDomain;
 use crate::domain::domain_type::RaplDomainType;
 use crate::error::RaplError;
-use joule_profiler_core::aggregate::{Metric, Metrics};
+use joule_profiler_core::types::Metric;
+use joule_profiler_core::types::Metrics;
 use log::{debug, error, info, trace};
 
 const MICRO_JOULE_UNIT: &str = "µJ";

@@ -5,10 +5,8 @@ use crate::{
     aggregate::{iteration::SensorIteration, phase::SensorPhase, sensor_result::SensorResult},
     sensor::Sensors,
     source::{
-        MetricReader, MetricSource, MetricSourceError,
-        accumulator::MetricAccumulator,
-        error::IntoMetricSourceError,
-        types::{SourceEvent, SourceEventEmitter},
+        MetricReader, MetricSource, MetricSourceError, SourceEventEmitter,
+        accumulator::MetricAccumulator, error::IntoMetricSourceError, types::SourceEvent,
     },
 };
 
