@@ -15,11 +15,11 @@
 //! use joule_profiler_core::sensor::{Sensor, Sensors};
 //!
 //! // Create a single sensor
-//! let cpu_sensor = Sensor::new(
-//!     "CORE-0".to_string(),
-//!     "µJ".to_string(),
-//!     "powercap".to_string(),
-//! );
+//! let cpu_sensor = Sensor {
+//!     name: "CORE-0".to_string(),
+//!     unit: "µJ".to_string(),
+//!     source: "powercap".to_string(),
+//! };
 //!
 //! // Collect sensors into a vector
 //! let sensors: Sensors = vec![cpu_sensor];

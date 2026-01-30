@@ -129,7 +129,7 @@ impl JouleProfiler {
 
         for i in 0..config.iterations {
             info!("Starting iteration {}", i);
-            let iteration = self.measure_phases(&config).await?;
+            let iteration = self.measure_phases(config).await?;
             command_results.push(iteration);
         }
 

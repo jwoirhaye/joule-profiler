@@ -58,13 +58,6 @@
 //!     value: u64
 //! }
 //!
-//! impl From<MyReaderType> for Metrics {
-//!     fn from(reader_type: MyReaderType) -> Self {
-//!         let metric = Metric::new("value".into(), reader_type.value, "unit".into(), "MyReader".into());
-//!         vec![metric]
-//!     }
-//! }
-//!
 //! impl MetricReader for MyReader {
 //!     type Type = MyReaderType;
 //!     type Error = MetricSourceError; // Or any type that implement std::error::Error
@@ -73,6 +66,10 @@
 //!     fn retrieve(&mut self) -> Result<Self::Type, Self::Error> { Ok(MyReaderType { value: 42 }) }
 //!     fn get_sensors(&self) -> Result<Sensors, Self::Error> { Ok(Vec::new()) }
 //!     fn get_name() -> &'static str { "MyReader" }
+//!     fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
+//!         let metric = Metric { name: "value".into(), value: snapshot.value, unit: "unit".into(), source: "MyReader".into() };
+//!         vec![metric]
+//!     }
 //! }
 //!
 //! let source: Box<dyn MetricSource> = Box::from(MyReader);
@@ -96,8 +93,8 @@ pub mod runtime;
 pub mod types;
 
 use crate::sensor::Sensors;
-use crate::source::runtime::{Handle, MetricRuntime};
-use crate::source::types::SourceEvent;
+use crate::source::runtime::MetricSourceRuntime;
+use crate::source::types::{SourceEvent, SourceWorkerHandle};
 pub use error::MetricSourceError;
 pub use reader::MetricReader;
 pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
@@ -105,18 +102,18 @@ pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// Trait representing a metric source and required to be used in profiler
 pub trait MetricSource: Send {
     /// Runs the worker and returns a future that resolves with the result and the source itself
-    fn run(self: Box<Self>) -> (Handle, Sender<SourceEvent>);
+    fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>);
 
     /// List all sensors available from this source
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 }
 
-impl<R> MetricSource for MetricRuntime<R>
+impl<R> MetricSource for MetricSourceRuntime<R>
 where
     R: MetricReader,
 {
     /// Run the worker for the metric accumulator
-    fn run(self: Box<Self>) -> (Handle, Sender<SourceEvent>) {
+    fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>) {
         let (tx, rx) = channel(4);
         let tx_clone = tx.clone();
         let handle = tokio::spawn(async move { self.run_worker(tx_clone, rx).await });
@@ -125,7 +122,7 @@ where
 
     /// List all sensors for this accumulator
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError> {
-        Ok(Vec::new())
+        self.get_source_sensors()
     }
 }
 
@@ -134,7 +131,7 @@ where
     R: MetricReader,
 {
     fn from(reader: R) -> Self {
-        let source = MetricRuntime::new(reader);
+        let source = MetricSourceRuntime::new(reader);
         Box::new(source)
     }
 }
