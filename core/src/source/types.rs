@@ -1,4 +1,3 @@
-use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 
 use crate::aggregate::Metrics;
@@ -51,37 +50,16 @@ pub enum SourceEvent {
     Stop,
 }
 
-/// It is a wrapper of an event sender to abstract eventing from source
-/// and allow to send measure events and not other events like NewPhase.
-pub struct SourceEventEmitter {
-    tx: Sender<SourceEvent>,
-}
-
-impl SourceEventEmitter {
-    /// Initialize an event emitter
-    pub fn new(tx: Sender<SourceEvent>) -> Self {
-        Self { tx }
-    }
-
-    /// Emit a measure event
-    pub async fn emit(&mut self) -> Result<(), MetricSourceError> {
-        self.tx
-            .send(SourceEvent::Measure)
-            .await
-            .map_err(|_| MetricSourceError::ErrorRetrievingCounters)
-    }
-}
-
 /// Raw phase containing metrics from a metric reader
 #[derive(Debug, Default, Clone)]
-pub struct RawPhase<V> {
+pub(crate) struct RawPhase<V> {
     /// Metrics collected in this raw phase
     pub metrics: V,
 }
 
 /// Represents a single iteration from a metrics source
 #[derive(Debug, Default, Clone)]
-pub struct RawIteration<V> {
+pub(crate) struct RawIteration<V> {
     /// Raw phases collected during the iteration
     pub phases: Vec<RawPhase<V>>,
 }

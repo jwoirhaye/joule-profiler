@@ -22,7 +22,7 @@
 
 pub mod error;
 pub use error::DisplayerError;
-use joule_profiler_core::{profiler::types::Iteration, sensor::Sensor};
+use joule_profiler_core::{sensor::Sensor, types::Iteration};
 
 /// Result type for displayer operations.
 pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;

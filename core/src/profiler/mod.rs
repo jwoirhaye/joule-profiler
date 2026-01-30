@@ -36,19 +36,14 @@ use crate::aggregate::iteration::SensorIteration;
 use crate::config::ProfileConfig;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
-use crate::profiler::types::{Iteration, Iterations, Phase};
+use crate::profiler::types::{Iteration, Iterations, MeasurePhasesReturnType, Phase, Result};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
-use crate::util::file::create_file_with_user_permissions;
+use crate::util::fs::create_file_with_user_permissions;
 use crate::util::time::get_timestamp_millis;
 pub use error::JouleProfilerError;
 
 pub mod types;
-
-/// Result type for profiler operations
-type Result<T> = std::result::Result<T, JouleProfilerError>;
-
-type MeasurePhasesReturnType = (u128, u128, i32, Vec<PhaseInfo>);
 
 /// Main profiler orchestrating command execution and metrics collection.
 ///
@@ -383,7 +378,7 @@ mod tests {
 
     fn joule_profiler() -> JouleProfiler {
         JouleProfiler {
-            orchestrator: SourceOrchestrator::new(),
+            orchestrator: SourceOrchestrator::default(),
             sources: Vec::new(),
         }
     }

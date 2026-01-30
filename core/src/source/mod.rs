@@ -86,21 +86,23 @@
 
 use tokio::sync::mpsc::{Sender, channel};
 
-pub mod accumulator;
+pub(crate) mod accumulator;
 pub mod error;
+mod event_emitter;
 pub mod reader;
-pub mod runtime;
-pub mod types;
+pub(crate) mod runtime;
+pub(crate) mod types;
 
 use crate::sensor::Sensors;
 use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};
 pub use error::MetricSourceError;
+pub use event_emitter::SourceEventEmitter;
 pub use reader::MetricReader;
 pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 
 /// Trait representing a metric source and required to be used in profiler
-pub trait MetricSource: Send {
+pub(crate) trait MetricSource: Send {
     /// Runs the worker and returns a future that resolves with the result and the source itself
     fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>);
 
