@@ -12,8 +12,6 @@
 //!     iterations: 1,
 //!     stdout_file: None,
 //!     cmd: vec!["sleep".into(), "1".into()],
-//!     sockets: None,
-//!     rapl_polling: Some(0.5),
 //!     token_pattern: "__[A-Z0-9_]+__".into(),
 //! };
 //!
@@ -22,8 +20,6 @@
 //!     rapl_path: None,
 //! };
 //! ```
-
-use std::collections::HashSet;
 
 use derive_builder::Builder;
 
@@ -62,14 +58,6 @@ pub struct ProfileConfig {
 
     /// Command and arguments to execute.
     pub cmd: Vec<String>,
-
-    /// Optional set of CPU sockets to monitor.
-    #[builder(default, setter(strip_option))]
-    pub sockets: Option<HashSet<u32>>,
-
-    /// Optional RAPL polling interval in seconds.
-    #[builder(default, setter(strip_option))]
-    pub rapl_polling: Option<f64>,
 
     /// Regex used to detect phase tokens in program output.
     #[builder(default = PHASE_TOKEN_DEFAULT_REGEX_PATTERN.to_string())]
