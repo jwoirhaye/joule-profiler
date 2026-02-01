@@ -1,6 +1,6 @@
 use crate::aggregate::Metrics;
 use crate::sensor::Sensors;
-use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound, SourceEventEmitter};
+use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 
 /// Trait implemented by a metric source reader.
 ///
@@ -32,7 +32,7 @@ pub trait MetricReader: Send + 'static {
     /// Error type produced by the reader.
     type Error: MetricReaderErrorBound;
 
-    fn init(&mut self, _event_emitter: SourceEventEmitter) -> impl Future<Output = Result<(), Self::Error>> + Send {
+    fn init(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async { Ok(()) }
     }
 
@@ -41,10 +41,10 @@ pub trait MetricReader: Send + 'static {
     }
 
     /// Measure the sensors metrics and update internal state
-    fn measure(&mut self) -> Result<(), Self::Error>;
+    fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
     /// Retrieve the current metrics as the reader type
-    fn retrieve(&mut self) -> Result<Self::Type, Self::Error>;
+    fn retrieve(&mut self) -> impl Future<Output = Result<Self::Type, Self::Error>> + Send;
 
     /// Return all sensors available from this reader
     fn get_sensors(&self) -> Result<Sensors, Self::Error>;
