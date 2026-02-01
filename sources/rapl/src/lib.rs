@@ -48,14 +48,16 @@ use crate::snapshot::{Snapshot, compute_measurement_from_snapshots};
 use futures::StreamExt;
 use joule_profiler_core::config::{Command, Config};
 use joule_profiler_core::sensor::{Sensor, Sensors};
-use joule_profiler_core::source::{MetricReader, SourceEventEmitter};
+use joule_profiler_core::source::MetricReader;
 use joule_profiler_core::types::Metrics;
 use log::{info, trace};
+use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
     env,
     time::Duration,
 };
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 mod domain;
@@ -83,16 +85,17 @@ type Result<T> = std::result::Result<T, RaplError>;
 ///   [`Self::measure`] and returned by [`Self::retrieve`].
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
 ///   between measurements.
+
 pub struct Rapl {
     domains: Vec<RaplDomain>,
 
     poll_interval: Option<Duration>,
 
-    current_counters: Snapshot,
+    current_counters: Arc<Mutex<Snapshot>>,
 
-    last_snapshot: Option<Snapshot>,
+    last_snapshot: Arc<Mutex<Option<Snapshot>>>,
 
-    handle: Option<JoinHandle<Result<()>>>
+    handle: Option<JoinHandle<Result<()>>>,
 }
 
 impl Rapl {
@@ -134,8 +137,8 @@ impl Rapl {
         Ok(Rapl {
             domains,
             poll_interval,
-            current_counters: Snapshot::default(),
-            last_snapshot: None,
+            current_counters: Default::default(),
+            last_snapshot: Default::default(),
             handle: None,
         })
     }
@@ -195,22 +198,19 @@ impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
 
-    fn measure(&mut self) -> Result<()> {
-        trace!("RAPL measure() called");
-
+    async fn measure(&mut self) -> Result<()> {
         let new_snapshot = self.read_snapshot()?;
 
-        if let Some(last_snapshot) = &self.last_snapshot {
-            trace!("Computing delta from previous snapshot");
+        let mut last = self.last_snapshot.lock().await;
 
-            let metrics =
-                compute_measurement_from_snapshots(&self.domains, last_snapshot, &new_snapshot)?;
+        if let Some(prev) = last.as_ref() {
+            let metrics = compute_measurement_from_snapshots(&self.domains, prev, &new_snapshot)?;
 
-            trace!("Computed {} metric(s)", metrics.len());
-            self.current_counters += Snapshot { metrics };
+            let mut counters = self.current_counters.lock().await;
+            *counters += Snapshot { metrics };
         }
-        self.last_snapshot = Some(new_snapshot);
 
+        *last = Some(new_snapshot);
         Ok(())
     }
 
@@ -233,12 +233,9 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    fn retrieve(&mut self) -> Result<Self::Type> {
-        trace!(
-            "Retrieving RAPL counters ({} entries)",
-            self.current_counters.metrics.len()
-        );
-        Ok(std::mem::take(&mut self.current_counters))
+    async fn retrieve(&mut self) -> Result<Snapshot> {
+        let mut lock = self.current_counters.lock().await;
+        Ok(std::mem::take(&mut *lock))
     }
 
     fn get_name() -> &'static str {
@@ -248,30 +245,56 @@ impl MetricReader for Rapl {
     fn to_metrics(&self, result: Self::Type) -> Metrics {
         result.into()
     }
-    
-    async fn init(&mut self, mut event_emitter: SourceEventEmitter) -> std::result::Result<(), Self::Error> {
+
+    async fn init(&mut self) -> Result<()> {
         let mut ticker = if let Some(interval) = self.poll_interval {
             Interval::new_interval(interval)?
         } else {
             return Ok(());
         };
 
+        let domains = self.domains.clone();
+        let last_snapshot = Arc::clone(&self.last_snapshot);
+        let current_counters = Arc::clone(&self.current_counters);
+
         let handle = tokio::spawn(async move {
             loop {
-                trace!("Waiting for RAPL scheduler tick");
                 ticker.next().await;
-                trace!("RAPL scheduler tick fired");
-                event_emitter.measure()
-                    .await
-                    .map_err(|err| RaplError::EmitterError(err))?;
+                trace!("Rapl polled");
+
+                let mut last_guard = match last_snapshot.try_lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        trace!("RAPL measure skipped: previous measurement still running");
+                        continue;
+                    }
+                };
+
+                let new_snapshot = {
+                    let mut map = HashMap::with_capacity(domains.len());
+                    for domain in &domains {
+                        let val_uj = read_energy(domain)?;
+                        map.insert((domain.domain_type, domain.socket), val_uj);
+                    }
+                    Snapshot { metrics: map }
+                };
+
+                if let Some(prev) = last_guard.as_ref() {
+                    let metrics =
+                        compute_measurement_from_snapshots(&domains, prev, &new_snapshot)?;
+
+                    let mut counters = current_counters.lock().await;
+                    *counters += Snapshot { metrics };
+                }
+
+                *last_guard = Some(new_snapshot);
             }
         });
 
         self.handle = Some(handle);
-
         Ok(())
     }
-    
+
     async fn join(&mut self) -> Result<()> {
         if let Some(handle) = self.handle.take() {
             if handle.is_finished() {

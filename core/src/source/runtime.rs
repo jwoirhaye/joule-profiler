@@ -1,12 +1,12 @@
 use log::debug;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
 
 use crate::{
     aggregate::{iteration::SensorIteration, phase::SensorPhase, sensor_result::SensorResult},
     sensor::Sensors,
     source::{
-        MetricReader, MetricSource, MetricSourceError, SourceEventEmitter,
-        accumulator::MetricAccumulator, error::IntoMetricSourceError, types::SourceEvent,
+        MetricReader, MetricSource, MetricSourceError, accumulator::MetricAccumulator,
+        error::IntoMetricSourceError, types::SourceEvent,
     },
 };
 
@@ -32,20 +32,18 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     /// Run the worker responsible for source and accumulator management
     pub async fn run_worker(
         mut self,
-        tx: Sender<SourceEvent>,
         mut rx: Receiver<SourceEvent>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        self
-            .source
-            .init(SourceEventEmitter::new(tx.clone()))
+        self.source
+            .init()
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
         loop {
             if let Some(event) = rx.recv().await {
                 match event {
-                    SourceEvent::Measure if self.active => self.measure_source()?,
-                    SourceEvent::NewPhase => self.new_phase()?,
+                    SourceEvent::Measure if self.active => self.measure_source().await?,
+                    SourceEvent::NewPhase => self.new_phase().await?,
                     SourceEvent::NewIteration => self.new_iteration()?,
                     SourceEvent::JoinWorker => break,
                     SourceEvent::Start => self.active = true,
@@ -55,24 +53,29 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             }
         }
 
-        self.source.join().await.map_err(IntoMetricSourceError::into_metric_source_error)?;
+        self.source
+            .join()
+            .await
+            .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
         let result = self.retrieve();
         Ok((result, self.source.into()))
     }
 
     /// Measure the source and convert the error if any occur into a MetricSourceError
-    fn measure_source(&mut self) -> Result<(), MetricSourceError> {
+    async fn measure_source(&mut self) -> Result<(), MetricSourceError> {
         self.source
             .measure()
+            .await
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
 
     /// Initialize a new phase and convert the error if any occur into a MetricSourceError
-    fn new_phase(&mut self) -> Result<(), MetricSourceError> {
+    async fn new_phase(&mut self) -> Result<(), MetricSourceError> {
         let result = self
             .source
             .retrieve()
+            .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?;
         self.accumulator.new_phase(result);
         Ok(())

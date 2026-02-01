@@ -86,7 +86,6 @@ use tokio::sync::mpsc::{Sender, channel};
 
 pub(crate) mod accumulator;
 pub mod error;
-mod event_emitter;
 pub mod reader;
 pub(crate) mod runtime;
 pub(crate) mod types;
@@ -95,7 +94,6 @@ use crate::sensor::Sensors;
 use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};
 pub use error::MetricSourceError;
-pub use event_emitter::SourceEventEmitter;
 pub use reader::MetricReader;
 pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 
@@ -115,8 +113,7 @@ where
     /// Run the worker for the metric accumulator
     fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>) {
         let (tx, rx) = channel(4);
-        let tx_clone = tx.clone();
-        let handle = tokio::spawn(async move { self.run_worker(tx_clone, rx).await });
+        let handle = tokio::spawn(async move { self.run_worker(rx).await });
         (handle, tx)
     }
 
