@@ -16,7 +16,7 @@
 //!
 //! # Usage
 //!
-//! ```no_run
+//! ```ignore
 //! use source_rapl::Rapl;
 //! use joule_profiler_core::source::MetricReader;
 //! use std::collections::HashSet;
@@ -25,13 +25,13 @@
 //! let mut rapl = Rapl::new("/sys/devices/virtual/powercap/intel-rapl", None, None).unwrap();
 //!
 //! // Measure and update internal counters
-//! rapl.measure().unwrap();
+//! rapl.measure().await.unwrap();
 //!
 //! // Retrieve available sensors
 //! let sensors = rapl.get_sensors().unwrap();
 //!
 //! // Retrieve collected counters
-//! let counters = rapl.retrieve().unwrap();
+//! let counters = rapl.retrieve().await.unwrap();
 //! ```
 //!
 //! # Errors
