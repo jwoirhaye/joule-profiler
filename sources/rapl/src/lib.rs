@@ -46,11 +46,13 @@ use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::snapshot::{Snapshot, compute_measurement_from_snapshots};
 use futures::StreamExt;
-use joule_profiler_core::config::{Command, Config};
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
 use joule_profiler_core::types::Metrics;
-use log::{info, trace};
+use log::{debug, error, info, trace};
+use std::fs;
+use std::io::ErrorKind;
+use std::path::Path;
 use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
@@ -86,6 +88,8 @@ type Result<T> = std::result::Result<T, RaplError>;
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
 ///   between measurements.
 pub struct Rapl {
+    rapl_path: String,
+
     domains: Vec<RaplDomain>,
 
     poll_interval: Option<Duration>,
@@ -111,18 +115,32 @@ impl Rapl {
     /// - Path is invalid
     /// - Permissions are insufficient
     pub fn new(
-        rapl_path: &str,
-        sockets: Option<&HashSet<u32>>,
+        rapl_path: Option<&str>,
+        sockets: Option<&str>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
+        let rapl_path = rapl_base_path(rapl_path);
+
         trace!(
             "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
             rapl_path, sockets
         );
 
+        let sockets: Option<HashSet<u32>> = sockets.map(|s| {
+            s.split(',')
+                .filter_map(|x| x.trim().parse::<u32>().ok())
+                .collect()
+        });
+
         check_os()?;
 
-        let domains = get_domains(rapl_path, sockets)?;
+        let domains = get_domains(&rapl_path, sockets.as_ref())?;
+
+        if domains.is_empty() {
+            error!("No domain discovered");
+            return Err(RaplError::NoDomains);
+        }
+
         info!("Discovered {} RAPL domain(s)", domains.len());
 
         let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
@@ -134,6 +152,7 @@ impl Rapl {
         );
 
         Ok(Rapl {
+            rapl_path,
             domains,
             poll_interval,
             current_counters: Default::default(),
@@ -143,7 +162,7 @@ impl Rapl {
     }
 
     pub fn with_default_path() -> Result<Self> {
-        Rapl::new(DEFAULT_RAPL_PATH, None, None)
+        Rapl::new(None, None, None)
     }
 
     /// Reads a snapshot of current energy counters for all domains.
@@ -170,25 +189,6 @@ impl Rapl {
         }
 
         Ok(Snapshot { metrics: map })
-    }
-}
-
-impl TryFrom<&Config> for Rapl {
-    type Error = RaplError;
-
-    /// Initialize a `Rapl` reader from a [`Config`] object.
-    ///
-    /// Automatically resolves the base path and polling settings.
-    fn try_from(config: &Config) -> Result<Self> {
-        let base_path = rapl_base_path(config.rapl_path.as_deref());
-
-        let (sockets, rapl_polling) = match &config.command {
-            Command::Profile(profile_config) => {
-                (profile_config.sockets.as_ref(), profile_config.rapl_polling)
-            }
-            Command::ListSensors => (None, None),
-        };
-        Rapl::new(&base_path, sockets, rapl_polling)
     }
 }
 
@@ -245,6 +245,8 @@ impl MetricReader for Rapl {
     }
 
     async fn init(&mut self) -> Result<()> {
+        check_rapl_access(&self.rapl_path)?;
+
         let mut ticker = if let Some(interval) = self.poll_interval {
             Interval::new_interval(interval)?
         } else {
@@ -332,6 +334,36 @@ fn check_os() -> Result<()> {
         let os = std::env::consts::OS;
         Err(RaplError::UnsupportedOS(os.to_string()).into())
     }
+}
+
+/// Check if the program can read RAPL powercap files
+fn check_rapl_access(base: &str) -> Result<()> {
+    debug!("Checking RAPL access using base path: {}", base);
+    let path = Path::new(base);
+
+    let entries = fs::read_dir(path).map_err(|e| match e.kind() {
+        ErrorKind::PermissionDenied => RaplError::InsufficientPermissions,
+        _ => e.into(),
+    })?;
+
+    for entry in entries.flatten() {
+        let energy_path = entry.path().join("energy_uj");
+        if energy_path.exists() {
+            fs::read_to_string(&energy_path).map_err(|e| {
+                if e.kind() == ErrorKind::PermissionDenied {
+                    RaplError::InsufficientPermissions
+                } else {
+                    e.into()
+                }
+            })?;
+            return Ok(());
+        }
+    }
+
+    Err(RaplError::RaplNotAvailable(format!(
+        "{} is not an RAPL folder",
+        base
+    )))
 }
 
 #[cfg(test)]

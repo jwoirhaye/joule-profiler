@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use clap::{ArgAction, Parser};
 
 use anyhow::Result;
@@ -69,20 +67,12 @@ impl CliArgs {
 
 impl From<CliArgs> for Config {
     fn from(cli_args: CliArgs) -> Self {
-        let sockets: Option<HashSet<u32>> = cli_args.sockets.map(|s| {
-            s.split(',')
-                .filter_map(|x| x.trim().parse::<u32>().ok())
-                .collect()
-        });
-
         let command = match cli_args.command {
             ProfilerCommand::Phases(phases) => Command::Profile(ProfileConfig {
                 iterations: phases.iterations.unwrap_or(1),
                 stdout_file: phases.stdout_file,
                 cmd: phases.cmd,
-                rapl_polling: phases.rapl_polling,
                 token_pattern: phases.token_pattern,
-                sockets,
             }),
 
             ProfilerCommand::ListSensors => Command::ListSensors,
