@@ -85,7 +85,6 @@ type Result<T> = std::result::Result<T, RaplError>;
 ///   [`Self::measure`] and returned by [`Self::retrieve`].
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
 ///   between measurements.
-
 pub struct Rapl {
     domains: Vec<RaplDomain>,
 
@@ -185,7 +184,6 @@ impl TryFrom<&Config> for Rapl {
 
         let (sockets, rapl_polling) = match &config.command {
             Command::Profile(profile_config) => {
-                // check_rapl_access(&base_path)?;
                 (profile_config.sockets.as_ref(), profile_config.rapl_polling)
             }
             Command::ListSensors => (None, None),
