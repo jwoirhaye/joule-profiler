@@ -62,8 +62,8 @@
 //!     type Type = MyReaderType;
 //!     type Error = MetricSourceError; // Or any type that implement std::error::Error
 //!
-//!     fn measure(&mut self) -> Result<(), Self::Error> { Ok(()) }
-//!     fn retrieve(&mut self) -> Result<Self::Type, Self::Error> { Ok(MyReaderType { value: 42 }) }
+//!     async fn measure(&mut self) -> Result<(), Self::Error> { Ok(()) }
+//!     async fn retrieve(&mut self) -> Result<Self::Type, Self::Error> { Ok(MyReaderType { value: 42 }) }
 //!     fn get_sensors(&self) -> Result<Sensors, Self::Error> { Ok(Vec::new()) }
 //!     fn get_name() -> &'static str { "MyReader" }
 //!     fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
