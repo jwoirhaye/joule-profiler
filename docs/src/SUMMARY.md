@@ -1,13 +1,30 @@
 # Summary
 
-[Introduction](./introduction.md)
+- [Introduction](introduction.md)
+- [Phase mode](phase-mode.md)
 
-# Getting started
+# Quickstart
+- [Installation](quickstart/installation.md)
+- [Usage](quickstart/usage.md)
+    - [Using the CLI](quickstart/cli.md)
+    - [Using the library](quickstart/lib.md)
 
-- [Installation](./tutorials/install.md)
+- [Architecture](architecture.md)
 
-- [Architecture](./architecture.md)
+# Sources
 
-# Supported Sources
+- [Available Sources]()
+    - [RAPL](sources/rapl/overview.md)
+        - [Using Powercap](sources/rapl/powercap.md)
+        - [Using Perf Events]()
+    - [Nvidia-NVML]()
+    - [Perf Events]()
 
-- [RAPL](./sources/rapl/README.md)
+- [Implementing a Custom Source](sources/implement-custom-sources.md)
+
+# Output
+
+- [Output Formats](outputs/output.md)
+    - [Terminal](outputs/terminal.md)
+    - [Json](outputs/json.md)
+    - [CSV](outputs/csv.md)

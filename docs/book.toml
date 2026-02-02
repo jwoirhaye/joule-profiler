@@ -1,15 +1,11 @@
 [book]
 title = "Joule Profiler"
-authors = ["François Gibier", "Jeremy Woirhaye"]
+authors = ["Jeremy Woirhaye", "François Gibier"]
 language = "en"
-
-[preprocessor]
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
 
-[output]
-
 [output.html]
-additional-js = ["src/js/mermaid.min.js", "src/js/mermaid-init.js"]
-additional-css = ["src/css/book.css"]
+additional-js = ["src/js/mermaid.min.js", "src/js/mermaid-init.js", "src/js/pagetoc.js"]
+additional-css = ["src/css/book.css", "src/css/pagetoc.css"]
