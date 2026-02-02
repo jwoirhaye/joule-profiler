@@ -24,7 +24,7 @@ It provides also functions to enable / disable and reset ECC counters, change th
 
 Nvidia GPUs energy consumption is available since Volta architecture. We query the driver through the library and obtain the GPU(s) energy consumption in mJ (millijoules) to address programs energy consumption.
 
-## Overflow handling
+## Overflow handling ?
 
 Unlike RAPL counters, which are expressed in microjoules, NVML energy counters are expressed in millijoules on eight bytes. This unit allows energy to be measured over a very long period without considering an overflow; although one can theoretically occur, the period required makes it irrelevant in practice. For example, on a GPU consuming approximately 300 W:
 

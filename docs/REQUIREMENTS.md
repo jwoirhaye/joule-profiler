@@ -1,0 +1,4 @@
+- Rust >= 1.72
+- mdBook = 0.4.40
+- mdbook-mermaid = 0.13.0
+- mdbook-katex = 0.9.4

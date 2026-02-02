@@ -108,7 +108,7 @@ for phase_result in results.iter() {
 
 ## Notes
 
-- The library is **fully asynchronous**; ensure you use a Tokio runtime (`#[tokio::main]` or `#[tokio::test]`).
+- The library is **fully asynchronous**, ensure you use a Tokio runtime.
 
 ---
 
