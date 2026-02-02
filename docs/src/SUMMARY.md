@@ -14,9 +14,9 @@
 # Sources
 
 - [Available Sources]()
-    - [RAPL](sources/rapl/overview.md)
+    - [RAPL](sources/rapl/rapl.md)
         - [Using Powercap](sources/rapl/powercap.md)
-        - [Using Perf Events]()
+        - [Using Perf Events](sources/rapl/perf_events.md)
     - [NVML](sources/nvml.md)
     - [Perf Events]()
 

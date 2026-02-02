@@ -7,7 +7,7 @@ We're using the nvml-wrapper[^nvml-wrapper] rust crate to call the interface.
 
 ## Architecture
 
-NVML (called also libnvidia-ml on Linux) communicates directly to the GPU driver and is the underlying library behind the nvidia-smi[^nvidia-smi] tool.
+NVML (called also libnvidia-ml on Linux or nvml.dll on Windows) communicates directly to the Nvidia GPU driver and is the underlying library behind the nvidia-smi[^nvidia-smi] tool.
 
 ![RAPL architecture](../figures/nvml_architecture.png)
 
@@ -26,13 +26,13 @@ Nvidia GPUs energy consumption is available since Volta architecture. We query t
 
 ## Overflow handling ?
 
-Unlike RAPL counters, which are expressed in microjoules, NVML energy counters are expressed in millijoules on eight bytes. This unit allows energy to be measured over a very long period without considering an overflow; although one can theoretically occur, the period required makes it irrelevant in practice. For example, on a GPU consuming approximately 300 W:
+Unlike RAPL counters, which are expressed in microjoules, NVML energy counters are expressed in millijoules on eight bytes. This unit allows energy to be measured over a very long period without considering an overflow; although one can theoretically occur, the period required makes it impossible in practice. For example, on a GPU consuming approximately 300 W:
 
-$$ 300 W = 300 J/s = 300 000 mJ/s $$
+$$ P = 300~\text{W} = 300~\text{J/s} = 3.0 \times 10^2~\text{kJ/s} = 3.0 \times 10^5~\text{mJ/s} $$
 
-Since the counter is stored on 8 bytes, its maximum value is $ 2^{64} mJ $.
-The time required to reach an overflow is therefore $ 2^{64} / 300 000 ≈ 6.1 × 10^{13} s $
-which corresponds to approximately $ 1.9 × 10^{6} years $.
+$$ E_\text{max} = 2^{64}~\text{mJ} $$
+
+$$ t_\text{overflow} = \frac{E_\text{max}}{P} = \frac{2^{64}~\text{mJ}}{3.0 \times 10^5~\text{mJ/s}} \simeq 6.1 \times 10^{13}~\text{s} \simeq 1.9 \times 10^6~\text{years} $$
 
 Consequently, overflow of the NVML energy counter can be safely ignored for any realistic measurement duration; it is sufficient to wrap subtractions in the unlikely event that an overflow occurs.
 

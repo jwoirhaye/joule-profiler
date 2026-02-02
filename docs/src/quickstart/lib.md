@@ -1,4 +1,4 @@
-# Using the Joule Profiler Library
+# Using the library
 
 Joule Profiler can be used directly as a Rust **library**, allowing full programmatic control over measurement, configuration, and result handling.  
 This approach is ideal for users who want **custom profiling**, integrate profiling in tests or benchmarks, or manipulate the results directly in Rust.

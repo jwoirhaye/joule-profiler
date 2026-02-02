@@ -50,4 +50,12 @@ The `max_energy_range_uj` file to indicate this threshold. To ensure accurate me
 To handle these overflows, the measurement worker thread performs **frequent polling** of the `energy_uj` files. By sampling the counters at a rate significantly higher than the theoretical minimum time it takes for a counter to wrap around, we can safely detect an overflow and correct it. The polling rate must be higher than the minimal period of an overflow, otherwise, an overflow could not be always detected.
 In the future, we might implement an adaptive overflow period to minimize polling and reduce the overhead it introduces, even so it is negligible under hundreds of hertz.
 
+The period of an overflow will depend mostly on the CPU wattage, but also on the domain, the DRAM package will not overflow often, while the psys or package domains might overflow in several minutes during high power consuming workload.
+
+Theoretically, for a processor with a consumption of 200 W and a `max_energy_range_uj` of `262143328850` (common domain max_energy_range_uj), the **package** domain which represents the entire CPU consumption will overflow in around 22 minutes with a constant consumption.
+
+$$ P = 200~\text{W} = 200~\text{J/s} = 2.0 \times 10^8~\mu\text{J/s} $$
+
+$$ t_\text{overflow} = \frac{E_\text{max}}{P} = \frac{262143328850~\mu\text{J}}{2.0 \times 10^8~\mu\text{J/s}} \simeq 1310~\text{s} \simeq 21.8~\text{minutes} $$
+
 [^powercap]: [Powercap documentation](https://docs.kernel.org/power/powercap/powercap.html)
