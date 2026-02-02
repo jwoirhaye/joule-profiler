@@ -17,7 +17,7 @@
     - [RAPL](sources/rapl/overview.md)
         - [Using Powercap](sources/rapl/powercap.md)
         - [Using Perf Events]()
-    - [Nvidia-NVML]()
+    - [NVML](sources/nvml.md)
     - [Perf Events]()
 
 - [Implementing a Custom Source](sources/implement-custom-sources.md)

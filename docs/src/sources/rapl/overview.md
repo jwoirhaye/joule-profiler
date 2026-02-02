@@ -10,8 +10,6 @@ RAPL provides energy measurements at different scales, enabling you to measure e
 
 It allows fine-grained energy profiling of CPU cores, memory subsystem, and uncore components.
 
----
-
 ## Architecture
 
 RAPL interface exposes multiple power domains that allow measuring energy consumption of different parts of the processor and memory subsystem.
@@ -29,9 +27,7 @@ Some of the domains may not appear depending on the processor architecture.
 
 Architecture of RAPL[^dissecting_software-based_measurement]:
 
-![RAPL architecture](./figures/rapl_architecture.png)
-
----
+![RAPL architecture](../../figures/rapl_architecture.png)
 
 ## Limitations
 

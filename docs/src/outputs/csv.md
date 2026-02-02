@@ -81,6 +81,27 @@ Which gives:
 - `iteration_id` increments per program run; `phase_id` increments per detected phase.
 - Empty `start_line` / `end_line` indicate that line tracking is not enabled.
 
+## Listing Sensors
+
+Here is an example of sensors listing in CSV format:
+
+```
+sensor;unit;source
+PSYS-1;µJ;powercap
+PACKAGE-0;µJ;powercap
+CORE-0;µJ;powercap
+UNCORE-0;µJ;powercap
+```
+
+which gives the following table:
+
+| sensor | unit | source |
+|--------------|----------|---------------|
+| PSYS-1 | µJ | powercap |
+| PACKAGE-0 | µJ | powercap |
+| CORE-0 | µJ | powercap |
+| UNCORE-0 | µJ | powercap |
+
 ## Notes
 
 - CSV is **semicolon-separated** for compatibility with most spreadsheet software.

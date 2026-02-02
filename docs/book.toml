@@ -1,10 +1,14 @@
 [book]
 title = "Joule Profiler"
 authors = ["Jeremy Woirhaye", "François Gibier"]
+description = "The user book of Joule Profiler"
 language = "en"
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
+
+[preprocessor.katex]
+after = ["links"]
 
 [output.html]
 additional-js = ["src/js/mermaid.min.js", "src/js/mermaid-init.js", "src/js/pagetoc.js"]

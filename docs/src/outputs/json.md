@@ -132,3 +132,32 @@ When profiling with multiple iterations, the JSON structure includes an `iterati
 | `iterations[].phases` | Phases measured within this iteration |
 
 > Each iteration repeats the same phase structure, making it easy to compare metrics across iterations.
+
+## Listing Sensors
+
+Here is an example of sensors listing in json format:
+
+```json
+[
+  {
+    "name": "PSYS-1",
+    "unit": "µJ",
+    "source": "powercap"
+  },
+  {
+    "name": "PACKAGE-0",
+    "unit": "µJ",
+    "source": "powercap"
+  },
+  {
+    "name": "CORE-0",
+    "unit": "µJ",
+    "source": "powercap"
+  },
+  {
+    "name": "UNCORE-0",
+    "unit": "µJ",
+    "source": "powercap"
+  }
+]
+```
