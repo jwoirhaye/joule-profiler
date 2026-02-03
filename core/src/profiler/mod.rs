@@ -11,15 +11,6 @@
 //! - The profiler supports simple and phase-based profiling modes.
 //! - Display is handled via the [`Displayer`] trait, which can output to
 //!   terminal, JSON, CSV, or custom formats.
-//!
-//! # Usage
-//!
-//! ```ignore
-//! use joule_profiler::{JouleProfiler, config::Config};
-//!
-//! // We assume you have a Config variable
-//! let mut profiler = JouleProfiler::try_from(config).unwrap();
-//! ```
 
 use log::{debug, info, trace};
 use regex::Regex;
@@ -51,21 +42,20 @@ pub mod types;
 /// 1. Executes a configured command (or list sensors command).
 /// 2. Collects metrics from multiple sources implementing [`MetricReader`].
 /// 3. Aggregates results into `Iteration`s and `Phase`s.
-/// 4. Displays results via the configured [`Displayer`].
+/// 4. Return the aggregated results.
 ///
 /// The profiler supports both simple and phase-based modes and can run
 /// multiple iterations.
 ///
 /// # Fields
 ///
-/// - `config` ([`Config`]): Configuration for profiling session, including
-///   command, iterations, RAPL options, and output format.
-/// - `orchestrator` (`SourceOrchestrator`): Manages polling and aggregation
+/// - `orchestrator` (`SourceOrchestrator`): Internal structure managing polling and aggregation
 ///   from all metric sources.
-/// - `displayer` (Box<dyn [`Displayer`]>): Handles displaying or exporting
-///   metrics to terminal, JSON, CSV, etc.
-/// - `sources` (Vec<Box<dyn [`MetricSource`]>): Registered metric sources
-///   to collect data from (e.g., RAPL, custom sensors).
+///
+/// - `sources` (`Vec<Box<dyn MetricSource>>`): Registered metric sources
+///   to collect data from (e.g., RAPL, custom sensors), MetricSource is an hidden trait
+///   you don't have to implement yourself, you should just know that it is monomorphized
+///   before taking measurements to increase performance and reduce overhead.
 #[derive(Default)]
 pub struct JouleProfiler {
     orchestrator: SourceOrchestrator,
@@ -294,6 +284,7 @@ impl JouleProfiler {
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
     }
 
+    /// Detect and measure the phases from the program output.
     async fn detect_and_handle_phases_from_program_output<R, W>(
         &mut self,
         phases: &mut Vec<PhaseInfo>,

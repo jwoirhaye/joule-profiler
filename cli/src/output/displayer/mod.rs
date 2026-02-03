@@ -7,18 +7,7 @@
 //! # Overview
 //!
 //! - [`Displayer`] — Trait defining methods for displaying iterations, phases, and sensors.
-//! - [`TerminalOutput`], [`JsonOutput`], [`CsvOutput`] — Standard output formats.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use joule_profiler::{displayer::Displayer, config::Config};
-//!
-//! // We assume you have a Config variable
-//! let mut displayer: Box<dyn Displayer> = Box::try_from(&config).unwrap();
-//!
-//! // displayer.simple_single(&cmd, &iteration)?;
-//! ```
+//! - [`Terminal`][`super::formats::terminal::TerminalOutput`], [`JsonOutput`][`super::formats::json::JsonOutput`], [`CsvOutput`][`super::formats::csv::CsvOutput`] — Standard output formats.
 
 pub mod error;
 pub use error::DisplayerError;

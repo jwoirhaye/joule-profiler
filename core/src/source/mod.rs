@@ -1,102 +1,9 @@
-//! Core module for metric sources in JouleProfiler.
+//! Internal abstractions for metric sources.
 //!
-//! This module provides the abstractions and utilities for defining,
-//! running, and managing metric sources. Metric sources represent the
-//! origin of measurements (e.g., RAPL, CPU counters) that the profiler
-//! collects, aggregates, and exports.
-//!
-//! # Public API
-//!
-//! The following items are publicly accessible:
-//! - [`MetricSource`] — Trait representing a metric source to be used with the profiler.
-//! - [`MetricReader`] — Trait implemented by types that can read raw metrics from a source.
-//! - [`MetricSourceError`] — Error type used for all metric source operations.
-//! - [`MetricReaderTypeBound`] — Bound for metric types returned by readers.
-//! - [`MetricReaderErrorBound`] — Bound for errors produced by readers.
-//!
-//! # Key Concepts
-//!
-//! - **MetricSource**  
-//!   Represents a source of metrics. It can be run asynchronously via the
-//!   [`MetricSource::run`] method, and its available sensors can be listed with [`MetricSource::list_sensors`].
-//!
-//! - **MetricAccumulator**  
-//!   A generic adapter that wraps a [`MetricReader`] and implements [`MetricSource`].
-//!   It handles scheduling, polling, and aggregation of metrics from the reader.
-//!
-//!   Importantly, it **monomorphizes the MetricSource**: although the profiler
-//!   stores sources as `Box<dyn MetricSource>` for flexibility, internally each
-//!   source retains its concrete type for zero-cost statically-typed metric
-//!   operations. This design allows runtime polymorphism without sacrificing
-//!   performance.
-//!
-//! - **MetricReader**  
-//!   Implemented by any type that can produce metrics. Readers define:
-//!   - The type of metrics they return (`Type`).
-//!   - The error type they may produce (`Error`) which **must implement `Error`**.
-//!   - Methods to measure, retrieve, and list available sensors.
-//!
-//! # Usage
-//!
-//! A new source can be added by implementing [`MetricReader`] and converting it
-//! into a [`MetricSource`] via `Box::from(reader)`. The profiler then runs the
-//! source asynchronously and aggregates its metrics.
-//!
-//! ```no_run
-//! use joule_profiler_core::{
-//!     sensor::{Sensors, Sensor},
-//!     source::{MetricSourceError,MetricReader},
-//!     types::{Metric, Metrics},
-//! };
-//!
-//! use std::vec::Vec;
-//!
-//! struct MyReader {
-//!     count: u64,
-//! }
-//!
-//! impl MetricReader for MyReader {
-//!     type Type = u64;
-//!     type Error = MetricSourceError; // Or any type that implement std::error::Error
-//!
-//!     async fn measure(&mut self) -> Result<(), Self::Error> { 
-//!         self.count += 1;
-//!         Ok(()) 
-//!     }
-//! 
-//!     async fn retrieve(&mut self) -> Result<Self::Type, Self::Error> {
-//!         let count = self.count;
-//!         self.count = 0;
-//!         Ok(count) 
-//!     }
-//!     
-//!     async fn reset(&mut self) -> Result<(), Self::Error> {
-//!         self.count = 0;
-//!         Ok(())
-//!     }
-//!     
-//!     fn get_sensors(&self) -> Result<Sensors, Self::Error> {
-//!         let count_sensor = Sensor { name: "count".into(), unit: "count".into(), source: Self::get_name().to_string() };
-//!         Ok(vec![count_sensor])
-//!     }
-//! 
-//!     fn get_name() -> &'static str { "MyReader" }
-//! 
-//!     fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
-//!         let metric = Metric { name: "count".into(), value: snapshot, unit: "count".into(), source: Self::get_name().to_string() };
-//!         vec![metric]
-//!     }
-//! }
-//! ```
-//!
-//! # Notes
-//!
-//! - Metric sources are **lazy**: metrics are only aggregated **after the measurement
-//!   phase** to avoid runtime overhead.
-//! - An hidden `MetricAccumulator` provides a generic implementation for most readers, so
-//!   implementing [`MetricSource`] manually is rarely necessary.
-//! - Monomorphization ensures that although sources are stored as trait objects,
-//!   the internal metric operations remain statically typed and efficient to minimize overhead.
+//! This module defines the private traits and runtime glue used by the
+//! profiler to manage metric readers. It is **not** part of the public API.
+//! Implementations are boxed for flexibility, while internally retaining
+//! concrete types for zero-cost metric operations.
 
 use tokio::sync::mpsc::{Sender, channel};
 
@@ -113,12 +20,14 @@ pub use error::MetricSourceError;
 pub use reader::MetricReader;
 pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 
-/// Trait representing a metric source and required to be used in profiler
+/// Internal trait representing a runnable metric source.
+///
+/// Implemented by the runtime wrapper around a [`MetricReader`].
 pub(crate) trait MetricSource: Send {
-    /// Runs the worker and returns a future that resolves with the result and the source itself
+    /// Spawn the source worker and return its handle and control channel.
     fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>);
 
-    /// List all sensors available from this source
+    /// List sensors exposed by this source.
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
 }
 
@@ -126,14 +35,12 @@ impl<R> MetricSource for MetricSourceRuntime<R>
 where
     R: MetricReader,
 {
-    /// Run the worker for the metric accumulator
     fn run(self: Box<Self>) -> (SourceWorkerHandle, Sender<SourceEvent>) {
         let (tx, rx) = channel(4);
         let handle = tokio::spawn(async move { self.run_worker(rx).await });
         (handle, tx)
     }
 
-    /// List all sensors for this accumulator
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError> {
         self.get_source_sensors()
     }

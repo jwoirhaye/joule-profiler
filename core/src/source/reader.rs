@@ -19,12 +19,16 @@ use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// - [`MetricReader::measure`] — Perform a measurement and update internal state.
 /// - [`MetricReader::retrieve`] — Retrieve the current metrics collected by the reader.
 /// - [`MetricReader::get_sensors`] — Return the list of sensors provided by this reader.
+/// - [`MetricReader::to_metrics`] — Convert a snapshot to metrics. Implementing From<Self::Type> for Metrics isn't enough,
+///   sometimes you need to use some information of the source to efficiently convert snapshots into metrics.
+/// - [`MetricReader::reset`] — Reset the current counters of the source, used before measurements to remove the initialization overhead.
+/// - [`MetricReader::get_name`] — Return the static name of the source.
 ///
 /// # Optional Methods
 ///
-/// - [`MetricReader::scheduler`] — Internal periodic scheduler invoked by the accumulator.
-///   By default, this is a no-op and returns a pending future. Implement this
-///   if your source supports automatic periodic polling.
+/// - [`MetricReader::init`] — Source initialization logic if there is one, called before the measurements.
+/// - [`MetricReader::join`] — Source destruction logic if there is one, called before the measurements (no Drop implementation because the source is reusable).
+///   Calling init and join several times should always behave the same, the source shall be reset when joining.
 pub trait MetricReader: Send + 'static {
     /// Type of metrics returned by the reader.
     type Type: MetricReaderTypeBound;
