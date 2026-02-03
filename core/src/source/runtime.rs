@@ -14,7 +14,6 @@ use crate::{
 pub struct MetricSourceRuntime<R: MetricReader> {
     accumulator: MetricAccumulator<R>,
     source: R,
-    active: bool,
 }
 
 impl<R: MetricReader> MetricSourceRuntime<R> {
@@ -25,7 +24,6 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         Self {
             accumulator: MetricAccumulator::new(),
             source: reader,
-            active: false,
         }
     }
 
@@ -42,13 +40,10 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         loop {
             if let Some(event) = rx.recv().await {
                 match event {
-                    SourceEvent::Measure if self.active => self.measure_source().await?,
+                    SourceEvent::Measure => self.measure_source().await?,
                     SourceEvent::NewPhase => self.new_phase().await?,
                     SourceEvent::NewIteration => self.new_iteration()?,
                     SourceEvent::JoinWorker => break,
-                    SourceEvent::Start => self.active = true,
-                    SourceEvent::Stop => self.active = false,
-                    _ => {}
                 }
             }
         }

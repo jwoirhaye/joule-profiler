@@ -56,16 +56,6 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::NewIteration).await
     }
 
-    #[inline]
-    pub async fn start(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::Start).await
-    }
-
-    #[inline]
-    pub async fn stop(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::Stop).await
-    }
-
     /// Retrieve and merge results from all sources
     pub async fn finalize(
         &mut self,

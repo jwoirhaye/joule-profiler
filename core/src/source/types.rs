@@ -42,12 +42,6 @@ pub enum SourceEvent {
 
     /// Signal the worker to finish and join
     JoinWorker,
-
-    /// Allow a source to be measured
-    Start,
-
-    /// Disallow a source to be measured
-    Stop,
 }
 
 /// Raw phase containing metrics from a metric reader
