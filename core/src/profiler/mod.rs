@@ -218,7 +218,6 @@ impl JouleProfiler {
             &mut stdout_sink
         };
 
-        self.orchestrator.start().await?;
         self.orchestrator.measure().await?;
 
         let mut command = process::Command::new(&config.cmd[0]);
@@ -272,7 +271,6 @@ impl JouleProfiler {
         self.orchestrator.measure().await?;
         self.orchestrator.new_phase().await?;
         self.orchestrator.new_iteration().await?;
-        self.orchestrator.stop().await?;
 
         let duration_ms = end_timestamp - begin_timestamp;
 
