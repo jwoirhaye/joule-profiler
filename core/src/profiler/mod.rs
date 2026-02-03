@@ -218,6 +218,7 @@ impl JouleProfiler {
             &mut stdout_sink
         };
 
+        self.orchestrator.reset().await?;
         self.orchestrator.measure().await?;
 
         let mut command = process::Command::new(&config.cmd[0]);

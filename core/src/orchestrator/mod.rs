@@ -44,6 +44,10 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::Measure).await
     }
 
+    pub async fn reset(&mut self) -> Result<(), OrchestratorError> {
+        self.send_event(SourceEvent::Reset).await
+    }
+
     /// Initialize a new phase for each metrics source
     #[inline]
     pub async fn new_phase(&mut self) -> Result<(), OrchestratorError> {
