@@ -10,7 +10,7 @@ use thiserror::Error;
 ///
 /// # Variants
 ///
-/// - `ParseCliArguments` ([`clap::error::Error`]): Failed to parse command-line arguments.
+/// - `ParseCliArguments` (clap::error::Error): Failed to parse command-line arguments.
 /// - `InvalidIterations` (`usize`): Provided iterations value is invalid (must be >= 1).
 /// - `CommandExecutionFailed` (`String`): Failed to execute the target command.
 /// - `CommandNotFound` (`String`): The command was not found in the system.
@@ -23,7 +23,6 @@ use thiserror::Error;
 /// - `StdOutCaptureFail`: Failed to capture standard output from the command.
 /// - `IoError` ([`std::io::Error`]): Any I/O error encountered during execution.
 /// - `MetricSourceError` ([`MetricSourceError`]): Error from a metrics source.
-/// - `DisplayerError` ([`DisplayerError`]): Error while displaying metrics.
 /// - `OrchestratorError` (`OrchestratorError`): Error from the orchestrator.
 #[derive(Debug, Error)]
 pub enum JouleProfilerError {

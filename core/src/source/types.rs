@@ -6,7 +6,7 @@ use crate::aggregate::sensor_result::SensorResult;
 use crate::source::{MetricSource, MetricSourceError};
 use std::fmt::Debug;
 
-/// Trait for types returned by a [`crate::reader::MetricReader`].
+/// Trait for types returned by a [`super::MetricReader`].
 ///
 /// Any type implementing this trait represents the result of a metric measurement.
 /// It must implement `Debug` for logging and debugging, `Send` to be safely
@@ -16,7 +16,7 @@ pub trait MetricReaderTypeBound: Debug + Send + Default {}
 
 impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send {}
 
-/// Trait for errors produced by a [`crate::reader::MetricReader`].
+/// Trait for errors produced by a [`super::MetricReader`].
 ///
 /// This trait marks the types of errors that can occur during metric collection.
 /// Errors must implement `std::error::Error` for standard Rust error handling
