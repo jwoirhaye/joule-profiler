@@ -151,7 +151,7 @@ The profiler follows a fail-fast model:
 - If an error occurs, the orchestrator halts further processing and the session is terminated, reporting the failure clearly.
 - Full error detection during ongoing measurement is not yet implemented but will be added in a future update.
 
-This design prioritizes correctness and data integrity over partial measurements, ensuring that the profiler does not produce incomplete or inconsistent results, even though some runtime errors are not yet captured.
+This design prioritizes correctness and data integrity over partial measurements, ensuring that the profiler does not produce incomplete or inconsistent results, even though some runtime errors are not yet captured until the end of the measurements.
 
 ---
 

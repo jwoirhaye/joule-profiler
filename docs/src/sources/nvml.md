@@ -26,11 +26,9 @@ Nvidia GPUs energy consumption is available since Volta architecture. We query t
 
 ## Overflow handling ?
 
-Unlike RAPL counters, which are expressed in microjoules, NVML energy counters are expressed in millijoules on eight bytes. This unit allows energy to be measured over a very long period without considering an overflow; although one can theoretically occur, the period required makes it impossible in practice. For example, on a GPU consuming approximately 300 W:
+NVML energy counters are expressed in millijoules on eight bytes. This unit allows energy to be measured over a very long period without considering an overflow; although one can theoretically occur, the period required makes it impossible in practice. For example, on a GPU consuming approximately 300 W:
 
-$$ P = 300~\text{W} = 300~\text{J/s} = 3.0 \times 10^2~\text{kJ/s} = 3.0 \times 10^5~\text{mJ/s} $$
-
-$$ E_\text{max} = 2^{64}~\text{mJ} $$
+$$ P = 300~\text{W} = 300~\text{J/s} = 3.0 \times 10^5~\text{mJ/s} $$
 
 $$ t_\text{overflow} = \frac{E_\text{max}}{P} = \frac{2^{64}~\text{mJ}}{3.0 \times 10^5~\text{mJ/s}} \simeq 6.1 \times 10^{13}~\text{s} \simeq 1.9 \times 10^6~\text{years} $$
 

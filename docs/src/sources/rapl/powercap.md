@@ -43,7 +43,7 @@ To retrieve the domains measure energy consumption, the following files are acce
 
 ## Overflow handling
 
-Because the RAPL energy counters are stored in hardware registers with finite bit-widths (typically 32-bit or 64-bit depending on the architecture), they will eventually reach their maximum value and **wrap around** (overflow) back to zero.
+Because the RAPL energy counters are stored in hardware with four bytes of information, they will eventually reach their maximum value and **wrap around** (overflow) back to zero.
 
 The `max_energy_range_uj` file to indicate this threshold. To ensure accurate measurements, especially for long-running benchmarks, the monitoring tool must implement a robust overflow detection and correction logic.
 
