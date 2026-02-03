@@ -6,7 +6,7 @@ It supports profiling CPU, DRAM and other system metrics at different scopes and
 It is usable through the CLI (see getting started), or through the exposed library, which provides more flexibility in configuration and the possibility to add user-defined sources.
 
 The profiler is available today on Intel processors via the RAPL powercap framework.
-Support for additional platforms (AMD, ARM, GPU, etc.) will be added in the future through extensible metric sources.
+Support for additional platforms (AMD, ARM, etc.) will be added in the future through extensible metric sources.
 Some traits are exposed through the crate API to allow users to implement custom metric sources easily.
 
 **Joule Profiler** is heavily inspired by JouleIt[^jouleit], but provides enhanced features and is written in Rust for better performance, safety, portability, and extensibility.

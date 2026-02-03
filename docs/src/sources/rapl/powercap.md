@@ -10,7 +10,7 @@ The use of powercap instead of MSRs may seem disadvantageous and cause more over
 
 ## Sysfs file structure
 
-The Powercap framework exports energy data through the `/sys/devices/virtual/powercap` directory. Each physical CPU socket or hardware component is represented as a **control type** (usually `intel-rapl`).
+The Powercap framework exports energy data through the `/sys/devices/virtual/powercap` or `/sys/class/powercap` directories. Each physical CPU socket or hardware component is represented as a **control type** (usually `intel-rapl`).
 
 Within `intel-rapl`, the hierarchy is organized by **zones** and **subzones**, which correspond to the RAPL domains (Package, Core, DRAM, etc.).
 

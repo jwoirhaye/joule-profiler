@@ -13,12 +13,12 @@
 
 # Sources
 
-- [Available Sources]()
+- [Available Sources](sources/available-sources.md)
     - [RAPL](sources/rapl/rapl.md)
         - [Using Powercap](sources/rapl/powercap.md)
-        - [Using Perf Events](sources/rapl/perf_events.md)
+        - [Using perf_events](sources/rapl/perf_events.md)
     - [NVML](sources/nvml.md)
-    - [Perf Events]()
+    - [perf_events counters]()
 
 - [Implementing a Custom Source](sources/implement-custom-sources.md)
 
