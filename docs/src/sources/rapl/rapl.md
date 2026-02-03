@@ -19,10 +19,10 @@ Domains metrics are accessible through model-specific registers (MSRs) on the ho
 
 | Domain | Description |
 |--------|------------|
-| **Package/PKG** | Measures the total energy consumption of the entire CPU socket. This includes cores and uncore components. |
+| **Package/PKG** | Entire CPU socket. This includes cores and uncore components. |
 | **Core/PP0** | Represents the CPU cores only. Useful for profiling per-core energy consumption. |
-| **Uncore/PP1** | Covers the energy consumption of last-level caches, memory controller, and may include the integrated GPU depending on the CPU generation. |
-| **DRAM** | Measures the energy consumption of dynamic random access memory attached to the integrated memory controller if supported. |
+| **Uncore/PP1** | Covers the energy consumption of the integrated GPU if available. |
+| **DRAM** | Dynamic random access memory attached to the integrated memory controller if supported. |
 | **PSYS** | Entire SoC energy consumption, unique (only one PSYS for the entire SoC at most, available since *Skylake* generation) |
 
 Architecture of RAPL[^dissecting_software-based_measurement]:
