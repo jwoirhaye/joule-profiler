@@ -16,22 +16,24 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
 //! use source_rapl::Rapl;
 //! use joule_profiler_core::source::MetricReader;
-//! use std::collections::HashSet;
 //!
-//! // Initialize a RAPL reader (no polling, monitoring all sockets)
-//! let mut rapl = Rapl::new("/sys/devices/virtual/powercap/intel-rapl", None, None).unwrap();
+//! #[tokio::main]
+//! async fn main() {
+//!     // Initialize a RAPL reader (no polling, monitoring all sockets)
+//!     let mut rapl = Rapl::from_default().unwrap();
 //!
-//! // Measure and update internal counters
-//! rapl.measure().await.unwrap();
+//!     // Measure and update internal counters
+//!     rapl.measure().await.unwrap();
 //!
-//! // Retrieve available sensors
-//! let sensors = rapl.get_sensors().unwrap();
+//!     // Retrieve available sensors
+//!     let sensors = rapl.get_sensors().unwrap();
 //!
-//! // Retrieve collected counters
-//! let counters = rapl.retrieve().await.unwrap();
+//!     // Retrieve collected counters
+//!     let counters = rapl.retrieve().await.unwrap();
+//! }
 //! ```
 //!
 //! # Errors
@@ -81,8 +83,6 @@ type Result<T> = std::result::Result<T, RaplError>;
 ///
 /// - `domains`: Managed RAPL domains discovered under the base path. Each domain corresponds
 ///   to a CPU socket and an energy domain.
-/// - `ticker`: Optional periodic polling interval. If set, [`Self::scheduler`] will trigger
-///   measurements at this interval.
 /// - `current_counters`: Latest energy counters collected by this reader. Updated by
 ///   [`Self::measure`] and returned by [`Self::retrieve`].
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
@@ -161,7 +161,8 @@ impl Rapl {
         })
     }
 
-    pub fn with_default_path() -> Result<Self> {
+    /// Initializes a Rapl source with default configuration
+    pub fn from_default() -> Result<Self> {
         Rapl::new(None, None, None)
     }
 

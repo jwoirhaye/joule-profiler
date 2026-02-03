@@ -4,7 +4,7 @@ use thiserror::Error;
 
 /// Errors that can occur when reading or aggregating metrics from a source.
 ///
-/// This enum is used by all metric sources implementing [`MetricReader`](`crate::reader::MetricReader`)
+/// This enum is used by all metric sources implementing [`MetricReader`](`super::MetricReader`)
 /// to signal failures during measurement or iteration building.
 ///
 /// # Variants
