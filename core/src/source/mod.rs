@@ -44,30 +44,46 @@
 //!
 //! ```no_run
 //! use joule_profiler_core::{
-//!     sensor::Sensors,
+//!     sensor::{Sensors, Sensor},
 //!     source::{MetricSourceError,MetricReader},
 //!     types::{Metric, Metrics},
 //! };
 //!
 //! use std::vec::Vec;
 //!
-//! struct MyReader;
-//!
-//! #[derive(Debug, Default)]
-//! struct MyReaderType {
-//!     value: u64
+//! struct MyReader {
+//!     count: u64,
 //! }
 //!
 //! impl MetricReader for MyReader {
-//!     type Type = MyReaderType;
+//!     type Type = u64;
 //!     type Error = MetricSourceError; // Or any type that implement std::error::Error
 //!
-//!     async fn measure(&mut self) -> Result<(), Self::Error> { Ok(()) }
-//!     async fn retrieve(&mut self) -> Result<Self::Type, Self::Error> { Ok(MyReaderType { value: 42 }) }
-//!     fn get_sensors(&self) -> Result<Sensors, Self::Error> { Ok(Vec::new()) }
+//!     async fn measure(&mut self) -> Result<(), Self::Error> { 
+//!         self.count += 1;
+//!         Ok(()) 
+//!     }
+//! 
+//!     async fn retrieve(&mut self) -> Result<Self::Type, Self::Error> {
+//!         let count = self.count;
+//!         self.count = 0;
+//!         Ok(count) 
+//!     }
+//!     
+//!     async fn reset(&mut self) -> Result<(), Self::Error> {
+//!         self.count = 0;
+//!         Ok(())
+//!     }
+//!     
+//!     fn get_sensors(&self) -> Result<Sensors, Self::Error> {
+//!         let count_sensor = Sensor { name: "count".into(), unit: "count".into(), source: Self::get_name().to_string() };
+//!         Ok(vec![count_sensor])
+//!     }
+//! 
 //!     fn get_name() -> &'static str { "MyReader" }
+//! 
 //!     fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
-//!         let metric = Metric { name: "value".into(), value: snapshot.value, unit: "unit".into(), source: "MyReader".into() };
+//!         let metric = Metric { name: "count".into(), value: snapshot, unit: "count".into(), source: Self::get_name().to_string() };
 //!         vec![metric]
 //!     }
 //! }

@@ -34,6 +34,9 @@ pub enum SourceEvent {
     /// Trigger measurement of metrics
     Measure,
 
+    /// Reset the current counters
+    Reset,
+
     /// Start a new measurement phase
     NewPhase,
 

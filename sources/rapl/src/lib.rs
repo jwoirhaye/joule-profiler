@@ -307,6 +307,12 @@ impl MetricReader for Rapl {
         }
         Ok(())
     }
+
+    async fn reset(&mut self) -> Result<()> {
+        std::mem::take(&mut *self.current_counters.lock().await);
+        self.last_snapshot.lock().await.take();
+        Ok(())
+    }
 }
 
 /// Resolves the RAPL base path from configuration and environment.

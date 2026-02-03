@@ -41,8 +41,9 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             if let Some(event) = rx.recv().await {
                 match event {
                     SourceEvent::Measure => self.measure_source().await?,
-                    SourceEvent::NewPhase => self.new_phase().await?,
-                    SourceEvent::NewIteration => self.new_iteration()?,
+                    SourceEvent::Reset => self.reset_source_counters().await?,
+                    SourceEvent::NewPhase => self.init_new_phase().await?,
+                    SourceEvent::NewIteration => self.init_new_iteration()?,
                     SourceEvent::JoinWorker => break,
                 }
             }
@@ -65,8 +66,15 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
 
+    async fn reset_source_counters(&mut self) -> Result<(), MetricSourceError> {
+        self.source
+            .reset()
+            .await
+            .map_err(IntoMetricSourceError::into_metric_source_error)
+    }
+
     /// Initialize a new phase and convert the error if any occur into a MetricSourceError
-    async fn new_phase(&mut self) -> Result<(), MetricSourceError> {
+    async fn init_new_phase(&mut self) -> Result<(), MetricSourceError> {
         let result = self
             .source
             .retrieve()
@@ -77,7 +85,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     }
 
     /// Initialize a new iteration and convert the error if any occur into a MetricSourceError
-    fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
+    fn init_new_iteration(&mut self) -> Result<(), MetricSourceError> {
         self.accumulator.new_iteration()
     }
 

@@ -43,6 +43,8 @@ pub trait MetricReader: Send + 'static {
     /// Measure the sensors metrics and update internal state
     fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
+    fn reset(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+
     /// Retrieve the current metrics as the reader type
     fn retrieve(&mut self) -> impl Future<Output = Result<Self::Type, Self::Error>> + Send;
 
