@@ -27,24 +27,11 @@ async fn main() -> Result<()> {
 
     match config.command {
         Command::Profile(profile_config) => {
-            let results = profiler.run_phases(&profile_config).await?;
-
-            if profile_config.iterations > 1 {
-                displayer.phases_iterations(
-                    &profile_config.cmd,
-                    &profile_config.token_pattern,
-                    &results,
-                )?;
-            } else {
-                displayer.phases_single(
-                    &profile_config.cmd,
-                    &profile_config.token_pattern,
-                    &results[0],
-                )?;
-            }
+            let results = profiler.profile(&profile_config).await?;
+            displayer.profile(&profile_config.cmd, &profile_config.token_pattern, &results)?;
         }
         Command::ListSensors => {
-            let sensors = profiler.run_list_sensors()?;
+            let sensors = profiler.list_sensors()?;
             displayer.list_sensors(&sensors)?;
         }
     }
