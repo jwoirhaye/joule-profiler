@@ -11,5 +11,7 @@ command = "mdbook-mermaid"
 after = ["links"]
 
 [output.html]
+git-repository-url = "https://github.com/jwoirhaye/joule-profiler"
+git-repository-icon = "fa-github"
 additional-js = ["src/js/mermaid.min.js", "src/js/mermaid-init.js", "src/js/pagetoc.js"]
 additional-css = ["src/css/book.css", "src/css/pagetoc.css"]
