@@ -28,11 +28,11 @@ pub struct Phase {
 
     /// Optional start line number associated with the phase
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_line: Option<usize>,
+    pub start_token_line: Option<usize>,
 
     /// Optional end line number associated with the phase
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<usize>,
+    pub end_token_line: Option<usize>,
 
     /// Metrics collected during the phase
     pub metrics: Metrics,

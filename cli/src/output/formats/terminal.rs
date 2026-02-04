@@ -130,13 +130,13 @@ impl TerminalOutput {
         }
 
         // Display token information
-        let start_info = if let Some(line) = phase.start_line {
+        let start_info = if let Some(line) = phase.start_token_line {
             format!("{} (line {})", phase.start_token, line)
         } else {
             phase.start_token.to_string()
         };
 
-        let end_info = if let Some(line) = phase.end_line {
+        let end_info = if let Some(line) = phase.end_token_line {
             format!("{} (line {})", phase.end_token, line)
         } else {
             phase.end_token.to_string()
