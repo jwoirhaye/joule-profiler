@@ -50,7 +50,7 @@ While they both use the same underlying technology (e.g., **MSRs for Intel RAPL*
 
 ## Why not use MSRs ?
 
-We can access MSRs through the filesystem at `/dev/cpu/{core}/msr`, therefore, in principle we could read RAPL counters directly from the registers to minimize overhead. 
+We can access MSRs through the filesystem at `/dev/cpu/{core}/msr`, therefore, in principle we could read RAPL counters directly from the registers to minimize overhead.
 
 In practice, direct MSR access from userspace does not necessarily provide better performance[^dissecting_software-based_measurement] than the powercap interface, which is already optimized for safe and efficient energy accounting. Reading MSRs from userspace requires a system call for each access, and repeated reads across multiple domains increase overhead. As a result, user-space MSR reads are generally slower than accessing the same counters through kernel-level drivers such as powercap, which can read and process the registers efficiently without repeated user to kernel context switches. In addition, raw MSR reads can exhibit greater variability at short time scales due to the absence of kernel-managed aggregation and coordinated sampling, whereas powercap provides more consistent and reproducible energy measurements by performing aggregation entirely within the kernel.
 
