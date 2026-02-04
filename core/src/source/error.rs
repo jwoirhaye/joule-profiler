@@ -14,11 +14,7 @@ use thiserror::Error;
 /// - `NoPhaseInIteration`: An iteration cannot be built because no phases
 ///   were collected from the source.
 ///
-/// - `Rapl` (`RaplError`): An error occurred specifically in the Intel RAPL
-///   source. This variant wraps the underlying `RaplError` using `#[from]`
-///   for automatic conversion.
-///
-/// - `External` (boxed [`std::error::Error`]): An external or unknown error
+/// - `SourceError` (boxed [`std::error::Error`]): An external or unknown error
 ///   from a custom source. The boxed trait object allows any error that is
 ///   `Send + Sync` to be propagated.
 #[derive(Debug, Error)]
