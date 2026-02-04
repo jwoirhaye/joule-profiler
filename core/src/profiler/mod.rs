@@ -144,8 +144,8 @@ impl JouleProfiler {
                                 end_token: d2.token.clone(),
                                 timestamp: d1.timestamp,
                                 duration_ms: d2.timestamp - d1.timestamp,
-                                start_line: d1.line_number,
-                                end_line: d2.line_number,
+                                start_token_line: d1.line_number,
+                                end_token_line: d2.line_number,
                             }
                         })
                         .collect();
@@ -160,8 +160,8 @@ impl JouleProfiler {
                             end_token: PhaseToken::End,
                             timestamp: begin_timestamp,
                             duration_ms,
-                            start_line: None,
-                            end_line: None,
+                            start_token_line: None,
+                            end_token_line: None,
                         };
                         phases.push(phase);
                     }

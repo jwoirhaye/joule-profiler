@@ -49,7 +49,7 @@ impl CsvOutput {
         )?;
         write!(
             self.file,
-            "start_token;end_token;start_line;end_line;timestamp;"
+            "start_token;end_token;start_token_line;end_token_line;timestamp;"
         )?;
         write!(self.file, "command;exit_code;token_pattern")?;
         writeln!(self.file)?;
@@ -71,8 +71,8 @@ impl CsvOutput {
                 write!(self.file, "{};", iteration.index)?;
             }
 
-            let start_line = phase.start_line.map(|l| l.to_string()).unwrap_or_default();
-            let end_line = phase.end_line.map(|l| l.to_string()).unwrap_or_default();
+            let start_token_line = phase.start_token_line.map(|l| l.to_string()).unwrap_or_default();
+            let end_token_line = phase.end_token_line.map(|l| l.to_string()).unwrap_or_default();
 
             write!(
                 self.file,
@@ -89,7 +89,7 @@ impl CsvOutput {
             write!(
                 self.file,
                 "{};{};{};{};{};",
-                phase.start_token, phase.end_token, start_line, end_line, phase.timestamp
+                phase.start_token, phase.end_token, start_token_line, end_token_line, phase.timestamp
             )?;
             write!(
                 self.file,
