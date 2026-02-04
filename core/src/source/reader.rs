@@ -36,10 +36,12 @@ pub trait MetricReader: Send + 'static {
     /// Error type produced by the reader.
     type Error: MetricReaderErrorBound;
 
+    /// Init the source if it implements custom logic underneath
     fn init(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async { Ok(()) }
     }
 
+    /// Join the source if it implements custom logic underneath
     fn join(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async { Ok(()) }
     }
@@ -47,6 +49,7 @@ pub trait MetricReader: Send + 'static {
     /// Measure the sensors metrics and update internal state
     fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
+    /// Reset the source counters
     fn reset(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
     /// Retrieve the current metrics as the reader type

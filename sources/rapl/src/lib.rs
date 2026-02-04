@@ -51,6 +51,7 @@ use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
 use joule_profiler_core::types::Metrics;
+use joule_profiler_core::unit::{MetricUnit, SIPrefix, Unit};
 use log::{debug, error, info, trace};
 use std::fs;
 use std::io::ErrorKind;
@@ -68,9 +69,12 @@ mod domain;
 pub mod error;
 mod snapshot;
 
-const POWERCAP_SOURCE_NAME: &str = "Powercap";
-const MICRO_JOULE_UNIT: &str = "µJ";
 const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
+const POWERCAP_SOURCE_NAME: &str = "Powercap";
+const MICRO_JOULE_UNIT: MetricUnit = MetricUnit {
+    prefix: SIPrefix::Micro,
+    unit: Unit::Joule,
+};
 
 /// Custom result type for Rapl
 type Result<T> = std::result::Result<T, RaplError>;
@@ -223,7 +227,7 @@ impl MetricReader for Rapl {
                 trace!("Registering sensor: {}", domain.get_name());
                 Sensor {
                     name: domain.get_name(),
-                    unit: MICRO_JOULE_UNIT.to_string(),
+                    unit: MICRO_JOULE_UNIT,
                     source: Self::get_name().to_lowercase(),
                 }
             })

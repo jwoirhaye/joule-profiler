@@ -12,12 +12,20 @@
 //! # Examples
 //!
 //! ```no_run
-//! use joule_profiler_core::sensor::{Sensor, Sensors};
+//! use joule_profiler_core::{
+//!     sensor::{Sensor, Sensors},
+//!     unit::{MetricUnit, SIPrefix, Unit},
+//! };
+//!
+//! let micro_joule_unit: MetricUnit = MetricUnit {
+//!     prefix: SIPrefix::Micro,
+//!     unit: Unit::Joule,
+//! };
 //!
 //! // Create a single sensor
 //! let cpu_sensor = Sensor {
 //!     name: "CORE-0".to_string(),
-//!     unit: "µJ".to_string(),
+//!     unit: micro_joule_unit,
 //!     source: "powercap".to_string(),
 //! };
 //!
@@ -27,6 +35,8 @@
 //! ```
 
 use serde::Serialize;
+
+use crate::unit::MetricUnit;
 
 /// Represents a measurable sensor.
 ///
@@ -43,22 +53,30 @@ use serde::Serialize;
 /// # Examples
 ///
 /// ```no_run
-/// use joule_profiler_core::sensor::Sensor;
+/// use joule_profiler_core::{
+///     sensor::Sensor,
+///     unit::{MetricUnit, SIPrefix, Unit},
+/// };
+///
+/// let micro_joule_unit: MetricUnit = MetricUnit {
+///     prefix: SIPrefix::Micro,
+///     unit: Unit::Joule,
+/// };
 ///
 /// let sensor = Sensor {
 ///     name: "CORE-0".to_string(),
-///     unit: "µJ".to_string(),
+///     unit: micro_joule_unit,
 ///     source: "powercap".to_string(),
 /// };
 /// assert_eq!(sensor.name, "CORE-0");
-/// assert_eq!(sensor.unit, "µJ");
+/// assert_eq!(sensor.unit.to_string(), "µJ");
 /// assert_eq!(sensor.source, "powercap");
 /// ```
 #[derive(Debug, Serialize)]
 pub struct Sensor {
     pub name: String,
 
-    pub unit: String,
+    pub unit: MetricUnit,
 
     pub source: String,
 }
