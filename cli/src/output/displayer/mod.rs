@@ -24,6 +24,28 @@ pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
 /// [`DisplayerError::NotImplementedForFormat`] if the method is not supported
 /// for a given format.
 pub trait Displayer {
+    /// Display iteration(s) results
+    ///
+    /// # Parameters
+    ///
+    /// - `cmd` — Command and arguments that were profiled.
+    /// - `token_pattern` — Regex used to detect phases in output.
+    /// - `results` — Metrics of the iterations to display.
+    fn profile(
+        &mut self,
+        cmd: &[String],
+        token_pattern: &str,
+        results: &[Iteration],
+    ) -> Result<()> {
+        if results.len() > 1 {
+            self.phases_iterations(cmd, token_pattern, results)
+        } else if let Some(result) = results.first() {
+            self.phases_single(cmd, token_pattern, result)
+        } else {
+            Err(DisplayerError::NoIterationFound)
+        }
+    }
+
     /// Display phases for a single iteration.
     ///
     /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].

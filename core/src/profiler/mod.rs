@@ -80,7 +80,7 @@ impl JouleProfiler {
     }
 
     /// List the sensors of the provided sources.
-    pub fn run_list_sensors(&mut self) -> Result<Sensors> {
+    pub fn list_sensors(&mut self) -> Result<Sensors> {
         debug!("Listing sensors from {} source(s)", self.sources.len());
 
         let sensors: Vec<Sensor> = self
@@ -101,7 +101,7 @@ impl JouleProfiler {
     }
 
     /// Run phase-based profiling mode.
-    pub async fn run_phases(&mut self, config: &ProfileConfig) -> Result<Iterations> {
+    pub async fn profile(&mut self, config: &ProfileConfig) -> Result<Iterations> {
         info!("Running phase-based profiling");
         debug!("Iterations: {}", config.iterations);
         debug!("Phase regex: {}", config.token_pattern);
