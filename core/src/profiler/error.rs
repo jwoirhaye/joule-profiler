@@ -10,7 +10,6 @@ use thiserror::Error;
 ///
 /// # Variants
 ///
-/// - `ParseCliArguments` (clap::error::Error): Failed to parse command-line arguments.
 /// - `InvalidIterations` (`usize`): Provided iterations value is invalid (must be >= 1).
 /// - `CommandExecutionFailed` (`String`): Failed to execute the target command.
 /// - `CommandNotFound` (`String`): The command was not found in the system.
