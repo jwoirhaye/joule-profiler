@@ -1,0 +1,197 @@
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::Read,
+    os::fd::{AsRawFd, FromRawFd, RawFd},
+};
+
+use log::{debug, trace};
+use perf_event_open_sys::{bindings::perf_event_attr, perf_event_open};
+
+use crate::{Result, domain::domain_type::RaplDomainType, error::RaplError, perf::PERF_RAPL_PATH};
+
+const PERF_FLAG_FD_CLOEXEC: u64 = 8;
+
+#[derive(Debug)]
+pub struct PerfRaplDomain {
+    pub domain_type: RaplDomainType,
+    pub socket: u32,
+    pub scale: f64,
+    pub fd: File,
+}
+
+impl PerfRaplDomain {
+    pub fn new(domain_type: RaplDomainType, socket: u32, scale: f64, fd: File) -> Self {
+        Self {
+            domain_type,
+            socket,
+            scale,
+            fd,
+        }
+    }
+
+    /// Read the raw fd perf counters and avoid freeing file descriptor
+    /// which will be freed with the Drop trait.
+    pub fn read_counter(&mut self) -> Result<u64> {
+        let mut buf = [0u8; 8];
+        self.fd.read_exact(&mut buf)?;
+        Ok(u64::from_ne_bytes(buf))
+    }
+
+    pub fn compute_scale(&self, value: u64) -> f64 {
+        value as f64 * self.scale
+    }
+
+    pub fn enable_counter(&self) {
+        unsafe { perf_event_open_sys::ioctls::ENABLE(self.raw_fd(), 0) };
+    }
+
+    pub fn reset_counter(&self) {
+        unsafe { perf_event_open_sys::ioctls::RESET(self.raw_fd(), 0) };
+    }
+
+    pub fn get_name(&self) -> String {
+        self.domain_type.to_string_socket(self.socket)
+    }
+
+    fn raw_fd(&self) -> RawFd {
+        self.fd.as_raw_fd()
+    }
+}
+
+#[derive(Debug)]
+struct SocketInfo {
+    socket_id: u32,
+    cpus_id: Vec<u32>,
+}
+
+fn discover_socket_topology() -> Result<Vec<SocketInfo>> {
+    let mut sockets: HashMap<u32, Vec<u32>> = HashMap::new();
+
+    for entry in fs::read_dir("/sys/devices/system/cpu")? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with("cpu") {
+            continue;
+        }
+
+        let cpu_id: u32 = match name[3..].parse() {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+
+        let pkg_path = format!(
+            "/sys/devices/system/cpu/{}/topology/physical_package_id",
+            name
+        );
+        let socket_id: u32 = fs::read_to_string(pkg_path)?.trim().parse()?;
+        sockets.entry(socket_id).or_default().push(cpu_id);
+    }
+
+    let socket_topology: Vec<SocketInfo> = sockets
+        .into_iter()
+        .map(|(socket_id, cpus_id)| {
+            trace!("Found {:?} cpus for socket {}", cpus_id, socket_id);
+            SocketInfo { socket_id, cpus_id }
+        })
+        .collect();
+
+    debug!("Discovered {} socket(s)", socket_topology.len());
+
+    Ok(socket_topology)
+}
+
+pub fn discover_domains_and_open_counters(pmu_type: u32) -> Result<Vec<PerfRaplDomain>> {
+    let mut domains = Vec::new();
+    let domains_dir_path = format!("{}/events", PERF_RAPL_PATH);
+    let socket_topology = discover_socket_topology()?;
+
+    for socket in &socket_topology {
+        for entry_result in fs::read_dir(&domains_dir_path)? {
+            let entry = entry_result?;
+            let file_name = entry.file_name().into_string().map_err(|_| {
+                let entry_name = entry.file_name().into_string().map_err(|err| {
+                    RaplError::RaplReadError(format!("Cannot parse dir entry {:?}", err))
+                });
+                match entry_name {
+                    Ok(name) => RaplError::UnknownDomain(name),
+                    Err(err) => err,
+                }
+            })?;
+
+            if file_name.ends_with(".scale")
+                || file_name.ends_with(".unit")
+                || entry.file_type()?.is_dir()
+            {
+                continue;
+            }
+
+            let event = read_domain_event_number(&file_name)?;
+            let scale = read_domain_scale(&file_name)?;
+            let domain_type = file_name.try_into()?;
+
+            let first_cpu_socket = if let Some(first_socket_cpu) = socket.cpus_id.first() {
+                first_socket_cpu
+            } else {
+                continue;
+            };
+
+            let fd = match open_domain_counter(pmu_type, event, *first_cpu_socket) {
+                Ok(fd) => fd,
+                Err(_) => continue,
+            };
+
+            let file = unsafe { File::from_raw_fd(fd) };
+            let domain = PerfRaplDomain::new(domain_type, socket.socket_id, scale, file);
+            domains.push(domain);
+        }
+    }
+
+    Ok(domains)
+}
+
+fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
+    let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
+    attr.type_ = pmu_type;
+    attr.size = std::mem::size_of::<perf_event_attr>() as u32;
+    attr.config = event;
+    attr.set_disabled(1);
+
+    let fd = unsafe {
+        perf_event_open(
+            &mut attr as *mut perf_event_attr,
+            -1,
+            cpu as i32,
+            -1,
+            PERF_FLAG_FD_CLOEXEC,
+        )
+    };
+
+    if fd < 0 {
+        return Err(RaplError::FailToOpenDomainCounter(
+            std::io::Error::last_os_error().to_string(),
+        ));
+    }
+
+    Ok(fd)
+}
+
+fn read_domain_scale(domain_name: &str) -> Result<f64> {
+    let path = format!("{}/events/{}.scale", PERF_RAPL_PATH, domain_name);
+    fs::read_to_string(path)?
+        .trim()
+        .parse::<f64>()
+        .map_err(Into::into)
+}
+
+fn read_domain_event_number(domain: &str) -> Result<u64> {
+    let type_path = format!("{}/events/{}", PERF_RAPL_PATH, domain);
+    let content = fs::read_to_string(type_path)?.trim().to_string();
+
+    let hex_str = content
+        .strip_prefix("event=0x")
+        .or_else(|| content.strip_prefix("event="))
+        .expect("Invalid event format");
+
+    u64::from_str_radix(hex_str, 16).map_err(Into::into)
+}

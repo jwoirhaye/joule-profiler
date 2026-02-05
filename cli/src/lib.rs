@@ -1,4 +1,4 @@
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Parser, ValueEnum};
 
 use anyhow::Result;
 pub use commands::ProfilerCommand;
@@ -57,6 +57,9 @@ pub struct CliArgs {
     #[arg(long)]
     pub gpu: bool,
 
+    #[arg(long = "rapl-backend", value_enum, default_value_t = RaplBackend::Perf)]
+    pub rapl_backend: RaplBackend,
+
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,
@@ -86,6 +89,12 @@ impl From<CliArgs> for Config {
             rapl_path: cli_args.rapl_path,
         }
     }
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum RaplBackend {
+    Perf,
+    Powercap,
 }
 
 pub fn output_format_to_displayer(cli: &CliArgs) -> Result<Box<dyn Displayer>> {
