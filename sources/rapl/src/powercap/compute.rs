@@ -1,22 +1,10 @@
-use std::{collections::HashMap, ops::AddAssign};
+use std::collections::HashMap;
 
-use crate::{Result, domain_type::RaplDomainIndex, error::RaplError, powercap::domain::RaplDomain};
+use crate::{
+    Result, domain_type::RaplDomainIndex, error::RaplError, powercap::domain::RaplDomain,
+    snapshot::Snapshot,
+};
 use log::{debug, error, info, trace};
-
-/// Snapshot of energy counters
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Snapshot {
-    /// Energy consumption per domain in µJ
-    pub metrics: HashMap<RaplDomainIndex, u64>,
-}
-
-impl AddAssign<Snapshot> for Snapshot {
-    fn add_assign(&mut self, rhs: Snapshot) {
-        for (domain, value) in rhs.metrics {
-            *self.metrics.entry(domain).or_insert(0) += value;
-        }
-    }
-}
 
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
