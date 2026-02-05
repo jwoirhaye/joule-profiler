@@ -38,6 +38,13 @@ pub enum RaplError {
     #[error("Invalid event format for domain {0}")]
     InvalidEventFormat(String),
 
+    #[error("Perf paranoid error")]
+    PerfParanoid(
+        #[from]
+        #[source]
+        PerfParanoidError,
+    ),
+
     #[error(transparent)]
     IoError(std::io::Error),
 
@@ -64,4 +71,28 @@ impl From<std::io::Error> for RaplError {
             _ => RaplError::IoError(err),
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub enum PerfParanoidError {
+    #[error(
+        "perf_event_paranoid level too high: {0}, try with root privileges or set paranoid level to zero"
+    )]
+    LevelTooHigh(u8),
+
+    #[error("perf_event_paranoid file not found")]
+    NotFound,
+
+    #[error("perf_event_paranoid not readable: {0}")]
+    PermissionDenied(String),
+
+    #[error(transparent)]
+    IoError(std::io::Error),
+
+    #[error("Failed to parse paranoid level")]
+    ParseParanoidLevelError(
+        #[from]
+        #[source]
+        std::num::ParseIntError,
+    ),
 }
