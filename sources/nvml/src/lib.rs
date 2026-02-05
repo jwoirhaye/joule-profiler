@@ -70,12 +70,10 @@ impl Nvml {
     /// * No GPU devices are detected
     pub fn new() -> Result<Self> {
         debug!("Attempting to initialize NVML reader");
-        let nvml = nvml_wrapper::Nvml::init().map_err(|err| {
-            match err {
-                nvml_wrapper::error::NvmlError::DriverNotLoaded => NvmlError::NoDriverLoaded,
-                nvml_wrapper::error::NvmlError::NoPermission => NvmlError::NoPermission,
-                _ => err.into()
-            }
+        let nvml = nvml_wrapper::Nvml::init().map_err(|err| match err {
+            nvml_wrapper::error::NvmlError::DriverNotLoaded => NvmlError::NoDriverLoaded,
+            nvml_wrapper::error::NvmlError::NoPermission => NvmlError::NoPermission,
+            _ => err.into(),
         })?;
         let devices_max_index = nvml.device_count()?;
         for i in 0..devices_max_index {
