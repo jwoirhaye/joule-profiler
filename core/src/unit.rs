@@ -10,11 +10,11 @@ use serde::Serialize;
 /// SI prefixes used to scale metric units.
 #[derive(Debug, Serialize, Clone, Copy)]
 pub enum MetricPrefix {
-    /// Nano prefix (`n`, 10⁻⁹).
+    /// Nano prefix (`n`, 10^-9).
     Nano,
-    /// Micro prefix (`µ`, 10⁻⁶).
+    /// Micro prefix (`µ`, 10^-6).
     Micro,
-    /// Milli prefix (`m`, 10⁻³).
+    /// Milli prefix (`m`, 10^-3).
     Milli,
     /// No prefix (base unit).
     None,

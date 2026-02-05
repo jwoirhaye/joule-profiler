@@ -1,10 +1,9 @@
 use std::{collections::HashMap, ops::AddAssign};
 
-/// A snapshot of GPU energy consumption at a specific point in time.
+/// A snapshot of GPU energy consumption.
 ///
 /// This struct holds the total energy consumption (in millijoules) for each GPU device
-/// at the time the snapshot was taken. The energy values are cumulative since the GPU
-/// was powered on or reset.
+/// at the time the snapshot was taken.
 ///
 /// # Fields
 ///
