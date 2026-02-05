@@ -54,8 +54,21 @@ The period of an overflow will depend mostly on the CPU wattage, but also on the
 
 Theoretically, for a processor with a consumption of 200 W and a `max_energy_range_uj` of `262143328850` (common domain max_energy_range_uj), the **package** domain which represents the entire CPU consumption will overflow in around 22 minutes with a constant consumption.
 
-$$ P = 200~\text{W} = 200~\text{J/s} = 2.0 \times 10^8~\mu\text{J/s} $$
+Here is a graphic of the theoretical overflow time depending on the CPU wattage:
 
-$$ t_\text{overflow} = \frac{E_\text{max}}{P} = \frac{262143328850~\mu\text{J}}{2.0 \times 10^8~\mu\text{J/s}} \simeq 1310~\text{s} \simeq 21.8~\text{minutes} $$
+![Theoretical overflow time](../../figures/theoretical_rapl_overflow_time.svg)
+
+| Power (W) | Overflow time (min,sec) |
+|-----------|------------------------|
+| 100 | 43,41 |
+| 200 | 21,50 |
+| 300 | 14,33 |
+| 400 | 10,55 |
+| 500 | 8,44 |
+| 600 | 7,16 |
+| 700 | 6,14 |
+| 800 | 5,27 |
+| 900 | 4,51 |
+| 1000 | 4,22 |
 
 [^powercap]: [Powercap documentation](https://docs.kernel.org/power/powercap/powercap.html)
