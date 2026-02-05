@@ -1,18 +1,9 @@
 use std::{collections::HashMap, ops::AddAssign};
 
-use crate::POWERCAP_SOURCE_NAME;
-use crate::Result;
 use crate::domain::RaplDomain;
-use crate::domain::domain_type::RaplDomainType;
 use crate::error::RaplError;
-use joule_profiler_core::types::Metric;
-use joule_profiler_core::types::Metrics;
+use crate::{Result, domain::domain_type::RaplDomainIndex};
 use log::{debug, error, info, trace};
-
-const MICRO_JOULE_UNIT: &str = "µJ";
-
-/// Unique identifier for a domain and socket
-type RaplDomainIndex = (RaplDomainType, u32);
 
 /// Snapshot of energy counters
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -26,21 +17,6 @@ impl AddAssign<Snapshot> for Snapshot {
         for (domain, value) in rhs.metrics {
             *self.metrics.entry(domain).or_insert(0) += value;
         }
-    }
-}
-
-impl From<Snapshot> for Metrics {
-    fn from(snapshot: Snapshot) -> Self {
-        snapshot
-            .metrics
-            .into_iter()
-            .map(|((domain, socket), value)| Metric {
-                name: domain.to_string_socket(socket),
-                value,
-                unit: MICRO_JOULE_UNIT.to_string(),
-                source: POWERCAP_SOURCE_NAME.to_lowercase(),
-            })
-            .collect()
     }
 }
 
@@ -124,6 +100,8 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::domain_type::RaplDomainType;
+
     use super::*;
 
     fn snapshot(values: &[(RaplDomainType, u32, u64)]) -> Snapshot {

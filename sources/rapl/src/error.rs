@@ -1,4 +1,3 @@
-use joule_profiler_core::source::MetricSourceError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -33,17 +32,24 @@ pub enum RaplError {
     #[error("Unknown domain {0}")]
     UnknownDomain(String),
 
+    #[error("Failed to open domain counter {0}")]
+    FailToOpenDomainCounter(String),
+
     #[error(transparent)]
     IoError(std::io::Error),
-
-    #[error("Error emitting event {0}")]
-    EmitterError(MetricSourceError),
 
     #[error("Failed to parse energy value")]
     ParseEnergyError(
         #[from]
         #[source]
         std::num::ParseIntError,
+    ),
+
+    #[error("Failed to parse domain scale")]
+    ParseDomainScale(
+        #[from]
+        #[source]
+        std::num::ParseFloatError,
     ),
 }
 
