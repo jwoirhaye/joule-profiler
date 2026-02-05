@@ -1,0 +1,16 @@
+[package]
+name = "source-nvml"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Intel RAPL energy measurement source for joule-profiler"
+keywords = ["energy", "nvml", "nvidia", "GPU", "hardware"]
+
+[dependencies]
+joule-profiler-core.workspace = true
+log.workspace = true
+nvml-wrapper = "0.11.0"
+thiserror.workspace = true
+tokio.workspace = true

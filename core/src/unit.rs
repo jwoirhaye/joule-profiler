@@ -9,7 +9,7 @@ use serde::Serialize;
 
 /// SI prefixes used to scale metric units.
 #[derive(Debug, Serialize, Clone, Copy)]
-pub enum SIPrefix {
+pub enum MetricPrefix {
     /// Nano prefix (`n`, 10⁻⁹).
     Nano,
     /// Micro prefix (`µ`, 10⁻⁶).
@@ -20,13 +20,13 @@ pub enum SIPrefix {
     None,
 }
 
-impl Display for SIPrefix {
+impl Display for MetricPrefix {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            SIPrefix::Nano => "n",
-            SIPrefix::Micro => "µ",
-            SIPrefix::Milli => "m",
-            SIPrefix::None => "",
+            MetricPrefix::Nano => "n",
+            MetricPrefix::Micro => "µ",
+            MetricPrefix::Milli => "m",
+            MetricPrefix::None => "",
         })
     }
 }
@@ -56,7 +56,7 @@ impl Display for Unit {
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct MetricUnit {
     /// SI prefix applied to the unit.
-    pub prefix: SIPrefix,
+    pub prefix: MetricPrefix,
     /// Base measurement unit.
     pub unit: Unit,
 }
