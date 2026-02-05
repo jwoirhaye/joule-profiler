@@ -9,6 +9,7 @@ use log::{info, trace};
 
 use crate::{
     MICRO_JOULE_UNIT, Result,
+    domain::socket::parse_sockets_spec,
     error::RaplError,
     perf::{
         domain::{PerfRaplDomain, discover_domains_and_open_counters},
@@ -18,6 +19,7 @@ use crate::{
 
 mod domain;
 mod snapshot;
+mod socket;
 
 const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
 const PERF_SOURCE_NAME: &str = "perf";
@@ -40,15 +42,18 @@ pub struct PerfRapl {
 }
 
 impl PerfRapl {
-    pub fn new(rapl_path: Option<&str>, sockets: Option<&str>) -> Result<Self> {
+    pub fn new(rapl_path: Option<&str>, sockets_spec: Option<&str>) -> Result<Self> {
         let rapl_path = rapl_path.unwrap_or(PERF_RAPL_PATH);
         trace!(
             "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
-            rapl_path, sockets
+            rapl_path, sockets_spec
         );
 
+        let sockets = parse_sockets_spec(sockets_spec);
+
         let pmu_type = read_pmu_type()?;
-        let domains = discover_domains_and_open_counters(pmu_type)?;
+        let domains = discover_domains_and_open_counters(pmu_type, rapl_path, sockets.as_ref())?;
+        println!("domains {:?}", domains);
         info!("Discovered {} RAPL domain(s)", domains.len());
 
         Ok(Self {
