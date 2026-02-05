@@ -9,6 +9,7 @@ use source_rapl::Rapl;
 async fn main() -> Result<()> {
     let cli = CliArgs::from_args()?;
     let mut displayer = output_format_to_displayer(&cli)?;
+    let mut profiler = JouleProfiler::new();
 
     let rapl_polling = match &cli.command {
         ProfilerCommand::Phases(phases_args) => phases_args.rapl_polling,
@@ -21,7 +22,6 @@ async fn main() -> Result<()> {
         rapl_polling,
     )?;
 
-    let mut profiler = JouleProfiler::new();
     profiler.add_source(rapl);
 
     if let Ok(nvml) = Nvml::new() {
