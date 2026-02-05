@@ -3,6 +3,7 @@ use crate::orchestrator::error::OrchestratorError;
 use crate::source::types::SourceEvent;
 use crate::source::{MetricSource, MetricSourceError};
 use futures::future::try_join_all;
+use tokio::sync::mpsc::error::SendError;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 pub mod error;
@@ -76,11 +77,37 @@ impl SourceOrchestrator {
     }
 
     /// Send an event to all metrics sources
+    ///
+    /// If an error is encountered in a source, then the worker is aborted and the error is returned
     async fn send_event(&mut self, event: SourceEvent) -> Result<(), OrchestratorError> {
-        let futures: Vec<_> = self.senders.iter_mut().map(|tx| tx.send(event)).collect();
+        let futures: Vec<_> = self
+            .senders
+            .iter_mut()
+            .enumerate()
+            .map(|(i, tx)| async move { tx.send(event).await.map_err(|send_err| (i, send_err)) })
+            .collect();
 
-        try_join_all(futures).await?;
-        Ok(())
+        if let Err((failed_index, send_err)) = try_join_all(futures).await {
+            Err(self.handle_event_error(failed_index, send_err).await)
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn handle_event_error(
+        &mut self,
+        failed_index: usize,
+        err: SendError<SourceEvent>,
+    ) -> OrchestratorError {
+        if let Some(handle) = self.handles.get_mut(failed_index) {
+            match handle.await {
+                Ok(Ok((_result, _source))) => err.into(),
+                Ok(Err(metric_err)) => metric_err.into(),
+                Err(join_err) => join_err.into(),
+            }
+        } else {
+            err.into()
+        }
     }
 
     /// Join all workers and collect results
