@@ -26,7 +26,7 @@
 
 use joule_profiler_core::unit::{MetricPrefix, MetricUnit, Unit};
 
-mod domain;
+mod domain_type;
 mod error;
 pub mod perf;
 pub mod powercap;

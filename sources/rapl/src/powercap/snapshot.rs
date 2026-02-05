@@ -1,8 +1,6 @@
 use std::{collections::HashMap, ops::AddAssign};
 
-use crate::domain::RaplDomain;
-use crate::error::RaplError;
-use crate::{Result, domain::domain_type::RaplDomainIndex};
+use crate::{Result, domain_type::RaplDomainIndex, error::RaplError, powercap::domain::RaplDomain};
 use log::{debug, error, info, trace};
 
 /// Snapshot of energy counters
@@ -100,7 +98,8 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::domain_type::RaplDomainType;
+
+    use crate::domain_type::RaplDomainType;
 
     use super::*;
 
