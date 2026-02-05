@@ -31,16 +31,8 @@ type Result<T> = std::result::Result<T, NvmlError>;
 /// NVML-based energy profiler for NVIDIA GPUs.
 ///
 /// This struct provides an interface to monitor energy consumption of NVIDIA GPUs using
-/// the NVML library. It tracks energy deltas between measurements and accumulates the
-/// total energy consumed.
-///
-/// # Implementation Details
-///
-/// The profiler works by taking periodic snapshots of each GPU's total energy consumption
-/// counter. Between measurements, it calculates the difference (delta) in energy consumption
-/// and accumulates these deltas. This approach handles counter wraparound correctly using
-/// wrapping subtraction.
-///
+/// the NVML library.
+/// 
 /// # Fields
 ///
 /// * `nvml` - The NVML wrapper instance for interacting with the NVIDIA driver.
@@ -51,8 +43,6 @@ type Result<T> = std::result::Result<T, NvmlError>;
 #[derive(Debug)]
 pub struct Nvml {
     nvml: nvml_wrapper::Nvml,
-
-    device_names: Vec<String>,
 
     devices_max_index: u32,
 
@@ -82,22 +72,13 @@ impl Nvml {
         debug!("Attempting to initialize NVML reader");
         let nvml = nvml_wrapper::Nvml::init()?;
         let devices_max_index = nvml.device_count()?;
-        let device_names: Vec<String> = (0..devices_max_index)
-            .map(|i| {
-                let device = nvml.device_by_index(i)
-                    .and_then(|d| {
-                        let device_name = d.name()?;
-                        trace!("Discovered NVIDIA device {}", device_name);
-                        Ok(device_name)
-                    })
-                    .map_err(Into::into);
-                device
-            })
-            .collect::<Result<_>>()?;
+        for i in 0..devices_max_index {
+            let device = nvml.device_by_index(i)?;
+            trace!("Discovered NVIDIA device {}", device.name()?);
+        }
 
         Ok(Self {
             nvml,
-            device_names,
             devices_max_index,
             current_counters: Default::default(),
             last_snapshot: None,
@@ -145,6 +126,7 @@ impl MetricReader for Nvml {
 
     type Error = NvmlError;
 
+    /// Make a measure and accumulate current counters.
     async fn measure(&mut self) -> Result<()> {
         let new_snapshot = self.read_snapshot()?;
         if let Some(last_snapshot) = self.last_snapshot.take() {
@@ -155,43 +137,42 @@ impl MetricReader for Nvml {
         Ok(())
     }
 
+    /// Retrieve current counter and reset it
     async fn retrieve(&mut self) -> Result<Self::Type> {
         let counters = std::mem::take(&mut self.current_counters);
         Ok(counters)
     }
 
+    /// Get the sensors by iterating over the detected devices.
     fn get_sensors(&self) -> Result<Sensors> {
-        Ok(self
-            .device_names
-            .iter()
-            .map(|device_name| Sensor {
-                name: device_name.clone(),
-                unit: MILLI_JOULE_UNIT,
-                source: NVML_SOURCE_NAME.to_string(),
+        Ok((0..self.devices_max_index)
+            .map(|i| {
+                let device_name = self.nvml.device_by_index(i)?.name()?;
+                Ok(Sensor {
+                    name: device_name,
+                    unit: MILLI_JOULE_UNIT,
+                    source: NVML_SOURCE_NAME.to_string(),
+                })
             })
-            .collect())
+            .collect::<Result<_>>()?)
     }
 
+    /// Get the NVML metric source name.
     fn get_name() -> &'static str {
         NVML_SOURCE_NAME
     }
 
+    /// Convert an NvmlSnapshot into Metrics.
     fn to_metrics(&self, result: Self::Type) -> Metrics {
         result
             .gpus_energy
             .into_iter()
             .map(|(device_index, energy)| Metric {
-                name: self.device_names[device_index as usize].clone(),
+                name: format!("GPU-{}", device_index),
                 value: energy,
                 unit: MILLI_JOULE_UNIT.to_string(),
                 source: NVML_SOURCE_NAME.to_string(),
             })
             .collect()
-    }
-
-    async fn reset(&mut self) -> Result<()> {
-        self.current_counters = NvmlSnapshot::default();
-        self.last_snapshot = None;
-        Ok(())
     }
 }
