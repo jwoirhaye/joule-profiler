@@ -2,7 +2,7 @@ use crate::aggregate::sensor_result::SensorResult;
 use crate::orchestrator::error::OrchestratorError;
 use crate::source::types::SourceEvent;
 use crate::source::{MetricSource, MetricSourceError};
-use log::error;
+use futures::future::{try_join_all};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 pub mod error;
@@ -77,23 +77,12 @@ impl SourceOrchestrator {
 
     /// Send an event to all metrics sources
     async fn send_event(&mut self, event: SourceEvent) -> Result<(), OrchestratorError> {
-        for i in 0..self.senders.len() {
-            if let Err(sender_error) = self.senders[i].send(event).await {
-                error!("Receiver {} disconnected", i);
 
-                let _ = self.senders.swap_remove(i);
-                let handle = self.handles.swap_remove(i);
+        let futures: Vec<_> = self.senders.iter_mut()
+            .map(|tx| tx.send(event))
+            .collect();
 
-                let err = match handle.await {
-                    Ok(Err(err)) => err.into(),
-                    Err(err) => OrchestratorError::JoinError(err),
-                    _ => OrchestratorError::SendError(sender_error),
-                };
-
-                return Err(err);
-            }
-        }
-
+        try_join_all(futures).await?;
         Ok(())
     }
 

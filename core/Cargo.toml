@@ -15,6 +15,7 @@ tokio.workspace = true
 thiserror.workspace = true
 regex = "1.12.2"
 derive_builder = "0.20.2"
+futures = "0.3.31"
 
 [dev-dependencies]
 tempfile = "3"
