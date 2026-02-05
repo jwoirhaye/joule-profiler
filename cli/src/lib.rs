@@ -54,6 +54,9 @@ pub struct CliArgs {
     #[arg(short = 'o', long = "output-file")]
     pub output_file: Option<String>,
 
+    #[arg(long)]
+    pub gpu: bool,
+
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,
@@ -98,7 +101,10 @@ pub fn output_format_to_displayer(cli: &CliArgs) -> Result<Box<dyn Displayer>> {
     Ok(displayer)
 }
 
+pub fn init_logging(verbose: u8) {
+    logging::init_logging(verbose);
+}
+
 pub fn parse_config(cli: CliArgs) -> Result<Config> {
-    logging::init_logging(cli.verbose);
     Ok(cli.into())
 }
