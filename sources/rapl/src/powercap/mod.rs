@@ -17,13 +17,13 @@
 //! # Usage
 //!
 //! ```no_run
-//! use source_rapl::Rapl;
+//! use source_rapl::powercap;
 //! use joule_profiler_core::source::MetricReader;
 //!
 //! #[tokio::main]
 //! async fn main() {
 //!     // Initialize a RAPL reader (no polling, monitoring all sockets)
-//!     let mut rapl = Rapl::from_default().unwrap();
+//!     let mut rapl = powercap::Rapl::from_default().unwrap();
 //!
 //!     // Measure and update internal counters
 //!     rapl.measure().await.unwrap();
@@ -49,6 +49,7 @@ use crate::domain::socket::parse_sockets_spec;
 use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::powercap::snapshot::{Snapshot, compute_measurement_from_snapshots};
+use crate::util::check_os;
 use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
@@ -84,7 +85,7 @@ type Result<T> = std::result::Result<T, RaplError>;
 /// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
 ///   between measurements.
 /// - `handle`: The handle to the polling task for joining if polling is active.
-pub struct PowercapRapl {
+pub struct Rapl {
     rapl_path: String,
 
     domains: Vec<RaplDomain>,
@@ -98,7 +99,7 @@ pub struct PowercapRapl {
     handle: Option<JoinHandle<Result<()>>>,
 }
 
-impl PowercapRapl {
+impl Rapl {
     /// Creates a new RAPL reader for the given path and sockets.
     ///
     /// `rapl_path` — base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)  
@@ -144,7 +145,7 @@ impl PowercapRapl {
             poll_interval.is_some()
         );
 
-        Ok(PowercapRapl {
+        Ok(Rapl {
             rapl_path,
             domains,
             poll_interval,
@@ -156,7 +157,7 @@ impl PowercapRapl {
 
     /// Initializes a Rapl source with default configuration.
     pub fn from_default() -> Result<Self> {
-        PowercapRapl::new(None, None, None)
+        Rapl::new(None, None, None)
     }
 
     /// Reads a snapshot of current energy counters for all domains.
@@ -186,7 +187,7 @@ impl PowercapRapl {
     }
 }
 
-impl MetricReader for PowercapRapl {
+impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
 
@@ -329,20 +330,6 @@ fn rapl_base_path(config_override: Option<&str>) -> String {
     }
 
     DEFAULT_RAPL_PATH.to_string()
-}
-
-/// Checks if the operating system is Linux.
-fn check_os() -> Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        Ok(())
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        let os = std::env::consts::OS;
-        Err(RaplError::UnsupportedOS(os.to_string()).into())
-    }
 }
 
 /// Check if the program can read RAPL powercap files

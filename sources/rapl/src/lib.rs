@@ -1,10 +1,13 @@
 //! Module `rapl` — Intel RAPL metric source.
 //!
-//! This module provides an implementation of a [`MetricReader`] for
+//! This module provides several implementations of [`MetricReader`] for
 //! collecting energy metrics from Intel RAPL (Running Average Power Limit) domains.
 //!
-//! The `Rapl` struct manages RAPL domains, reads energy counters,
-//! and optionally supports periodic polling for continuous measurement.
+//! # Backends
+//!
+//! This module supports **two backends** for reading energy metrics:
+//! - [`powercap`] — uses the Linux `powercap` interface for energy readings.
+//! - [`perf`] — uses perf_event counters (`perf_event_open`) for RAPL domains.
 //!
 //! # Features
 //!
@@ -12,29 +15,6 @@
 //! - Read instantaneous energy consumption snapshots.
 //! - Compute energy usage between consecutive snapshots.
 //! - Provide sensors information for integration with the profiler.
-//! - Optional async scheduler for periodic measurement.
-//!
-//! # Usage
-//!
-//! ```no_run
-//! use source_rapl::Rapl;
-//! use joule_profiler_core::source::MetricReader;
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!     // Initialize a RAPL reader (no polling, monitoring all sockets)
-//!     let mut rapl = Rapl::from_default().unwrap();
-//!
-//!     // Measure and update internal counters
-//!     rapl.measure().await.unwrap();
-//!
-//!     // Retrieve available sensors
-//!     let sensors = rapl.get_sensors().unwrap();
-//!
-//!     // Retrieve collected counters
-//!     let counters = rapl.retrieve().await.unwrap();
-//! }
-//! ```
 //!
 //! # Errors
 //!
@@ -46,12 +26,13 @@
 
 use joule_profiler_core::unit::{MetricPrefix, MetricUnit, Unit};
 
-use crate::error::RaplError;
-
 mod domain;
-pub mod error;
+mod error;
 pub mod perf;
 pub mod powercap;
+mod util;
+
+pub use error::RaplError;
 
 /// Custom result type for Rapl
 type Result<T> = std::result::Result<T, RaplError>;
