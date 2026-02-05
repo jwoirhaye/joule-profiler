@@ -14,11 +14,11 @@
 //! ```no_run
 //! use joule_profiler_core::{
 //!     sensor::{Sensor, Sensors},
-//!     unit::{MetricUnit, SIPrefix, Unit},
+//!     unit::{MetricUnit, MetricPrefix, Unit},
 //! };
 //!
 //! let micro_joule_unit: MetricUnit = MetricUnit {
-//!     prefix: SIPrefix::Micro,
+//!     prefix: MetricPrefix::Micro,
 //!     unit: Unit::Joule,
 //! };
 //!
@@ -55,11 +55,11 @@ use crate::unit::MetricUnit;
 /// ```no_run
 /// use joule_profiler_core::{
 ///     sensor::Sensor,
-///     unit::{MetricUnit, SIPrefix, Unit},
+///     unit::{MetricUnit, MetricPrefix, Unit},
 /// };
 ///
 /// let micro_joule_unit: MetricUnit = MetricUnit {
-///     prefix: SIPrefix::Micro,
+///     prefix: MetricPrefix::Micro,
 ///     unit: Unit::Joule,
 /// };
 ///

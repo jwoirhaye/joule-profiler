@@ -2,6 +2,7 @@ use anyhow::Result;
 use joule_profiler_cli::{CliArgs, ProfilerCommand, output_format_to_displayer, parse_config};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
+use source_nvml::Nvml;
 use source_rapl::Rapl;
 
 #[tokio::main]
@@ -22,6 +23,10 @@ async fn main() -> Result<()> {
 
     let mut profiler = JouleProfiler::new();
     profiler.add_source(rapl);
+
+    if let Ok(nvml) = Nvml::new() {
+        profiler.add_source(nvml);
+    }
 
     let config: Config = parse_config(cli)?;
 

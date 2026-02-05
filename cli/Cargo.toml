@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 readme.workspace = true
 description = "CLI tool to measure program energy consumption"
-keywords = ["energy", "profiling", "rapl", "cli"]
+keywords = ["energy", "profiling", "rapl", "nvml", "cli"]
 
 [[bin]]
 name = "joule-profiler"
@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 [dependencies]
 joule-profiler-core.workspace = true
 source-rapl = { path = "../sources/rapl" }
+source-nvml = { path = "../sources/nvml" }
 clap = { version = "4.5.53", features = ["derive"] }
 tokio.workspace = true
 anyhow.workspace = true
