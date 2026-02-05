@@ -1,8 +1,9 @@
-use std::fs;
+use std::{fs, io::ErrorKind};
 
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
+    sys::is_root,
     types::Metric,
 };
 use log::{info, trace};
@@ -10,7 +11,7 @@ use log::{info, trace};
 use crate::{
     MICRO_JOULE_UNIT, Result,
     domain::socket::parse_sockets_spec,
-    error::RaplError,
+    error::{PerfParanoidError, RaplError},
     perf::{
         domain::{PerfRaplDomain, discover_domains_and_open_counters},
         snapshot::{PerfSnapshot, compute_measurement_from_snapshots},
@@ -24,6 +25,7 @@ mod socket;
 
 const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
 const PERF_SOURCE_NAME: &str = "perf";
+const PERF_PARANOID_PATH: &str = "/proc/sys/kernel/perf_event_paranoid";
 
 #[derive(Default)]
 pub struct Rapl {
@@ -37,6 +39,13 @@ pub struct Rapl {
 impl Rapl {
     pub fn new(rapl_path: Option<&str>, sockets_spec: Option<&str>) -> Result<Self> {
         check_os()?;
+
+        let paranoid_level = read_paranoid_level()?;
+        trace!("Perf paranoid level set to {}", paranoid_level);
+
+        if paranoid_level > 0 && !is_root() {
+            return Err(PerfParanoidError::LevelTooHigh(paranoid_level).into());
+        }
 
         let rapl_path = rapl_path.unwrap_or(PERF_RAPL_PATH);
         trace!(
@@ -174,6 +183,17 @@ fn read_pmu_type() -> Result<u32> {
         .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
         .map(|pmu_type_str| pmu_type_str.trim().parse::<u32>())?
         .map_err(Into::into)
+}
+
+fn read_paranoid_level() -> Result<u8> {
+    fs::read_to_string(PERF_PARANOID_PATH)
+        .map_err(|err| match err.kind() {
+            ErrorKind::NotFound => PerfParanoidError::NotFound,
+            ErrorKind::PermissionDenied => PerfParanoidError::PermissionDenied(err.to_string()),
+            _ => PerfParanoidError::IoError(err),
+        })
+        .map(|paranoid_level_str| paranoid_level_str.trim().parse::<u8>())?
+        .map_err(|err| PerfParanoidError::ParseParanoidLevelError(err).into())
 }
 
 #[inline]
