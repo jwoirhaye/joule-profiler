@@ -51,7 +51,7 @@ use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
 use joule_profiler_core::types::Metrics;
-use joule_profiler_core::unit::{MetricUnit, MetricPrefix, Unit};
+use joule_profiler_core::unit::{MetricPrefix, MetricUnit, Unit};
 use log::{debug, error, info, trace};
 use std::fs;
 use std::io::ErrorKind;

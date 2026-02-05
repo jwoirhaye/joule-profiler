@@ -1,5 +1,7 @@
 use anyhow::Result;
-use joule_profiler_cli::{CliArgs, ProfilerCommand, init_logging, output_format_to_displayer, parse_config};
+use joule_profiler_cli::{
+    CliArgs, ProfilerCommand, init_logging, output_format_to_displayer, parse_config,
+};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::warn;
