@@ -5,7 +5,7 @@ pub enum NvmlError {
     #[error("Unknow metric \"{0}\" found in old snapshot")]
     UnknownMetricError(String),
 
-    #[error("No driver found or loaded to access NVML")]
+    #[error("No driver found or loaded to access NVML, check whether you have an Nvidia GPU or not")]
     NoDriverLoaded,
 
     #[error("Insufficient permissions to access NVML. Try running with sudo")]

@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     if cli.gpu {
         match Nvml::new() {
             Ok(nvml) => profiler.add_source(nvml),
-            Err(err) => warn!("Failed to initialize NVML | {}", err),
+            Err(err) => warn!("{}", err),
         }
     }
 
