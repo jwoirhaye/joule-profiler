@@ -69,10 +69,6 @@ pub enum JouleProfilerError {
         MetricSourceError,
     ),
 
-    #[error("Orchestrator error")]
-    OrchestratorError(
-        #[from]
-        #[source]
-        OrchestratorError,
-    ),
+    #[error(transparent)]
+    OrchestratorError(#[from] OrchestratorError),
 }
