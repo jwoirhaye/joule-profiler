@@ -1,4 +1,4 @@
-use std::{fs, io::ErrorKind};
+use std::{collections::HashSet, fs, io::ErrorKind};
 
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
@@ -10,7 +10,6 @@ use log::{info, trace};
 
 use crate::{
     MICRO_JOULE_UNIT, Result,
-    domain::socket::parse_sockets_spec,
     error::{PerfParanoidError, RaplError},
     perf::{
         domain::{PerfRaplDomain, discover_domains_and_open_counters},
@@ -37,7 +36,7 @@ pub struct Rapl {
 }
 
 impl Rapl {
-    pub fn new(rapl_path: Option<&str>, sockets_spec: Option<&str>) -> Result<Self> {
+    pub fn new(rapl_path: Option<&str>, sockets_spec: Option<HashSet<u32>>) -> Result<Self> {
         check_os()?;
 
         let paranoid_level = read_paranoid_level()?;
@@ -53,10 +52,9 @@ impl Rapl {
             rapl_path, sockets_spec
         );
 
-        let sockets = parse_sockets_spec(sockets_spec);
-
         let pmu_type = read_pmu_type()?;
-        let domains = discover_domains_and_open_counters(pmu_type, rapl_path, sockets.as_ref())?;
+        let domains =
+            discover_domains_and_open_counters(pmu_type, rapl_path, sockets_spec.as_ref())?;
         info!("Discovered {} RAPL domain(s)", domains.len());
 
         Ok(Self {

@@ -5,13 +5,10 @@ use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use crate::Result;
-use crate::domain::domain_type::RaplDomainType;
-use crate::domain::socket::parse_or_all_sockets;
+use crate::domain_type::RaplDomainType;
 use crate::error::RaplError;
+use crate::powercap::socket::parse_or_all_sockets;
 use log::{debug, error, info, trace, warn};
-
-pub mod domain_type;
-pub mod socket;
 
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]

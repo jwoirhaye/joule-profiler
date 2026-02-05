@@ -2,9 +2,7 @@ use std::{collections::HashMap, ops::AddAssign};
 
 use log::{debug, error, info, trace};
 
-use crate::{
-    Result, domain::domain_type::RaplDomainIndex, error::RaplError, perf::domain::PerfRaplDomain,
-};
+use crate::{Result, domain_type::RaplDomainIndex, error::RaplError, perf::domain::PerfRaplDomain};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PerfSnapshot {

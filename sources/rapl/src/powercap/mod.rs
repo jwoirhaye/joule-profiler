@@ -45,9 +45,8 @@
 //! - [`RaplError::RaplReadError`] or [`RaplError::InvalidRaplPath`] - problems reading counters or invalid paths.
 
 use crate::MICRO_JOULE_UNIT;
-use crate::domain::socket::parse_sockets_spec;
-use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
+use crate::powercap::domain::{RaplDomain, get_domains, read_energy};
 use crate::powercap::snapshot::{Snapshot, compute_measurement_from_snapshots};
 use crate::util::check_os;
 use futures::StreamExt;
@@ -55,6 +54,7 @@ use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
 use joule_profiler_core::types::{Metric, Metrics};
 use log::{debug, error, info, trace};
+use std::collections::HashSet;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -64,7 +64,9 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 
+mod domain;
 mod snapshot;
+mod socket;
 
 const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
 const POWERCAP_SOURCE_NAME: &str = "Powercap";
@@ -114,7 +116,7 @@ impl Rapl {
     /// - Permissions are insufficient
     pub fn new(
         rapl_path: Option<&str>,
-        sockets_spec: Option<&str>,
+        sockets_spec: Option<HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
         let rapl_path = rapl_base_path(rapl_path);
@@ -124,11 +126,9 @@ impl Rapl {
             rapl_path, sockets_spec
         );
 
-        let sockets = parse_sockets_spec(sockets_spec);
-
         check_os()?;
 
-        let domains = get_domains(&rapl_path, sockets.as_ref())?;
+        let domains = get_domains(&rapl_path, sockets_spec.as_ref())?;
 
         if domains.is_empty() {
             error!("No domain discovered");
