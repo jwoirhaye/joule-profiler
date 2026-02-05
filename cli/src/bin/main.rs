@@ -1,6 +1,7 @@
 use anyhow::Result;
 use joule_profiler_cli::{
     CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer, parse_config,
+    parse_sockets_spec,
 };
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
@@ -16,7 +17,7 @@ async fn main() -> Result<()> {
     let mut profiler = JouleProfiler::new();
 
     let rapl_path = cli.rapl_path.as_deref();
-    let rapl_sockets = cli.sockets.as_deref();
+    let rapl_sockets_spec = parse_sockets_spec(cli.sockets.as_deref());
     let rapl_polling = match &cli.command {
         ProfilerCommand::Phases(phases_args) => phases_args.rapl_polling,
         ProfilerCommand::ListSensors => None,
@@ -29,17 +30,18 @@ async fn main() -> Result<()> {
                     "Cannot initialize RAPL with perf, switching to powercap: {}",
                     err
                 );
-                let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets, rapl_polling)?;
+                let rapl_powercap =
+                    powercap::Rapl::new(rapl_path, rapl_sockets_spec, rapl_polling)?;
                 profiler.add_source(rapl_powercap);
             } else {
                 trace!("Using perf_events for RAPL profiling");
-                let perf_rapl = perf::Rapl::new(rapl_path, rapl_sockets)?;
+                let perf_rapl = perf::Rapl::new(rapl_path, rapl_sockets_spec)?;
                 profiler.add_source(perf_rapl);
             }
         }
         RaplBackend::Powercap => {
             trace!("Using Powercap for RAPL profiling");
-            let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets, rapl_polling)?;
+            let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets_spec, rapl_polling)?;
             profiler.add_source(rapl_powercap);
         }
     }

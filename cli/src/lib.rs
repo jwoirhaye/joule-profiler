@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use clap::{ArgAction, Parser, ValueEnum};
 
 use anyhow::Result;
@@ -116,4 +118,12 @@ pub fn init_logging(verbose: u8) {
 
 pub fn parse_config(cli: CliArgs) -> Result<Config> {
     Ok(cli.into())
+}
+
+pub fn parse_sockets_spec(sockets_spec: Option<&str>) -> Option<HashSet<u32>> {
+    sockets_spec.map(|s| {
+        s.split(',')
+            .filter_map(|x| x.trim().parse::<u32>().ok())
+            .collect()
+    })
 }

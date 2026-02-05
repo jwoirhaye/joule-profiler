@@ -10,7 +10,7 @@ use perf_event_open_sys::{bindings::perf_event_attr, perf_event_open};
 
 use crate::{
     Result,
-    domain::domain_type::RaplDomainType,
+    domain_type::RaplDomainType,
     error::RaplError,
     perf::{PERF_RAPL_PATH, socket::discover_socket_topology},
 };

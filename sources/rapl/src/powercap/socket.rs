@@ -23,20 +23,17 @@ pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>)
     sockets.into_iter().collect()
 }
 
-pub fn parse_sockets_spec(sockets_spec: Option<&str>) -> Option<HashSet<u32>> {
-    sockets_spec.map(|s| {
-        s.split(',')
-            .filter_map(|x| x.trim().parse::<u32>().ok())
-            .collect()
-    })
-}
-
 #[cfg(test)]
 mod test {
-    use crate::domain::RaplDomain;
-    use crate::domain::domain_type::RaplDomainType;
-    use crate::domain::socket::{discover_sockets, filter_sockets, parse_or_all_sockets};
     use std::collections::HashSet;
+
+    use crate::{
+        domain_type::RaplDomainType,
+        powercap::{
+            domain::RaplDomain,
+            socket::{discover_sockets, filter_sockets, parse_or_all_sockets},
+        },
+    };
 
     #[test]
     fn discover_sockets_returns_unique_sockets() {
