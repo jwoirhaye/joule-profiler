@@ -15,6 +15,7 @@ use crate::{
         domain::{PerfRaplDomain, discover_domains_and_open_counters},
         snapshot::{PerfSnapshot, compute_measurement_from_snapshots},
     },
+    util::check_os,
 };
 
 mod domain;
@@ -24,16 +25,8 @@ mod socket;
 const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
 const PERF_SOURCE_NAME: &str = "perf";
 
-fn read_pmu_type() -> Result<u32> {
-    let type_path = format!("{}/type", PERF_RAPL_PATH);
-    fs::read_to_string(type_path)
-        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
-        .map(|pmu_type_str| pmu_type_str.trim().parse::<u32>())?
-        .map_err(Into::into)
-}
-
 #[derive(Default)]
-pub struct PerfRapl {
+pub struct Rapl {
     domains: Vec<PerfRaplDomain>,
 
     current_counters: PerfSnapshot,
@@ -41,8 +34,10 @@ pub struct PerfRapl {
     last_snapshot: Option<PerfSnapshot>,
 }
 
-impl PerfRapl {
+impl Rapl {
     pub fn new(rapl_path: Option<&str>, sockets_spec: Option<&str>) -> Result<Self> {
+        check_os()?;
+
         let rapl_path = rapl_path.unwrap_or(PERF_RAPL_PATH);
         trace!(
             "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
@@ -53,7 +48,6 @@ impl PerfRapl {
 
         let pmu_type = read_pmu_type()?;
         let domains = discover_domains_and_open_counters(pmu_type, rapl_path, sockets.as_ref())?;
-        println!("domains {:?}", domains);
         info!("Discovered {} RAPL domain(s)", domains.len());
 
         Ok(Self {
@@ -94,7 +88,7 @@ impl PerfRapl {
     }
 }
 
-impl MetricReader for PerfRapl {
+impl MetricReader for Rapl {
     type Type = PerfSnapshot;
 
     type Error = RaplError;
@@ -127,7 +121,6 @@ impl MetricReader for PerfRapl {
             .iter()
             .map(|domain| {
                 trace!("Registering sensor: {}", domain.get_name());
-
                 Sensor {
                     name: domain.get_name(),
                     unit: MICRO_JOULE_UNIT,
@@ -173,6 +166,14 @@ impl MetricReader for PerfRapl {
         self.reset_domains_counter();
         Ok(())
     }
+}
+
+fn read_pmu_type() -> Result<u32> {
+    let type_path = format!("{}/type", PERF_RAPL_PATH);
+    fs::read_to_string(type_path)
+        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
+        .map(|pmu_type_str| pmu_type_str.trim().parse::<u32>())?
+        .map_err(Into::into)
 }
 
 #[inline]
