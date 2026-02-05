@@ -147,9 +147,8 @@ impl MetricReader for Nvml {
     fn get_sensors(&self) -> Result<Sensors> {
         Ok((0..self.devices_max_index)
             .map(|i| {
-                let device_name = self.nvml.device_by_index(i)?.name()?;
                 Ok(Sensor {
-                    name: device_name,
+                    name: format!("GPU-{}", i),
                     unit: MILLI_JOULE_UNIT,
                     source: NVML_SOURCE_NAME.to_string(),
                 })
