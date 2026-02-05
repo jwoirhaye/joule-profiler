@@ -46,8 +46,9 @@
 
 use crate::MICRO_JOULE_UNIT;
 use crate::error::RaplError;
+use crate::powercap::compute::compute_measurement_from_snapshots;
 use crate::powercap::domain::{RaplDomain, get_domains, read_energy};
-use crate::powercap::snapshot::{Snapshot, compute_measurement_from_snapshots};
+use crate::snapshot::Snapshot;
 use crate::util::check_os;
 use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
@@ -64,8 +65,8 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 
+mod compute;
 mod domain;
-mod snapshot;
 mod socket;
 
 const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
@@ -200,7 +201,7 @@ impl MetricReader for Rapl {
             let metrics = compute_measurement_from_snapshots(&self.domains, prev, &new_snapshot)?;
 
             let mut counters = self.current_counters.lock().await;
-            *counters += Snapshot { metrics };
+            *counters += metrics;
         }
 
         *last = Some(new_snapshot);
@@ -288,7 +289,7 @@ impl MetricReader for Rapl {
                         compute_measurement_from_snapshots(&domains, prev, &new_snapshot)?;
 
                     let mut counters = current_counters.lock().await;
-                    *counters += Snapshot { metrics };
+                    *counters += metrics;
                 }
 
                 *last_guard = Some(new_snapshot);

@@ -12,14 +12,15 @@ use crate::{
     MICRO_JOULE_UNIT, Result,
     error::{PerfParanoidError, RaplError},
     perf::{
+        compute::compute_measurement_from_snapshots,
         domain::{PerfRaplDomain, discover_domains_and_open_counters},
-        snapshot::{PerfSnapshot, compute_measurement_from_snapshots},
     },
+    snapshot::Snapshot,
     util::check_os,
 };
 
+mod compute;
 mod domain;
-mod snapshot;
 mod socket;
 
 const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
@@ -30,9 +31,9 @@ const PERF_PARANOID_PATH: &str = "/proc/sys/kernel/perf_event_paranoid";
 pub struct Rapl {
     domains: Vec<PerfRaplDomain>,
 
-    current_counters: PerfSnapshot,
+    current_counters: Snapshot,
 
-    last_snapshot: Option<PerfSnapshot>,
+    last_snapshot: Option<Snapshot>,
 }
 
 impl Rapl {
@@ -80,7 +81,7 @@ impl Rapl {
         }
     }
 
-    fn read_domains_counter(&mut self) -> Result<PerfSnapshot> {
+    fn read_domains_counter(&mut self) -> Result<Snapshot> {
         let metrics = self
             .domains
             .iter_mut()
@@ -91,12 +92,12 @@ impl Rapl {
             })
             .collect::<Result<_>>()?;
 
-        Ok(PerfSnapshot { metrics })
+        Ok(Snapshot { metrics })
     }
 }
 
 impl MetricReader for Rapl {
-    type Type = PerfSnapshot;
+    type Type = Snapshot;
 
     type Error = RaplError;
 

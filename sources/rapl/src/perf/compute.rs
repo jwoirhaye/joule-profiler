@@ -1,27 +1,17 @@
-use std::{collections::HashMap, ops::AddAssign};
+use std::collections::HashMap;
 
 use log::{debug, error, info, trace};
 
-use crate::{Result, domain_type::RaplDomainIndex, error::RaplError, perf::domain::PerfRaplDomain};
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct PerfSnapshot {
-    pub metrics: HashMap<RaplDomainIndex, u64>,
-}
-
-impl AddAssign<HashMap<RaplDomainIndex, u64>> for PerfSnapshot {
-    fn add_assign(&mut self, rhs: HashMap<RaplDomainIndex, u64>) {
-        for (domain, value) in rhs {
-            *self.metrics.entry(domain).or_insert(0) += value;
-        }
-    }
-}
+use crate::{
+    Result, domain_type::RaplDomainIndex, error::RaplError, perf::domain::PerfRaplDomain,
+    snapshot::Snapshot,
+};
 
 /// Compute one measurement from two energy snapshots.
 pub fn compute_measurement_from_snapshots(
     domains: &[PerfRaplDomain],
-    begin: &PerfSnapshot,
-    end: &PerfSnapshot,
+    begin: &Snapshot,
+    end: &Snapshot,
 ) -> Result<HashMap<RaplDomainIndex, u64>> {
     trace!(
         "Computing measurement from snapshots for {} domains",

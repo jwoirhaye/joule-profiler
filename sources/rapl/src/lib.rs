@@ -30,6 +30,7 @@ mod domain_type;
 mod error;
 pub mod perf;
 pub mod powercap;
+mod snapshot;
 mod util;
 
 pub use error::RaplError;
