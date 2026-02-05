@@ -23,6 +23,14 @@ pub fn parse_or_all_sockets(domains: &[RaplDomain], spec: Option<&HashSet<u32>>)
     sockets.into_iter().collect()
 }
 
+pub fn parse_sockets_spec(sockets_spec: Option<&str>) -> Option<HashSet<u32>> {
+    sockets_spec.map(|s| {
+        s.split(',')
+            .filter_map(|x| x.trim().parse::<u32>().ok())
+            .collect()
+    })
+}
+
 #[cfg(test)]
 mod test {
     use crate::domain::RaplDomain;

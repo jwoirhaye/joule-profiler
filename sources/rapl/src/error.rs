@@ -35,6 +35,9 @@ pub enum RaplError {
     #[error("Failed to open domain counter {0}")]
     FailToOpenDomainCounter(String),
 
+    #[error("Invalid event format for domain {0}")]
+    InvalidEventFormat(String),
+
     #[error(transparent)]
     IoError(std::io::Error),
 

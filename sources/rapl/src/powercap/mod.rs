@@ -45,6 +45,7 @@
 //! - [`RaplError::RaplReadError`] or [`RaplError::InvalidRaplPath`] - problems reading counters or invalid paths.
 
 use crate::MICRO_JOULE_UNIT;
+use crate::domain::socket::parse_sockets_spec;
 use crate::domain::{RaplDomain, get_domains, read_energy};
 use crate::error::RaplError;
 use crate::powercap::snapshot::{Snapshot, compute_measurement_from_snapshots};
@@ -57,11 +58,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::Arc;
-use std::{
-    collections::{HashMap, HashSet},
-    env,
-    time::Duration,
-};
+use std::{collections::HashMap, env, time::Duration};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
@@ -116,21 +113,17 @@ impl PowercapRapl {
     /// - Permissions are insufficient
     pub fn new(
         rapl_path: Option<&str>,
-        sockets: Option<&str>,
+        sockets_spec: Option<&str>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
         let rapl_path = rapl_base_path(rapl_path);
 
         trace!(
             "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
-            rapl_path, sockets
+            rapl_path, sockets_spec
         );
 
-        let sockets: Option<HashSet<u32>> = sockets.map(|s| {
-            s.split(',')
-                .filter_map(|x| x.trim().parse::<u32>().ok())
-                .collect()
-        });
+        let sockets = parse_sockets_spec(sockets_spec);
 
         check_os()?;
 
