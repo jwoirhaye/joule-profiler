@@ -1,14 +1,12 @@
 use anyhow::Result;
 use joule_profiler_cli::{
-    CliArgs, ProfilerCommand, init_logging, output_format_to_displayer, parse_config,
+    CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer, parse_config,
 };
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::{trace, warn};
 use source_nvml::Nvml;
-use source_rapl::error::RaplError;
-use source_rapl::perf::PerfRapl;
-use source_rapl::powercap::PowercapRapl;
+use source_rapl::{perf, powercap};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,23 +23,23 @@ async fn main() -> Result<()> {
     };
 
     match cli.rapl_backend {
-        joule_profiler_cli::RaplBackend::Perf => {
-            if let Err(err) = PerfRapl::check_perf_access() {
+        RaplBackend::Perf => {
+            if let Err(err) = perf::Rapl::check_perf_access() {
                 warn!(
                     "Cannot initialize RAPL with perf, switching to powercap: {}",
                     err
                 );
-                let rapl_powercap = init_powercap(rapl_path, rapl_sockets, rapl_polling)?;
+                let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets, rapl_polling)?;
                 profiler.add_source(rapl_powercap);
             } else {
                 trace!("Using perf_events for RAPL profiling");
-                let perf_rapl = PerfRapl::new(rapl_path, rapl_sockets)?;
+                let perf_rapl = perf::Rapl::new(rapl_path, rapl_sockets)?;
                 profiler.add_source(perf_rapl);
             }
         }
-        joule_profiler_cli::RaplBackend::Powercap => {
+        RaplBackend::Powercap => {
             trace!("Using Powercap for RAPL profiling");
-            let rapl_powercap = init_powercap(rapl_path, rapl_sockets, rapl_polling)?;
+            let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets, rapl_polling)?;
             profiler.add_source(rapl_powercap);
         }
     }
@@ -67,12 +65,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn init_powercap(
-    rapl_path: Option<&str>,
-    rapl_sockets: Option<&str>,
-    rapl_polling: Option<f64>,
-) -> std::result::Result<PowercapRapl, RaplError> {
-    PowercapRapl::new(rapl_path, rapl_sockets, rapl_polling)
 }
