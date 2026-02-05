@@ -11,7 +11,7 @@ pub enum NvmlError {
     #[error("Insufficient permissions to access NVML. Try running with sudo")]
     NoPermission,
 
-    #[error("Nvml error")]
+    #[error("NVML error: {0}")]
     NvmlError(
         #[from]
         #[source]

@@ -1,13 +1,15 @@
 use anyhow::Result;
-use joule_profiler_cli::{CliArgs, ProfilerCommand, output_format_to_displayer, parse_config};
+use joule_profiler_cli::{CliArgs, ProfilerCommand, init_logging, output_format_to_displayer, parse_config};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
+use log::warn;
 use source_nvml::Nvml;
 use source_rapl::Rapl;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = CliArgs::from_args()?;
+    init_logging(cli.verbose);
     let mut displayer = output_format_to_displayer(&cli)?;
     let mut profiler = JouleProfiler::new();
 
@@ -24,8 +26,11 @@ async fn main() -> Result<()> {
 
     profiler.add_source(rapl);
 
-    if let Ok(nvml) = Nvml::new() {
-        profiler.add_source(nvml);
+    if cli.gpu {
+        match Nvml::new() {
+            Ok(nvml) => profiler.add_source(nvml),
+            Err(err) => warn!("Failed to initialize NVML | {}", err),
+        }
     }
 
     let config: Config = parse_config(cli)?;
