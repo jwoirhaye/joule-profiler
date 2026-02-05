@@ -23,16 +23,9 @@ pub enum OrchestratorError {
     ),
 
     #[error("Metric source error")]
-    SourceError(
+    MetricSourceError(
         #[from]
         #[source]
         MetricSourceError,
     ),
-
-    #[error("Source {index} disconnected, cause: {cause}")]
-    SourceDisconnected {
-        index: usize,
-        #[source]
-        cause: MetricSourceError,
-    },
 }
