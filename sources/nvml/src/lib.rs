@@ -4,13 +4,13 @@
 //! It implements the `MetricReader` trait to collect energy metrics from GPU devices and
 //! track energy usage over time.
 
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
     types::{Metric, Metrics},
-    unit::{MetricUnit, MetricPrefix, Unit},
+    unit::{MetricPrefix, MetricUnit, Unit},
 };
 use log::{debug, trace};
 
@@ -32,7 +32,7 @@ type Result<T> = std::result::Result<T, NvmlError>;
 ///
 /// This struct provides an interface to monitor energy consumption of NVIDIA GPUs using
 /// the NVML library.
-/// 
+///
 /// # Fields
 ///
 /// * `nvml` - The NVML wrapper instance for interacting with the NVIDIA driver.
@@ -145,7 +145,7 @@ impl MetricReader for Nvml {
 
     /// Get the sensors by iterating over the detected devices.
     fn get_sensors(&self) -> Result<Sensors> {
-        Ok((0..self.devices_max_index)
+        (0..self.devices_max_index)
             .map(|i| {
                 Ok(Sensor {
                     name: format!("GPU-{}", i),
@@ -153,7 +153,7 @@ impl MetricReader for Nvml {
                     source: NVML_SOURCE_NAME.to_string(),
                 })
             })
-            .collect::<Result<_>>()?)
+            .collect::<Result<_>>()
     }
 
     /// Get the NVML metric source name.
