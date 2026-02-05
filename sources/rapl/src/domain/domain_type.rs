@@ -1,12 +1,15 @@
 use crate::error::RaplError;
 use std::fmt::Display;
 
+/// Unique identifier for a domain and socket.
+pub type RaplDomainIndex = (RaplDomainType, u32);
+
 /// Types of RAPL (Running Average Power Limit) energy/power measurement domains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RaplDomainType {
     /// Entire processor socket.
     ///
-    /// Includes all cores, integrated GPU, caches, memory controller, and interconnects.
+    /// Includes core and uncore components.
     /// Available on all Intel processor since Sandy Bridge generation.
     /// Also known as PKG.
     Package,
@@ -58,10 +61,11 @@ impl TryInto<RaplDomainType> for String {
 
         let domain_type = match name_lower.as_str() {
             domain if domain.starts_with("package") => RaplDomainType::Package,
-            "core" | "pp0" => RaplDomainType::Core,
-            "uncore" | "pp1" => RaplDomainType::Uncore,
-            "dram" | "ram" => RaplDomainType::Dram,
-            "psys" | "platform" => RaplDomainType::Psys,
+            "energy-pkg" => RaplDomainType::Package,
+            "core" | "pp0" | "energy-cores" => RaplDomainType::Core,
+            "uncore" | "pp1" | "energy-uncore" | "energy-gpu" => RaplDomainType::Uncore,
+            "dram" | "ram" | "energy-ram" => RaplDomainType::Dram,
+            "psys" | "platform" | "energy-psys" => RaplDomainType::Psys,
             _ => return Err(RaplError::UnknownDomain(name_lower)),
         };
         Ok(domain_type)
