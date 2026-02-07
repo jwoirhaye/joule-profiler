@@ -75,7 +75,6 @@ The profiler supports multiple output formats:
 
 > Use `--json` or `--csv` to select the output format, also they are mutually exclusive. You can also specify an output file with `-o`.
 
-## Notes
-
-- Using `sudo` may be required to read certain counters (RAPL, perf counters).  
+> [!NOTE]
+> - Using `sudo` may be required to read certain counters (RAPL, perf counters).  
 - Polling frequency affects precision and overhead: lower values may slightly increase CPU usage.

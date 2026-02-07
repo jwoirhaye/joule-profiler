@@ -12,7 +12,7 @@ It allows fine-grained energy profiling of CPU cores, memory subsystem, and unco
 
 ## Architecture
 
-RAPL interface exposes multiple power domains that allow measuring energy consumption of different parts of the processor and memory subsystem.
+**RAPL** interface exposes multiple power domains that allow measuring energy consumption of different parts of the processor and memory subsystem.
 Domains metrics are accessible through model-specific registers (MSRs) on the host system, enabling user to monitor power usage in real time.
 
 ### Domains
@@ -29,37 +29,8 @@ Architecture of RAPL[^dissecting_software-based_measurement]:
 
 ![RAPL architecture](../../figures/rapl_architecture.png)
 
-### Notes
-
-- Some of the domains may not appear depending on the processor architecture.
-- The **PSYS** domain can report the same consumption as an external wattmeter[^dissecting_software-based_measurement], representing the entire computer consumption. These results, obtained on a laptop, should be interpreted with caution and could not reflect the real world.
-
-## Should you use Powercap of perf_events ?
-
-Powercap is a framework for controlling and limiting power while perf_events is a tool for measuring performance counters.  
-Thus, their design differs from each other, perf_events uses kernel mechanisms to minimize user–kernel transitions during data collection, reducing overhead for frequent measurements, while Powercap relies on a sysfs interface, where each read or write triggers a kernel entry, making it more suitable for infrequent operations or control tasks.
-
-While they both use the same underlying technology (e.g., **MSRs for Intel RAPL**), they operate at different abstraction layers. perf_events provides a **measurement-oriented interface** optimized for profiling, whereas Powercap provides a **control-oriented interface** suitable for setting power limits or enforcing budgets.
-
-| Scenario | Recommended Interface | Reason |
-|----------|--------------------|--------|
-| High-frequency, fine-grained energy measurement | perf_events | Minimal overhead introduced and less transition from user to kernel space |
-| Moderate to low-frequency | perf_events or Powercap | Syscall overhead is acceptable, perf_events requires more configuration (perf_event_paranoid), while powercap is easy to use |
-
-**Summary:** You should always prefer to use perf_events if it is configured on your system, but powercap is turnkey and easy to use.
-
-## Why not use MSRs ?
-
-We can access MSRs through the filesystem at `/dev/cpu/{core}/msr`, therefore, in principle we could read RAPL counters directly from the registers to minimize overhead.
-
-In practice, direct MSR access from userspace does not necessarily provide better performance[^dissecting_software-based_measurement] than the powercap interface, which is already optimized for safe and efficient energy accounting. Reading MSRs from userspace requires a system call for each access, and repeated reads across multiple domains increase overhead. As a result, user-space MSR reads are generally slower than accessing the same counters through kernel-level drivers such as powercap, which can read and process the registers efficiently without repeated user to kernel context switches. In addition, raw MSR reads can exhibit greater variability at short time scales due to the absence of kernel-managed aggregation and coordinated sampling, whereas powercap provides more consistent and reproducible energy measurements by performing aggregation entirely within the kernel.
-
-Moreover, using MSRs directly requires explicit management of overflow, unit scaling, and platform-specific behavior, reduces portability, and can introduce safety and consistency issues that higher-level kernel interfaces such as Linux's powercap framework handle automatically.
-
-## Limitations
-
-- Although RAPL interface provides multiple domains enabling fine-grained energy profiling, it does not offer per-process energy attribution, making it difficult to accurately assess the energy consumption of individual processes.
-- Some domains like **DRAM** or **PSYS** might not be available and the **Uncore** domain may not include the same components depending on the CPU generation, moreover, the **DRAM** domains might not be included in the **Package** domain.
-- Short lived events with variations and quick workloads might not be captured due to the limited resolution of hardware counters.
+> [!NOTE]
+> - Some of the domains may not appear depending on the processor architecture.
+> - The **PSYS** domain can report the same consumption as an external wattmeter [^dissecting_software-based_measurement], representing the entire computer consumption. These results, obtained on a laptop, should be interpreted with caution and could not reflect the real world.
 
 [^dissecting_software-based_measurement]: G. Raffin and D. Trystram, "Dissecting the Software-Based Measurement of CPU Energy Consumption: A Comparative Analysis," in IEEE Transactions on Parallel and Distributed Systems, vol. 36, no. 1, pp. 96-107, Jan. 2025, doi: 10.1109/TPDS.2024.3492336.
