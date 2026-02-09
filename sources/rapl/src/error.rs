@@ -32,7 +32,7 @@ pub enum RaplError {
     #[error("Unknown domain {0}")]
     UnknownDomain(String),
 
-    #[error("Failed to open domain counter {0}")]
+    #[error("Failed to open domain counter, {0}")]
     FailToOpenDomainCounter(String),
 
     #[error("Invalid event format for domain {0}")]
@@ -75,11 +75,6 @@ impl From<std::io::Error> for RaplError {
 
 #[derive(Debug, Error)]
 pub enum PerfParanoidError {
-    #[error(
-        "perf_event_paranoid level too high: {0}, try with root privileges or set paranoid level to zero"
-    )]
-    LevelTooHigh(u8),
-
     #[error("perf_event_paranoid file not found")]
     NotFound,
 

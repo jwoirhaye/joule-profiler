@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::{sys::is_root, time::get_timestamp_millis};
+use crate::util::time::get_timestamp_millis;
 
 /// Get the absolute path of a file.
 pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
