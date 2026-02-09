@@ -3,7 +3,6 @@ use std::{collections::HashSet, fs, io::ErrorKind};
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
-    sys::is_root,
     types::Metric,
 };
 use log::{info, trace};
@@ -42,10 +41,6 @@ impl Rapl {
 
         let paranoid_level = read_paranoid_level()?;
         trace!("Perf paranoid level set to {}", paranoid_level);
-
-        if paranoid_level > 0 && !is_root() {
-            return Err(PerfParanoidError::LevelTooHigh(paranoid_level).into());
-        }
 
         let rapl_path = rapl_path.unwrap_or(PERF_RAPL_PATH);
         trace!(

@@ -22,10 +22,6 @@ pub enum OrchestratorError {
         SendError<SourceEvent>,
     ),
 
-    #[error("Metric source error")]
-    MetricSourceError(
-        #[from]
-        #[source]
-        MetricSourceError,
-    ),
+    #[error(transparent)]
+    MetricSourceError(#[from] MetricSourceError),
 }

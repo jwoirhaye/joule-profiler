@@ -62,12 +62,8 @@ pub enum JouleProfilerError {
         std::io::Error,
     ),
 
-    #[error("Metric source error")]
-    MetricSourceError(
-        #[from]
-        #[source]
-        MetricSourceError,
-    ),
+    #[error(transparent)]
+    MetricSourceError(#[from] MetricSourceError),
 
     #[error(transparent)]
     OrchestratorError(#[from] OrchestratorError),
