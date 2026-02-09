@@ -25,12 +25,8 @@ pub enum MetricSourceError {
     #[error("Cannot build iteration without at least one phase")]
     NoPhaseInIterationError,
 
-    #[error("Metric source error: {0}")]
-    SourceError(
-        #[from]
-        #[source]
-        Box<dyn std::error::Error + Send + Sync>,
-    ),
+    #[error(transparent)]
+    SourceError(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub trait IntoMetricSourceError {
