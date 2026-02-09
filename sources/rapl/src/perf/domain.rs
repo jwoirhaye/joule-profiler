@@ -5,7 +5,7 @@ use std::{
     os::fd::{AsRawFd, FromRawFd, RawFd},
 };
 
-use log::{debug, trace};
+use log::{debug, error, info, trace, warn};
 use perf_event_open_sys::{bindings::perf_event_attr, perf_event_open};
 
 use crate::{
@@ -72,9 +72,18 @@ pub fn discover_domains_and_open_counters(
 ) -> Result<Vec<PerfRaplDomain>> {
     let mut domains = Vec::new();
     let domains_dir_path = format!("{}/events", rapl_path);
+
+    info!("Discovering RAPL domains under {}", domains_dir_path);
+
     let socket_topology = discover_socket_topology(domains_to_discover)?;
+    debug!("Socket topology: {:?}", socket_topology);
 
     for socket in &socket_topology {
+        debug!(
+            "Processing socket {} (cpus={:?})",
+            socket.socket_id, socket.cpus_id
+        );
+
         for entry_result in fs::read_dir(&domains_dir_path)? {
             let entry = entry_result?;
             let file_name = entry.file_name().into_string().map_err(|_| {
@@ -94,6 +103,8 @@ pub fn discover_domains_and_open_counters(
                 continue;
             }
 
+            debug!("Found RAPL domain file {}", file_name);
+
             let event = read_domain_event_number(&file_name)?;
             let scale = read_domain_scale(&file_name)?;
             let domain_type = file_name.try_into()?;
@@ -101,29 +112,33 @@ pub fn discover_domains_and_open_counters(
             let first_cpu_socket = if let Some(first_socket_cpu) = socket.cpus_id.first() {
                 first_socket_cpu
             } else {
+                warn!(
+                    "Socket {} has no CPUs, skipping domain {}",
+                    socket.socket_id, domain_type
+                );
                 continue;
             };
 
-            let fd = if let Ok(fd) = open_domain_counter(pmu_type, event, *first_cpu_socket) {
-                debug!(
-                    "Opened domain {} with cpu {} on socket {}",
-                    domain_type, first_cpu_socket, socket.socket_id
-                );
-                fd
-            } else {
-                trace!(
-                    "Unsupported domain {} for socket {}, skipped",
-                    domain_type, socket.socket_id
-                );
-                continue;
-            };
+            trace!(
+                "Opening counter: socket={}, cpu={}, domain={}, event={}",
+                socket.socket_id, first_cpu_socket, domain_type, event
+            );
+
+            let fd = open_domain_counter(pmu_type, event, *first_cpu_socket)?;
 
             let file = unsafe { File::from_raw_fd(fd) };
             let domain = PerfRaplDomain::new(domain_type, socket.socket_id, scale, file);
+
+            debug!(
+                "Opened domain {:?} on socket {}, fd: {}",
+                domain_type, socket.socket_id, fd
+            );
+
             domains.push(domain);
         }
     }
 
+    info!("Opened {} RAPL domains", domains.len());
     Ok(domains)
 }
 
@@ -145,9 +160,21 @@ fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
     };
 
     if fd < 0 {
-        return Err(RaplError::FailToOpenDomainCounter(
-            std::io::Error::last_os_error().to_string(),
-        ));
+        let err = std::io::Error::last_os_error();
+        match err.kind() {
+            std::io::ErrorKind::PermissionDenied => {
+                return Err(RaplError::FailToOpenDomainCounter(
+                    "try with root privileges or decrease perf_events paranoid level.".to_string(),
+                ));
+            }
+            _ => {
+                error!(
+                    "Failed to open perf counter (cpu={}, event={}): {}",
+                    cpu, event, err
+                );
+                return Err(err.into());
+            }
+        }
     }
 
     Ok(fd)
