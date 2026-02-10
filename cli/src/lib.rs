@@ -68,8 +68,8 @@ pub struct CliArgs {
 }
 
 impl CliArgs {
-    pub fn from_args() -> Result<Self> {
-        Ok(Self::try_parse()?)
+    pub fn from_args() -> Self {
+        Self::parse()
     }
 }
 

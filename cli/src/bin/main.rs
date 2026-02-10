@@ -11,7 +11,7 @@ use source_rapl::{perf, powercap};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = CliArgs::from_args()?;
+    let cli = CliArgs::from_args();
     init_logging(cli.verbose);
     let mut displayer = output_format_to_displayer(&cli)?;
     let mut profiler = JouleProfiler::new();
