@@ -70,7 +70,7 @@ mod domain;
 mod socket;
 
 const DEFAULT_RAPL_PATH: &str = "/sys/devices/virtual/powercap/intel-rapl";
-const POWERCAP_SOURCE_NAME: &str = "Powercap";
+const POWERCAP_SOURCE_NAME: &str = "RAPL (Powercap)";
 
 /// Custom result type for Rapl
 type Result<T> = std::result::Result<T, RaplError>;
@@ -219,7 +219,7 @@ impl MetricReader for Rapl {
                 Sensor {
                     name: domain.get_name(),
                     unit: MICRO_JOULE_UNIT,
-                    source: Self::get_name().to_lowercase(),
+                    source: Self::get_name().to_string(),
                 }
             })
             .collect();
@@ -243,8 +243,8 @@ impl MetricReader for Rapl {
             .map(|((domain, socket), value)| Metric {
                 name: domain.to_string_socket(socket),
                 value,
-                unit: MICRO_JOULE_UNIT.to_string(),
-                source: POWERCAP_SOURCE_NAME.to_lowercase(),
+                unit: MICRO_JOULE_UNIT,
+                source: POWERCAP_SOURCE_NAME.to_string(),
             })
             .collect()
     }
