@@ -62,23 +62,17 @@ impl PerfRaplDomain {
 
     /// Enable the perf counter.
     pub fn enable_counter(&self) {
-        unsafe { perf_event_open_sys::ioctls::ENABLE(self.as_raw_fd(), 0) };
+        unsafe { perf_event_open_sys::ioctls::ENABLE(self.fd.as_raw_fd(), 0) };
     }
 
     /// Reset the perf counter.
     pub fn reset_counter(&self) {
-        unsafe { perf_event_open_sys::ioctls::RESET(self.as_raw_fd(), 0) };
+        unsafe { perf_event_open_sys::ioctls::RESET(self.fd.as_raw_fd(), 0) };
     }
 
     /// Return a human-readable domain name including socket, e.g., `PACKAGE-0`.
     pub fn get_name(&self) -> String {
         self.domain_type.to_string_socket(self.socket)
-    }
-}
-
-impl AsRawFd for PerfRaplDomain {
-    fn as_raw_fd(&self) -> RawFd {
-        self.fd.as_raw_fd()
     }
 }
 
