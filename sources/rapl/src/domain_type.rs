@@ -36,7 +36,10 @@ pub enum RaplDomainType {
 impl RaplDomainType {
     /// Get the domain name, with its type and socket number
     pub fn to_string_socket(self, socket: u32) -> String {
-        format!("{}-{}", self, socket)
+        match self {
+            RaplDomainType::Psys => RaplDomainType::Psys.to_string(),
+            domain_type => format!("{}-{}", domain_type, socket),
+        }
     }
 }
 
