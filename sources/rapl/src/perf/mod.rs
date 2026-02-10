@@ -25,7 +25,7 @@ mod socket;
 /// Default sysfs path for perf RAPL counters.
 const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
 
-/// Human-readable source name for this metric reader.
+/// perf RAPL source name for this metric reader.
 const PERF_SOURCE_NAME: &str = "RAPL (perf_event)";
 
 /// Path to check the kernel perf_event_paranoid level.
@@ -177,7 +177,7 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    /// Return the human-readable source name.
+    /// Return the source name.
     fn get_name() -> &'static str {
         PERF_SOURCE_NAME
     }
