@@ -15,17 +15,26 @@ use crate::{
     perf::{PERF_RAPL_PATH, socket::discover_socket_topology},
 };
 
+/// Flag used for `perf_event_open` to automatically close the FD on exec.
 const PERF_FLAG_FD_CLOEXEC: u64 = 8;
 
+/// Represents a RAPL domain with its perf_event counter.
+///
+/// Each domain corresponds to a measurable component like `PACKAGE-0`, `DRAM-0`, etc.
 #[derive(Debug)]
 pub struct PerfRaplDomain {
+    /// Domain type (package, dram, core, etc.).
     pub domain_type: RaplDomainType,
+    /// Socket ID where this domain resides.
     pub socket: u32,
+    /// Scaling factor to convert raw counter to joules.
     pub scale: f64,
+    /// File descriptor for the perf counter.
     pub fd: File,
 }
 
 impl PerfRaplDomain {
+    /// Create a new `PerfRaplDomain`.
     pub fn new(domain_type: RaplDomainType, socket: u32, scale: f64, fd: File) -> Self {
         Self {
             domain_type,
@@ -35,25 +44,33 @@ impl PerfRaplDomain {
         }
     }
 
-    /// Read the raw fd perf counters
+    /// Read the raw perf counter value from the file descriptor.
+    ///
+    /// # Returns
+    ///
+    /// The current counter value as `u64`.
     pub fn read_counter(&mut self) -> Result<u64> {
         let mut buf = [0u8; 8];
         self.fd.read_exact(&mut buf)?;
         Ok(u64::from_ne_bytes(buf))
     }
 
+    /// Apply the domain-specific scaling factor to convert raw value to joules.
     pub fn compute_scale(&self, value: u64) -> f64 {
         value as f64 * self.scale
     }
 
+    /// Enable the perf counter.
     pub fn enable_counter(&self) {
         unsafe { perf_event_open_sys::ioctls::ENABLE(self.as_raw_fd(), 0) };
     }
 
+    /// Reset the perf counter.
     pub fn reset_counter(&self) {
         unsafe { perf_event_open_sys::ioctls::RESET(self.as_raw_fd(), 0) };
     }
 
+    /// Return a human-readable domain name including socket, e.g., `PACKAGE-0`.
     pub fn get_name(&self) -> String {
         self.domain_type.to_string_socket(self.socket)
     }
@@ -65,6 +82,21 @@ impl AsRawFd for PerfRaplDomain {
     }
 }
 
+/// Discover available RAPL domains and open perf counters for each.
+///
+/// # Arguments
+///
+/// * `pmu_type` - PMU type obtained from sysfs.
+/// * `rapl_path` - Path to RAPL sysfs directory.
+/// * `domains_to_discover` - Optional filter for socket IDs.
+///
+/// # Returns
+///
+/// A vector of initialized `PerfRaplDomain` instances.
+///
+/// # Errors
+///
+/// Returns `RaplError` if any perf counter cannot be opened or parsed.
 pub fn discover_domains_and_open_counters(
     pmu_type: u32,
     rapl_path: &str,
@@ -96,6 +128,7 @@ pub fn discover_domains_and_open_counters(
                 }
             })?;
 
+            // Skip .scale, .unit files or directories
             if file_name.ends_with(".scale")
                 || file_name.ends_with(".unit")
                 || entry.file_type()?.is_dir()
@@ -125,7 +158,6 @@ pub fn discover_domains_and_open_counters(
             );
 
             let fd = open_domain_counter(pmu_type, event, *first_cpu_socket)?;
-
             let file = unsafe { File::from_raw_fd(fd) };
             let domain = PerfRaplDomain::new(domain_type, socket.socket_id, scale, file);
 
@@ -142,6 +174,11 @@ pub fn discover_domains_and_open_counters(
     Ok(domains)
 }
 
+/// Open a perf counter for a given event on a CPU.
+///
+/// # Errors
+///
+/// Returns `RaplError` if perf counter cannot be opened.
 fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
     let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
     attr.type_ = pmu_type;
@@ -180,6 +217,7 @@ fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
     Ok(fd)
 }
 
+/// Read the scaling factor for a RAPL domain from sysfs.
 fn read_domain_scale(domain_name: &str) -> Result<f64> {
     let path = format!("{}/events/{}.scale", PERF_RAPL_PATH, domain_name);
     fs::read_to_string(path)?
@@ -188,6 +226,11 @@ fn read_domain_scale(domain_name: &str) -> Result<f64> {
         .map_err(Into::into)
 }
 
+/// Read the event number of a RAPL domain from sysfs.
+///
+/// # Errors
+///
+/// Returns `RaplError::InvalidEventFormat` if the event string cannot be parsed.
 fn read_domain_event_number(domain: &str) -> Result<u64> {
     let type_path = format!("{}/events/{}", PERF_RAPL_PATH, domain);
     let content = fs::read_to_string(&type_path)?.trim().to_string();

@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+use crate::unit::MetricUnit;
+
 /// Represents a single measurable metric collected from a source.
 ///
 /// A metric consists of a name, a numeric value, a unit of measurement,
@@ -16,12 +18,12 @@ use serde::Serialize;
 /// # Examples
 ///
 /// ```
-/// use joule_profiler_core::types::Metric;
+/// use joule_profiler_core::{types::Metric, unit::{MetricUnit, Unit, UnitPrefix}};
 ///
 /// let energy = Metric {
 ///     name: "energy_pkg".to_string(),
 ///     value: 123456,
-///     unit: "µJ".to_string(),
+///     unit: MetricUnit { unit: Unit::Joule, prefix: UnitPrefix::Micro },
 ///     source: "rapl".to_string(),
 /// };
 /// println!("Metric {}: {} {}", energy.name, energy.value, energy.unit);
@@ -32,7 +34,7 @@ pub struct Metric {
 
     pub value: u64,
 
-    pub unit: String,
+    pub unit: MetricUnit,
 
     pub source: String,
 }
