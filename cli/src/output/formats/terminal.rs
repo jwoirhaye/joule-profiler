@@ -190,25 +190,31 @@ impl Displayer for TerminalOutput {
             println!("No sensors available.");
             return Ok(());
         }
-        self.print_header("Available Sensors");
 
-        println!("  {:<20} | {:<5} | {:<15}", "Name", "Unit", "Source");
+        self.print_header("Available Sensors");
 
         let mut sensors_by_source: HashMap<&String, Vec<&Sensor>> = HashMap::new();
         for sensor in sensors {
             sensors_by_source
                 .entry(&sensor.source)
                 .or_default()
-                .push(sensor)
+                .push(sensor);
         }
 
-        for source_sensors in sensors_by_source.values() {
+        let mut sources: Vec<_> = sensors_by_source.keys().collect();
+        sources.sort_unstable();
+
+        for source in sources {
+            let source_sensors = &sensors_by_source[source];
+
+            println!();
+            self.print_subheader(source, "");
+
+            println!("  {:<20} | {:<5}", "Name", "Unit");
             println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
+
             for sensor in source_sensors {
-                println!(
-                    "  {:<20} | {:<5} | {:<15}",
-                    sensor.name, sensor.unit, sensor.source
-                );
+                println!("  {:<20} | {:<5}", sensor.name, sensor.unit);
             }
         }
 
