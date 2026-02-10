@@ -23,7 +23,9 @@ pub fn compute_measurement_from_snapshots(
     for domain in domains {
         trace!("Processing domain '{}'", domain.get_name());
 
-        let start_value = match begin.metrics.get(&(domain.domain_type, domain.socket)) {
+        let domain_index = (domain.domain_type, domain.socket);
+
+        let start_value = match begin.metrics.get(&domain_index) {
             Some(v) => *v,
             None => {
                 error!(
@@ -37,7 +39,7 @@ pub fn compute_measurement_from_snapshots(
             }
         };
 
-        let end_value = match end.metrics.get(&(domain.domain_type, domain.socket)) {
+        let end_value = match end.metrics.get(&domain_index) {
             Some(v) => *v,
             None => {
                 error!(
@@ -61,7 +63,7 @@ pub fn compute_measurement_from_snapshots(
         );
 
         per_domain_energy
-            .entry((domain.domain_type, domain.socket))
+            .entry(domain_index)
             .and_modify(|v| *v += diff)
             .or_insert(diff);
     }
