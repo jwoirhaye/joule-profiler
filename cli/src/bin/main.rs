@@ -1,6 +1,6 @@
 use anyhow::Result;
 use joule_profiler_cli::{
-    CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer, parse_config,
+    CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer,
     parse_sockets_spec,
 };
 use joule_profiler_core::JouleProfiler;
@@ -13,6 +13,7 @@ use source_rapl::{perf, powercap};
 async fn main() -> Result<()> {
     let cli = CliArgs::from_args();
     init_logging(cli.verbose);
+    
     let mut displayer = output_format_to_displayer(&cli)?;
     let mut profiler = JouleProfiler::new();
 
@@ -48,12 +49,15 @@ async fn main() -> Result<()> {
 
     if cli.gpu {
         match Nvml::new() {
-            Ok(nvml) => profiler.add_source(nvml),
+            Ok(nvml) => {
+                trace!("Using NVML for Nvidia GPU proviling");
+                profiler.add_source(nvml)
+            },
             Err(err) => warn!("{}", err),
         }
     }
 
-    let config: Config = parse_config(cli)?;
+    let config = Config::from(cli);
 
     match config.command {
         Command::Profile(profile_config) => {
