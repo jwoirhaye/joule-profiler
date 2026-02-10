@@ -22,7 +22,9 @@ pub fn compute_measurement_from_snapshots(
     for domain in domains {
         trace!("Processing domain '{}'", domain.get_name());
 
-        let start_uj = match begin.metrics.get(&(domain.domain_type, domain.socket)) {
+        let domain_index = (domain.domain_type, domain.socket);
+
+        let start_uj = match begin.metrics.get(&domain_index) {
             Some(v) => *v,
             None => {
                 error!(
@@ -36,7 +38,7 @@ pub fn compute_measurement_from_snapshots(
             }
         };
 
-        let end_uj = match end.metrics.get(&(domain.domain_type, domain.socket)) {
+        let end_uj = match end.metrics.get(&domain_index) {
             Some(v) => *v,
             None => {
                 error!(
