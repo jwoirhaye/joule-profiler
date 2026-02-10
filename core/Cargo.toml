@@ -11,8 +11,8 @@ keywords = ["energy", "profiling"]
 [dependencies]
 log.workspace = true
 serde.workspace = true
-tokio.workspace = true
 thiserror.workspace = true
+tokio = { version = "1.25", features = ["macros", "rt-multi-thread", "sync"] }
 regex = "1.12.2"
 derive_builder = "0.20.2"
 futures = "0.3.31"
