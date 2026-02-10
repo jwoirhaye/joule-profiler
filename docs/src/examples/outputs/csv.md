@@ -1,9 +1,7 @@
 # CSV Output Format
 
-Joule Profiler can also export results as **CSV** (semicolon-separated by default).  
+Joule Profiler can also export results as **CSV** using the `--csv` CLI flag.  
 This format is suitable for spreadsheets, scripting, or import into analysis tools.
-
----
 
 ## CSV Header
 
@@ -43,7 +41,6 @@ Which gives:
 | 0        | START -> END  | 1859            | CORE-0      | 45935552     | µJ          | powercap      | START       | END       |            |          | 1769987854341  | python3 nbody.py 500000   | 0         | __[A-Z0-9_]+__   |
 | 0        | START -> END  | 1859            | DRAM-0      | 1283811      | µJ          | powercap      | START       | END       |            |          | 1769987854341  | python3 nbody.py 500000   | 0         | __[A-Z0-9_]+__   |
 | 0        | START -> END  | 1859            | PACKAGE-0   | 66560987     | µJ          | powercap      | START       | END       |            |          | 1769987854341  | python3 nbody.py 500000   | 0         | __[A-Z0-9_]+__   |
-
 
 - This minimal CSV corresponds to a **single run** of the program.
 - Each metric is on a separate row, even if coming from the same phase.
@@ -102,9 +99,8 @@ which gives the following table:
 | CORE-0 | µJ | powercap |
 | UNCORE-0 | µJ | powercap |
 
-## Notes
-
-- CSV is **semicolon-separated** for compatibility with most spreadsheet software.
-- Each row represents **one metric** for a single phase.
-- Multiple iterations are flattened in sequence, making it easy to filter by `iteration_id`.
-- Programmatic tools can aggregate phases, iterations, and sources easily using the CSV columns.
+> [!NOTE]
+> - CSV is **semicolon-separated** for compatibility with most spreadsheet software.
+> - Each row represents **one metric** for a single phase.
+> - Multiple iterations are flattened in sequence, making it easy to filter by `iteration_id`.
+> - Programmatic tools can aggregate phases, iterations, and sources easily using the CSV columns.

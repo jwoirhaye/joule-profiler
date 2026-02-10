@@ -71,4 +71,8 @@ Here is a graphic of the theoretical overflow time depending on the CPU wattage:
 | 900 | 4,51 |
 | 1000 | 4,22 |
 
+> [!NOTE]
+> These overflow times are indicative only and serve as a reference scale.
+> Actual values vary across hardware, kernel behavior, and workloads and must not be considered fixed thresholds.
+
 [^powercap]: [Powercap documentation](https://docs.kernel.org/power/powercap/powercap.html)

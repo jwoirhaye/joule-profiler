@@ -11,7 +11,7 @@
 ### Available Sources
 
 - **Intel RAPL:** Measures CPU and DRAM energy domains.  
-  - Implemented using either **perf_events** or **Powercap** on Linux systems.  
+  - Implemented using either **perf_event** or **Powercap** on Linux systems.  
   - For details, see [RAPL Overview](rapl/introduction.md).  
 
 - **Nvidia GPUs (NVML):** Provides energy and performance metrics for Nvidia GPUs.  

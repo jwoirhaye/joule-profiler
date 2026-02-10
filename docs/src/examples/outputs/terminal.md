@@ -52,6 +52,7 @@ After the phase information, metrics from each source are displayed:
   - `value` – Energy consumed
   - `unit` – `µJ` (microjoules)
 
+> [!NOTE]
 > All sources are reported for each phase, allowing a complete view of program metrics.
 
 ## Minimal Example (Single Phase, Single Iteration)
@@ -93,6 +94,7 @@ If multiple iterations are run, each iteration is displayed as a separate block:
 - **Duration / Exit code** – Time and return code for this iteration.
 - Phases and metrics are repeated for each iteration.
 
+> [!NOTE]
 > Multiple iterations improve measurement accuracy and reduce variance.
 
 ## Listing Sensors

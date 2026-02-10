@@ -131,6 +131,7 @@ When profiling with multiple iterations, the JSON structure includes an `iterati
 | `iterations[].exit_code` | Exit code of the program in this iteration |
 | `iterations[].phases` | Phases measured within this iteration |
 
+> [!NOTE]
 > Each iteration repeats the same phase structure, making it easy to compare metrics across iterations.
 
 ## Listing Sensors
