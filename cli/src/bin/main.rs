@@ -13,7 +13,7 @@ use source_rapl::{perf, powercap};
 async fn main() -> Result<()> {
     let cli = CliArgs::from_args();
     init_logging(cli.verbose);
-    
+
     let mut displayer = output_format_to_displayer(&cli)?;
     let mut profiler = JouleProfiler::new();
 
@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
             Ok(nvml) => {
                 trace!("Using NVML for Nvidia GPU proviling");
                 profiler.add_source(nvml)
-            },
+            }
             Err(err) => warn!("{}", err),
         }
     }

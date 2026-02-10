@@ -259,8 +259,8 @@ impl MetricReader for Rapl {
         };
 
         let domains = self.domains.clone();
-        let last_snapshot = Arc::clone(&self.last_snapshot);
-        let current_counters = Arc::clone(&self.current_counters);
+        let last_snapshot = self.last_snapshot.clone();
+        let current_counters = self.current_counters.clone();
 
         let handle = tokio::spawn(async move {
             loop {
@@ -278,8 +278,9 @@ impl MetricReader for Rapl {
                 let new_snapshot = {
                     let mut map = HashMap::with_capacity(domains.len());
                     for domain in &domains {
+                        let domain_index = (domain.domain_type, domain.socket);
                         let val_uj = read_energy(domain)?;
-                        map.insert((domain.domain_type, domain.socket), val_uj);
+                        map.insert(domain_index, val_uj);
                     }
                     Snapshot { metrics: map }
                 };
