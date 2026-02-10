@@ -10,7 +10,7 @@ use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
     types::{Metric, Metrics},
-    unit::{MetricPrefix, MetricUnit, Unit},
+    unit::{MetricUnit, Unit, UnitPrefix},
 };
 use log::{debug, trace};
 
@@ -21,7 +21,7 @@ mod snapshot;
 
 const NVML_SOURCE_NAME: &str = "NVML";
 const MILLI_JOULE_UNIT: MetricUnit = MetricUnit {
-    prefix: MetricPrefix::Milli,
+    prefix: UnitPrefix::Milli,
     unit: Unit::Joule,
 };
 
@@ -173,7 +173,7 @@ impl MetricReader for Nvml {
             .map(|(device_index, energy)| Metric {
                 name: format!("GPU-{}", device_index),
                 value: energy,
-                unit: MILLI_JOULE_UNIT.to_string(),
+                unit: MILLI_JOULE_UNIT,
                 source: NVML_SOURCE_NAME.to_string(),
             })
             .collect()
