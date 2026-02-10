@@ -24,7 +24,7 @@
 //! - [`RaplError::UnsupportedOS`] - only Linux is supported.
 //! - [`RaplError::RaplReadError`] or [`RaplError::InvalidRaplPath`] - problems reading counters or invalid paths.
 
-use joule_profiler_core::unit::{MetricPrefix, MetricUnit, Unit};
+use joule_profiler_core::unit::{MetricUnit, Unit, UnitPrefix};
 
 mod domain_type;
 mod error;
@@ -39,6 +39,6 @@ pub use error::RaplError;
 type Result<T> = std::result::Result<T, RaplError>;
 
 const MICRO_JOULE_UNIT: MetricUnit = MetricUnit {
-    prefix: MetricPrefix::Micro,
+    prefix: UnitPrefix::Micro,
     unit: Unit::Joule,
 };

@@ -33,9 +33,14 @@
 //! # Examples
 //!
 //! ```no_run
-//! use joule_profiler_core::types::{Metric, Metrics};
+//! use joule_profiler_core::{types::{Metric, Metrics}, unit::{Unit, MetricUnit, UnitPrefix}};
 //!
-//! let metric = Metric { name: "cpu_power".into(), value: 42, unit: "u64".into(), source: "RAPL".into() };
+//! let micro_joule_unit: MetricUnit = MetricUnit {
+//!     prefix: UnitPrefix::Micro,
+//!     unit: Unit::Joule,
+//! };
+//!
+//! let metric = Metric { name: "cpu_power".into(), value: 42, unit: micro_joule_unit, source: "RAPL".into() };
 //! let metrics: Metrics = vec![metric];
 //! ```
 
