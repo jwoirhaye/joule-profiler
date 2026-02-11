@@ -41,6 +41,16 @@ impl RaplDomainType {
             domain_type => format!("{}-{}", domain_type, socket),
         }
     }
+
+    pub fn to_perf_event(self) -> &'static str {
+        match self {
+            RaplDomainType::Package => "energy-pkg",
+            RaplDomainType::Core => "energy-cores",
+            RaplDomainType::Uncore => "energy-gpu",
+            RaplDomainType::Dram => "energy-ram",
+            RaplDomainType::Psys => "energy-psys",
+        }
+    }
 }
 
 impl Display for RaplDomainType {

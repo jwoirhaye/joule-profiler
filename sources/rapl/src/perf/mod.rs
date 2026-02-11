@@ -1,4 +1,8 @@
-use std::{collections::HashSet, fs, io::ErrorKind};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    io::ErrorKind,
+};
 
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
@@ -6,13 +10,14 @@ use joule_profiler_core::{
     types::Metric,
 };
 use log::{info, trace};
+use perf_event::GroupData;
 
 use crate::{
     MICRO_JOULE_UNIT, Result,
     error::{PerfParanoidError, RaplError},
     perf::{
-        compute::compute_measurement_from_snapshots,
-        domain::{PerfRaplDomain, discover_domains_and_open_counters},
+        compute::compute_measurement_from_snapshots, domain::discover_domains_and_open_counters,
+        socket::Socket,
     },
     snapshot::Snapshot,
     util::check_os,
@@ -20,6 +25,7 @@ use crate::{
 
 mod compute;
 mod domain;
+mod event;
 mod socket;
 
 /// Default sysfs path for perf RAPL counters.
@@ -36,7 +42,7 @@ const PERF_PARANOID_PATH: &str = "/proc/sys/kernel/perf_event_paranoid";
 /// Provides energy readings per RAPL domain (e.g., package, core, dram).
 pub struct Rapl {
     /// Discovered RAPL domains and associated counters.
-    domains: Vec<PerfRaplDomain>,
+    sockets: Vec<Socket>,
 
     /// Accumulated metrics from measurements.
     current_counters: Snapshot,
@@ -50,7 +56,6 @@ impl Rapl {
     ///
     /// # Arguments
     ///
-    /// * `rapl_path` - Optional path to RAPL sysfs directory.
     /// * `sockets_spec` - Optional set of socket IDs to restrict measurement.
     ///
     /// # Returns
@@ -63,25 +68,31 @@ impl Rapl {
     /// - OS is unsupported
     /// - RAPL counters cannot be read
     /// - Perf PMU type cannot be retrieved
-    pub fn new(rapl_path: Option<&str>, sockets_spec: Option<HashSet<u32>>) -> Result<Self> {
+    pub fn new(sockets_spec: Option<HashSet<u32>>) -> Result<Self> {
         check_os()?;
 
         let paranoid_level = read_paranoid_level()?;
         trace!("Perf paranoid level set to {}", paranoid_level);
 
-        let rapl_path = rapl_path.unwrap_or(PERF_RAPL_PATH);
         trace!(
-            "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
-            rapl_path, sockets_spec
+            "Attempting to initialize RAPL reader: sockets={:?}",
+            sockets_spec
         );
 
-        let pmu_type = read_pmu_type()?;
-        let domains =
-            discover_domains_and_open_counters(pmu_type, rapl_path, sockets_spec.as_ref())?;
-        info!("Discovered {} RAPL domain(s)", domains.len());
+        let sockets = discover_domains_and_open_counters(sockets_spec.as_ref()).map_err(|err| {
+            if let RaplError::PerfParanoid(_) = err
+                && paranoid_level > 0
+            {
+                PerfParanoidError::ParanoidLevelTooHigh(paranoid_level).into()
+            } else {
+                err
+            }
+        })?;
+
+        info!("Discovered {} socket(s)", sockets.len());
 
         Ok(Self {
-            domains,
+            sockets,
             current_counters: Default::default(),
             last_snapshot: None,
         })
@@ -97,15 +108,22 @@ impl Rapl {
     ///
     /// Returns a `Snapshot` containing domain metrics.
     fn read_domains_counter(&mut self) -> Result<Snapshot> {
-        let metrics = self
-            .domains
-            .iter_mut()
-            .map(|domain| {
-                let value = domain.read_counter()?;
-                let domain_index = (domain.domain_type, domain.socket);
-                Ok((domain_index, value))
-            })
-            .collect::<Result<_>>()?;
+        let mut metrics = HashMap::new();
+
+        for socket in &mut self.sockets {
+            let group_data: GroupData = socket.group.read()?;
+
+            for domain in &socket.domains {
+                let domain_index = (domain.domain_type, socket.id);
+
+                let value = group_data
+                    .get(&domain.event_counter.counter)
+                    .map(|d| d.value())
+                    .unwrap_or(0);
+
+                metrics.insert(domain_index, value);
+            }
+        }
 
         Ok(Snapshot { metrics })
     }
@@ -122,7 +140,7 @@ impl MetricReader for Rapl {
         let new_snapshot = self.read_domains_counter()?;
         if let Some(last_snapshot) = &self.last_snapshot {
             let metrics =
-                compute_measurement_from_snapshots(&self.domains, last_snapshot, &new_snapshot)?;
+                compute_measurement_from_snapshots(&self.sockets, last_snapshot, &new_snapshot)?;
             self.current_counters += metrics;
         }
         self.last_snapshot = Some(new_snapshot);
@@ -144,15 +162,18 @@ impl MetricReader for Rapl {
         trace!("Building RAPL sensor list");
 
         let sensors = self
-            .domains
+            .sockets
             .iter()
-            .map(|domain| {
-                trace!("Registering sensor: {}", domain.get_name());
-                Sensor {
-                    name: domain.get_name(),
-                    unit: MICRO_JOULE_UNIT,
-                    source: Self::get_name().to_string(),
-                }
+            .flat_map(|socket| {
+                socket.domains.iter().map(|domain| {
+                    let domain_name = domain.get_name(socket.id);
+                    trace!("Registering sensor: {}", domain_name);
+                    Sensor {
+                        name: domain_name,
+                        unit: MICRO_JOULE_UNIT,
+                        source: Self::get_name().to_string(),
+                    }
+                })
             })
             .collect();
 
@@ -164,26 +185,36 @@ impl MetricReader for Rapl {
         PERF_SOURCE_NAME
     }
 
-    /// Convert a `Snapshot` into a list of `Metric`s.
+    /// Convert a Snapshot into Metrics.
     fn to_metrics(&self, snapshot: Self::Type) -> joule_profiler_core::types::Metrics {
-        self.domains
+        self.sockets
             .iter()
-            .filter_map(|domain| {
-                let domain_index = (domain.domain_type, domain.socket);
-                if let Some(metric) = snapshot.metrics.get(&domain_index) {
-                    let joules = domain.compute_scale(*metric);
-                    let micro_joules = joules_to_micro_joules(joules);
-                    Some(Metric {
-                        name: domain.domain_type.to_string_socket(domain.socket),
-                        value: micro_joules,
-                        unit: MICRO_JOULE_UNIT,
-                        source: PERF_SOURCE_NAME.to_string(),
-                    })
-                } else {
-                    None
-                }
+            .flat_map(|socket| {
+                socket.domains.iter().filter_map(|domain| {
+                    let domain_index = (domain.domain_type, socket.id);
+                    if let Some(metric) = snapshot.metrics.get(&domain_index) {
+                        let joules = domain.compute_scale(*metric);
+                        let micro_joules = joules_to_micro_joules(joules);
+                        Some(Metric {
+                            name: domain.domain_type.to_string_socket(socket.id),
+                            value: micro_joules,
+                            unit: MICRO_JOULE_UNIT,
+                            source: PERF_SOURCE_NAME.to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                })
             })
             .collect()
+    }
+
+    /// Enable the perf_event counters
+    async fn init(&mut self) -> Result<()> {
+        self.sockets
+            .iter_mut()
+            .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;
+        Ok(())
     }
 }
 
