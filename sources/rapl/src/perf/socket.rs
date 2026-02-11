@@ -4,8 +4,9 @@ use std::{
 };
 
 use log::{debug, trace};
+use perf_event::Group;
 
-use crate::Result;
+use crate::{Result, perf::domain::PerfRaplDomain};
 
 /// Path to CPU sysfs directory.
 const CPU_SYSFS_PATH: &str = "/sys/devices/system/cpu";
@@ -23,6 +24,12 @@ pub struct SocketInfo {
     pub socket_id: u32,
     /// List of CPU IDs associated with this socket.
     pub cpus_id: Vec<u32>,
+}
+
+pub struct Socket {
+    pub id: u32,
+    pub group: Group,
+    pub domains: Vec<PerfRaplDomain>,
 }
 
 /// Discover the CPU socket topology of the system.
@@ -52,23 +59,19 @@ pub fn discover_socket_topology(
             continue;
         }
 
-        // Parse CPU ID from directory name, e.g., "cpu0" -> 0
         let cpu_id: u32 = if let Ok(id) = name.chars().skip(3).collect::<String>().parse() {
             id
         } else {
             continue;
         };
 
-        // Skip CPUs that are offline
         if !online_cpus.contains(&cpu_id) {
             continue;
         }
 
-        // Read the socket ID from sysfs
         let pkg_path = format!("{}/{}{}", CPU_SYSFS_PATH, name, CPU_TOPOLOGY_SOCKET_ID);
         let socket_id: u32 = fs::read_to_string(pkg_path)?.trim().parse()?;
 
-        // Skip if filtering by specific sockets
         if let Some(sockets) = sockets_to_discover
             && !sockets.contains(&socket_id)
         {
@@ -80,8 +83,9 @@ pub fn discover_socket_topology(
 
     let socket_topology: Vec<SocketInfo> = sockets
         .into_iter()
-        .map(|(socket_id, cpus_id)| {
+        .map(|(socket_id, mut cpus_id)| {
             trace!("Found {:?} cpus for socket {}", cpus_id, socket_id);
+            cpus_id.sort_unstable();
             SocketInfo { socket_id, cpus_id }
         })
         .collect();
@@ -115,6 +119,5 @@ fn read_online_cpus() -> Result<HashSet<u32>> {
             cpus.insert(cpu);
         }
     }
-
     Ok(cpus)
 }

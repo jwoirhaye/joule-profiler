@@ -1,22 +1,17 @@
-use std::{
-    collections::HashSet,
-    fs::{self, File},
-    io::Read,
-    os::fd::{FromRawFd, RawFd},
-};
+use std::{collections::HashSet, io::ErrorKind};
 
-use log::{debug, error, info, trace, warn};
-use perf_event_open_sys::{bindings::perf_event_attr, perf_event_open};
+use log::debug;
+use perf_event::{Builder, Group, ReadFormat, events::Software};
 
 use crate::{
     Result,
     domain_type::RaplDomainType,
-    error::RaplError,
-    perf::{PERF_RAPL_PATH, socket::discover_socket_topology},
+    error::{PerfParanoidError, RaplError},
+    perf::{
+        event::{RaplEvent, open_counters},
+        socket::{Socket, SocketInfo, discover_socket_topology},
+    },
 };
-
-/// Flag used for `perf_event_open` to automatically close the FD on exec.
-const PERF_FLAG_FD_CLOEXEC: u64 = 8;
 
 /// Represents a RAPL domain with its perf_event counter.
 ///
@@ -25,202 +20,118 @@ const PERF_FLAG_FD_CLOEXEC: u64 = 8;
 pub struct PerfRaplDomain {
     /// Domain type (package, dram, core, etc.).
     pub domain_type: RaplDomainType,
-    /// Socket ID where this domain resides.
-    pub socket: u32,
-    /// Scaling factor to convert raw counter to joules.
-    pub scale: f64,
-    /// File descriptor for the perf counter.
-    pub fd: File,
+
+    pub event_counter: RaplEvent,
 }
 
 impl PerfRaplDomain {
     /// Create a new `PerfRaplDomain`.
-    pub fn new(domain_type: RaplDomainType, socket: u32, scale: f64, fd: File) -> Self {
+    pub fn new(domain_type: RaplDomainType, event_counter: RaplEvent) -> Self {
         Self {
             domain_type,
-            socket,
-            scale,
-            fd,
+            event_counter,
         }
-    }
-
-    /// Read the raw perf counter value from the file descriptor.
-    ///
-    /// # Returns
-    ///
-    /// The current counter value as `u64`.
-    pub fn read_counter(&mut self) -> Result<u64> {
-        let mut buf = [0u8; 8];
-        self.fd.read_exact(&mut buf)?;
-        Ok(u64::from_ne_bytes(buf))
     }
 
     /// Apply the domain-specific scaling factor to convert raw value to joules.
     pub fn compute_scale(&self, value: u64) -> f64 {
-        value as f64 * self.scale
+        value as f64 * self.event_counter.scale
     }
 
-    /// Return a human-readable domain name including socket, e.g., `PACKAGE-0`.
-    pub fn get_name(&self) -> String {
-        self.domain_type.to_string_socket(self.socket)
+    /// Return the domain name including socket, e.g., `PACKAGE-0`.
+    pub fn get_name(&self, socket: u32) -> String {
+        self.domain_type.to_string_socket(socket)
     }
 }
 
-/// Discover available RAPL domains and open perf counters for each.
+/// Attempts to create a perf `Group` for a given socket by trying each CPU
+/// in the provided list until one succeeds.
 ///
 /// # Arguments
 ///
-/// * `pmu_type` - PMU type obtained from sysfs.
-/// * `rapl_path` - Path to RAPL sysfs directory.
+/// * `socket_info` - The information of a socket (e.g. its id and associated cpus)
+///
+/// # Returns
+///
+/// * `Ok(Group)` - The first successfully built perf group.
+/// * `Err(RaplError::FailToOpenDomainCounter)` - If no CPU can be used to build the group.
+///
+/// # Notes
+///
+/// * Some PMUs, such as RAPL energy counters, are only accessible via a
+///   specific CPU on the socket (often the first CPU). This function ensures
+///   portability by trying all CPUs in the socket.
+pub fn build_group_for_socket(socket_info: &SocketInfo) -> Result<Group> {
+    for cpu in &socket_info.cpus_id {
+        debug!("Trying to build perf group on CPU {}", cpu);
+
+        match Builder::new(Software::DUMMY)
+            .read_format(ReadFormat::GROUP)
+            .one_cpu(*cpu as usize)
+            .any_pid()
+            .exclude_kernel(false)
+            .exclude_hv(false)
+            .build_group()
+        {
+            Ok(group) => {
+                debug!("Perf group successfully built on CPU {}", cpu);
+                return Ok(group);
+            }
+            Err(err) => {
+                debug!("Failed to build group on CPU {}: {:?}", cpu, err);
+                match err.kind() {
+                    ErrorKind::PermissionDenied => {
+                        return Err(PerfParanoidError::IoError(err).into());
+                    }
+                    _ => continue,
+                }
+            }
+        }
+    }
+
+    Err(RaplError::FailToOpenDomainCounter(format!(
+        "unable to find a CPU associate to the {} socket's PMU",
+        socket_info.socket_id
+    )))
+}
+
+/// Discover the system's socket topology.
+///
+/// # Arguments
+///
 /// * `domains_to_discover` - Optional filter for socket IDs.
 ///
 /// # Returns
 ///
-/// A vector of initialized `PerfRaplDomain` instances.
+/// A vector of `SocketInfo` with socket IDs and associated CPUs.
+///
+/// # Errors
+///
+/// Returns `RaplError` if socket topology cannot be determined.
+pub fn discover_domains(domains_to_discover: Option<&HashSet<u32>>) -> Result<Vec<SocketInfo>> {
+    let socket_topology = discover_socket_topology(domains_to_discover)?;
+    debug!("Socket topology: {:?}", socket_topology);
+    Ok(socket_topology)
+}
+
+/// Discover available RAPL domains and open perf counters for each.
+///
+/// Convenience function that combines `discover_domains` and `open_counters`.
+///
+/// # Arguments
+///
+/// * `domains_to_discover` - Optional filter for socket IDs.
+///
+/// # Returns
+///
+/// A vector of initialized `Socket` instances.
 ///
 /// # Errors
 ///
 /// Returns `RaplError` if any perf counter cannot be opened or parsed.
 pub fn discover_domains_and_open_counters(
-    pmu_type: u32,
-    rapl_path: &str,
     domains_to_discover: Option<&HashSet<u32>>,
-) -> Result<Vec<PerfRaplDomain>> {
-    let mut domains = Vec::new();
-    let domains_dir_path = format!("{}/events", rapl_path);
-
-    info!("Discovering RAPL domains under {}", domains_dir_path);
-
-    let socket_topology = discover_socket_topology(domains_to_discover)?;
-    debug!("Socket topology: {:?}", socket_topology);
-
-    for socket in &socket_topology {
-        debug!(
-            "Processing socket {} (cpus={:?})",
-            socket.socket_id, socket.cpus_id
-        );
-
-        for entry_result in fs::read_dir(&domains_dir_path)? {
-            let entry = entry_result?;
-            let file_name = entry.file_name().into_string().map_err(|_| {
-                let entry_name = entry.file_name().into_string().map_err(|err| {
-                    RaplError::RaplReadError(format!("Cannot parse dir entry {:?}", err))
-                });
-                match entry_name {
-                    Ok(name) => RaplError::UnknownDomain(name),
-                    Err(err) => err,
-                }
-            })?;
-
-            if file_name.ends_with(".scale")
-                || file_name.ends_with(".unit")
-                || entry.file_type()?.is_dir()
-            {
-                continue;
-            }
-
-            debug!("Found RAPL domain file {}", file_name);
-
-            let event = read_domain_event_number(&file_name)?;
-            let scale = read_domain_scale(&file_name)?;
-            let domain_type = file_name.try_into()?;
-
-            let first_cpu_socket = if let Some(first_socket_cpu) = socket.cpus_id.first() {
-                first_socket_cpu
-            } else {
-                warn!(
-                    "Socket {} has no CPUs, skipping domain {}",
-                    socket.socket_id, domain_type
-                );
-                continue;
-            };
-
-            trace!(
-                "Opening counter: socket={}, cpu={}, domain={}, event={}",
-                socket.socket_id, first_cpu_socket, domain_type, event
-            );
-
-            let fd = open_domain_counter(pmu_type, event, *first_cpu_socket)?;
-            let file = unsafe { File::from_raw_fd(fd) };
-            let domain = PerfRaplDomain::new(domain_type, socket.socket_id, scale, file);
-
-            debug!(
-                "Opened domain {:?} on socket {}, fd: {}",
-                domain_type, socket.socket_id, fd
-            );
-
-            domains.push(domain);
-        }
-    }
-
-    info!("Opened {} RAPL domains", domains.len());
-    Ok(domains)
-}
-
-/// Open a perf counter for a given event on a CPU.
-///
-/// # Errors
-///
-/// Returns `RaplError` if perf counter cannot be opened.
-fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
-    let mut attr: perf_event_attr = unsafe { std::mem::zeroed() };
-    attr.type_ = pmu_type;
-    attr.size = std::mem::size_of::<perf_event_attr>() as u32;
-    attr.config = event;
-
-    let fd = unsafe {
-        perf_event_open(
-            &mut attr as *mut perf_event_attr,
-            -1,
-            cpu as i32,
-            -1,
-            PERF_FLAG_FD_CLOEXEC,
-        )
-    };
-
-    if fd < 0 {
-        let err = std::io::Error::last_os_error();
-        match err.kind() {
-            std::io::ErrorKind::PermissionDenied => {
-                return Err(RaplError::FailToOpenDomainCounter(
-                    "try with root privileges or decrease perf_events paranoid level.".to_string(),
-                ));
-            }
-            _ => {
-                error!(
-                    "Failed to open perf counter (cpu={}, event={}): {}",
-                    cpu, event, err
-                );
-                return Err(err.into());
-            }
-        }
-    }
-
-    Ok(fd)
-}
-
-/// Read the scaling factor for a RAPL domain from sysfs.
-fn read_domain_scale(domain_name: &str) -> Result<f64> {
-    let path = format!("{}/events/{}.scale", PERF_RAPL_PATH, domain_name);
-    fs::read_to_string(path)?
-        .trim()
-        .parse::<f64>()
-        .map_err(Into::into)
-}
-
-/// Read the event number of a RAPL domain from sysfs.
-///
-/// # Errors
-///
-/// Returns `RaplError::InvalidEventFormat` if the event string cannot be parsed.
-fn read_domain_event_number(domain: &str) -> Result<u64> {
-    let type_path = format!("{}/events/{}", PERF_RAPL_PATH, domain);
-    let content = fs::read_to_string(&type_path)?.trim().to_string();
-
-    let hex_str = content
-        .strip_prefix("event=0x")
-        .or_else(|| content.strip_prefix("event="))
-        .ok_or_else(|| RaplError::InvalidEventFormat(domain.to_string()))?;
-
-    u64::from_str_radix(hex_str, 16).map_err(|_| RaplError::InvalidEventFormat(domain.to_string()))
+) -> Result<Vec<Socket>> {
+    let socket_topology = discover_domains(domains_to_discover)?;
+    open_counters(socket_topology)
 }
