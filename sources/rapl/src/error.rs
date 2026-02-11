@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::domain_type::RaplDomainType;
+
 #[derive(Debug, Error)]
 pub enum RaplError {
     #[error("Intel RAPL not available: {0}")]
@@ -38,12 +40,14 @@ pub enum RaplError {
     #[error("Invalid event format for domain {0}")]
     InvalidEventFormat(String),
 
-    #[error("Perf paranoid error")]
-    PerfParanoid(
-        #[from]
-        #[source]
-        PerfParanoidError,
-    ),
+    #[error("Domain {0} not supported")]
+    DomainNotSupported(RaplDomainType),
+
+    #[error(transparent)]
+    PerfParanoid(#[from] PerfParanoidError),
+
+    #[error("Cannot retrieve perf RAPL scale")]
+    RetrieveScaleError,
 
     #[error(transparent)]
     IoError(std::io::Error),
@@ -80,6 +84,11 @@ pub enum PerfParanoidError {
 
     #[error("perf_event_paranoid not readable: {0}")]
     PermissionDenied(String),
+
+    #[error(
+        "perf_event_paranoid level is {0}, try setting it to 0 or launch profiler with root rights"
+    )]
+    ParanoidLevelTooHigh(u8),
 
     #[error(transparent)]
     IoError(std::io::Error),
