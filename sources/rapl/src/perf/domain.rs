@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::{self, File},
     io::Read,
-    os::fd::{AsRawFd, FromRawFd, RawFd},
+    os::fd::{FromRawFd, RawFd},
 };
 
 use log::{debug, error, info, trace, warn};
@@ -60,16 +60,6 @@ impl PerfRaplDomain {
         value as f64 * self.scale
     }
 
-    /// Enable the perf counter.
-    pub fn enable_counter(&self) {
-        unsafe { perf_event_open_sys::ioctls::ENABLE(self.fd.as_raw_fd(), 0) };
-    }
-
-    /// Reset the perf counter.
-    pub fn reset_counter(&self) {
-        unsafe { perf_event_open_sys::ioctls::RESET(self.fd.as_raw_fd(), 0) };
-    }
-
     /// Return a human-readable domain name including socket, e.g., `PACKAGE-0`.
     pub fn get_name(&self) -> String {
         self.domain_type.to_string_socket(self.socket)
@@ -122,7 +112,6 @@ pub fn discover_domains_and_open_counters(
                 }
             })?;
 
-            // Skip .scale, .unit files or directories
             if file_name.ends_with(".scale")
                 || file_name.ends_with(".unit")
                 || entry.file_type()?.is_dir()
@@ -178,7 +167,6 @@ fn open_domain_counter(pmu_type: u32, event: u64, cpu: u32) -> Result<RawFd> {
     attr.type_ = pmu_type;
     attr.size = std::mem::size_of::<perf_event_attr>() as u32;
     attr.config = event;
-    attr.set_disabled(1);
 
     let fd = unsafe {
         perf_event_open(
