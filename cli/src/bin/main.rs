@@ -7,6 +7,7 @@ use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::{trace, warn};
 use source_nvml::Nvml;
+use source_perf_event::PerfEvent;
 use source_rapl::{perf, powercap};
 
 #[tokio::main]
@@ -36,7 +37,7 @@ async fn main() -> Result<()> {
                 profiler.add_source(rapl_powercap);
             } else {
                 trace!("Using perf_events for RAPL profiling");
-                let perf_rapl = perf::Rapl::new(rapl_path, rapl_sockets_spec)?;
+                let perf_rapl = perf::Rapl::new(rapl_sockets_spec)?;
                 profiler.add_source(perf_rapl);
             }
         }
