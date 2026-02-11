@@ -7,7 +7,6 @@ use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::{trace, warn};
 use source_nvml::Nvml;
-use source_perf_event::PerfEvent;
 use source_rapl::{perf, powercap};
 
 #[tokio::main]
