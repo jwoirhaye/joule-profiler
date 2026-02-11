@@ -88,27 +88,9 @@ impl Rapl {
     }
 
     /// Check if perf events access is allowed.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if PMU type cannot be read.
     pub fn check_perf_access() -> Result<()> {
         read_pmu_type()?;
         Ok(())
-    }
-
-    /// Enable counters for all domains.
-    fn enable_domains_counter(&self) {
-        for domain in &self.domains {
-            domain.enable_counter();
-        }
-    }
-
-    /// Reset counters for all domains.
-    fn reset_domains_counter(&self) {
-        for domain in &self.domains {
-            domain.reset_counter();
-        }
     }
 
     /// Read the current counter values for all domains.
@@ -202,18 +184,6 @@ impl MetricReader for Rapl {
                 }
             })
             .collect()
-    }
-
-    /// Initialize the source (enable counters).
-    async fn init(&mut self) -> Result<()> {
-        self.enable_domains_counter();
-        Ok(())
-    }
-
-    /// Reset the source (reset counters).
-    async fn reset(&mut self) -> Result<()> {
-        self.reset_domains_counter();
-        Ok(())
     }
 }
 
