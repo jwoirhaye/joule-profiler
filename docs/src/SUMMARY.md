@@ -31,8 +31,10 @@
 - [Nvidia GPU (NVML)](sources/nvml/introduction.md)
     - [Setup & Requirements](sources/nvml/setup.md)
     - [GPU Metrics](sources/nvml/metrics.md)
-- [perf_event]()
-
+- [perf_event](sources/perf_event/introduction.md)
+    - [How It Works](sources/perf_event/how-it-works.md)
+    - [perf_event_paranoid](sources/perf_event/perf_event_paranoid.md)
+    - [Accuracy](sources/perf_event/accuracy.md)
 
 ---
 
