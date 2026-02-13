@@ -7,6 +7,7 @@ use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::{trace, warn};
 use source_nvml::Nvml;
+use source_perf_event::PerfEvent;
 use source_rapl::{perf, powercap};
 
 #[tokio::main]
@@ -28,14 +29,14 @@ async fn main() -> Result<()> {
         RaplBackend::Perf => {
             if let Err(err) = perf::Rapl::check_perf_access() {
                 warn!(
-                    "Cannot initialize RAPL with perf, switching to powercap: {}",
+                    "Cannot initialize RAPL with perf_event, switching to powercap: {}",
                     err
                 );
                 let rapl_powercap =
                     powercap::Rapl::new(rapl_path, rapl_sockets_spec, rapl_polling)?;
                 profiler.add_source(rapl_powercap);
             } else {
-                trace!("Using perf_events for RAPL profiling");
+                trace!("Using perf_event for RAPL profiling");
                 let perf_rapl = perf::Rapl::new(rapl_sockets_spec)?;
                 profiler.add_source(perf_rapl);
             }
@@ -50,11 +51,17 @@ async fn main() -> Result<()> {
     if cli.gpu {
         match Nvml::new() {
             Ok(nvml) => {
-                trace!("Using NVML for Nvidia GPU proviling");
+                trace!("Using NVML for Nvidia GPU profiling");
                 profiler.add_source(nvml)
             }
             Err(err) => warn!("{}", err),
         }
+    }
+
+    if cli.perf {
+        trace!("Initializing perf_event source");
+        let perf_event = PerfEvent::new()?;
+        profiler.add_source(perf_event);
     }
 
     let config = Config::from(cli);
