@@ -3,7 +3,9 @@ resolver = "2"
 members = [
     "core",
     "cli",
-    "sources/rapl"
+    "sources/rapl",
+    "sources/nvml",
+    "sources/perf_event"
 ]
 
 [workspace.package]
@@ -16,8 +18,6 @@ readme = "README.md"
 
 [workspace.dependencies]
 joule-profiler-core = { path = "core" }
-anyhow = "1.0.100"
-env_logger = "0.11.8"
 log = "0.4.28"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.17"

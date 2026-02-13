@@ -43,6 +43,9 @@ pub enum SourceEvent {
     /// Start a new iteration
     NewIteration,
 
+    /// Init a source
+    Init,
+
     /// Signal the worker to finish and join
     JoinWorker,
 }

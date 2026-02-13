@@ -28,7 +28,7 @@ pub enum RaplError {
     #[error("Unsupported operating system: {0}. Only Linux is supported")]
     UnsupportedOS(String),
 
-    #[error("Insufficient permissions to access RAPL. Try running with sudo")]
+    #[error("Insufficient permissions to access RAPL counters. Try running with sudo")]
     InsufficientPermissions,
 
     #[error("Unknown domain {0}")]
