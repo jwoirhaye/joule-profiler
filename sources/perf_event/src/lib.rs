@@ -10,15 +10,18 @@ use joule_profiler_core::{
     source::MetricReader,
     types::{Metric, Metrics},
 };
+use log::{debug, info, trace};
 use perf_event::{Builder, Counter, Group, events::Hardware};
 
 use crate::{
     error::PerfEventError,
     event::{EVENTS, Event},
+    snapshot::Snapshot,
 };
 
 mod error;
 mod event;
+mod snapshot;
 
 type Result<T> = std::result::Result<T, PerfEventError>;
 
@@ -31,8 +34,10 @@ pub struct PerfEvent {
     group: Group,
     /// Active performance counters by event type
     perf_counters: HashMap<Event, Counter>,
-    /// Latest counter values snapshot
-    snapshot: HashMap<Event, u64>,
+    /// Accumulated counter deltas
+    current_counters: Snapshot,
+    /// Last measurement snapshot for delta calculation
+    last_snapshot: Option<Snapshot>,
 }
 
 impl PerfEvent {
@@ -40,72 +45,104 @@ impl PerfEvent {
     ///
     /// Call `init()` with a PID before measuring.
     pub fn new() -> Result<Self> {
+        debug!("Creating new perf_event source");
         Ok(Self {
             group: Group::new()?,
             perf_counters: HashMap::default(),
-            snapshot: Default::default(),
+            current_counters: Default::default(),
+            last_snapshot: None,
         })
     }
 
     /// Initialize the perf_event group for a specific process.
     fn init_group(&mut self, pid: i32) -> Result<()> {
+        debug!("Initializing perf_event group for PID {}", pid);
         self.group = Group::builder()
             .observe_pid(pid)
             .build_group()
             .map_err(PerfEventError::from)?;
+        trace!("perf_event group successfully created");
         Ok(())
     }
 
     /// Add all configured event counters to the group.
     fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()> {
+        debug!("Adding {} performance counters", events.len());
         for event in events {
+            trace!("Adding counter: {:?}", event);
             let counter = self
                 .group
                 .add(Builder::new(Hardware::from(*event)).observe_pid(pid))?;
             self.perf_counters.insert(*event, counter);
         }
+        info!("Initialized {} hardware performance counters", events.len());
         Ok(())
     }
 }
 
 impl MetricReader for PerfEvent {
-    type Type = HashMap<Event, u64>;
+    type Type = Snapshot;
 
     type Error = PerfEventError;
 
-    /// Read current counter values and reset them.
-    ///
-    /// Stores the snapshot internally for later retrieval.
+    /// Read current counter values and compute delta since last measurement.
     async fn measure(&mut self) -> Result<()> {
+        trace!("Reading perf_event counters");
         let data = self.group.read()?;
-        self.group.reset()?;
 
-        for (event, counter) in &self.perf_counters {
-            let counter_value = if let Some(value) = data.get(counter) {
-                value.value()
-            } else {
-                return Err(PerfEventError::ErrorReadingCounter(*event));
-            };
-            self.snapshot.entry(*event).insert_entry(counter_value);
+        let new_snapshot = Snapshot {
+            metrics: self
+                .perf_counters
+                .iter()
+                .map(|(event, counter)| {
+                    let value = data
+                        .get(counter)
+                        .map(|d| d.value())
+                        .ok_or(PerfEventError::ErrorReadingCounter(*event))?;
+                    trace!("{:?}: {} count", event, value);
+                    Ok((*event, value))
+                })
+                .collect::<Result<HashMap<_, _>>>()?,
+        };
+
+        if let Some(last) = &self.last_snapshot {
+            let delta = new_snapshot.delta(last);
+            trace!("Computed delta with {} events", delta.metrics.len());
+            self.current_counters += delta;
+        } else {
+            trace!("First measurement, no delta computed");
         }
+
+        self.last_snapshot = Some(new_snapshot);
         Ok(())
     }
 
     /// Retrieve and consume the last measurement snapshot.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        Ok(self.snapshot.drain().collect())
+        trace!(
+            "Retrieving perf_event counters ({} entries)",
+            self.current_counters.metrics.len()
+        );
+        Ok(std::mem::take(&mut self.current_counters))
     }
 
     /// Returns available hardware performance counter sensors.
     fn get_sensors(&self) -> Result<Sensors> {
-        Ok(EVENTS
+        trace!("Building perf_event sensor list");
+        let sensors: Sensors = EVENTS
             .iter()
-            .map(|event| Sensor {
-                name: event.to_string(),
-                source: Self::get_name().to_string(),
-                unit: event.unit(),
+            .map(|event| {
+                trace!("Registering sensor: {}", event);
+                Sensor {
+                    name: event.to_string(),
+                    source: Self::get_name().to_string(),
+                    unit: event.unit(),
+                }
             })
-            .collect())
+            .collect();
+
+        debug!("Registered {} perf_event sensors", sensors.len());
+        Ok(sensors)
     }
 
     fn get_name() -> &'static str {
@@ -114,22 +151,21 @@ impl MetricReader for PerfEvent {
 
     /// Initialize counters for a specific process and start monitoring.
     async fn init(&mut self, pid: i32) -> Result<()> {
+        info!("Initializing perf_event source for PID {}", pid);
         self.perf_counters = HashMap::new();
+        self.last_snapshot = None;
         self.init_group(pid)?;
         self.init_counters(EVENTS, pid)?;
         self.group.enable()?;
-        Ok(())
-    }
-
-    /// Reset all performance counters to zero.
-    async fn reset(&mut self) -> Result<()> {
-        self.group.reset()?;
+        debug!("perf_event counters enabled");
         Ok(())
     }
 
     /// Convert raw counter values to metrics with metadata.
     fn to_metrics(&self, result: Self::Type) -> Metrics {
+        trace!("Converting {} counters to metrics", result.metrics.len());
         result
+            .metrics
             .into_iter()
             .map(|(event, counter)| Metric {
                 name: event.to_string(),
