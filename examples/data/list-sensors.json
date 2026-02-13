@@ -1,0 +1,42 @@
+[
+  {
+    "name": "PACKAGE-0",
+    "unit": "µJ",
+    "source": "RAPL (perf_event)"
+  },
+  {
+    "name": "CORE-0",
+    "unit": "µJ",
+    "source": "RAPL (perf_event)"
+  },
+  {
+    "name": "DRAM-0",
+    "unit": "µJ",
+    "source": "RAPL (perf_event)"
+  },
+  {
+    "name": "GPU-0",
+    "unit": "mJ",
+    "source": "NVML"
+  },
+  {
+    "name": "CPU_CYCLES",
+    "unit": "count",
+    "source": "perf_event"
+  },
+  {
+    "name": "INSTRUCTIONS",
+    "unit": "count",
+    "source": "perf_event"
+  },
+  {
+    "name": "CACHE_MISSES",
+    "unit": "count",
+    "source": "perf_event"
+  },
+  {
+    "name": "BRANCH_MISSES",
+    "unit": "count",
+    "source": "perf_event"
+  }
+]

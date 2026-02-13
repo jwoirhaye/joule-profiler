@@ -1,0 +1,9 @@
+sensor;unit;source
+PACKAGE-0;µJ;RAPL (perf_event)
+CORE-0;µJ;RAPL (perf_event)
+DRAM-0;µJ;RAPL (perf_event)
+GPU-0;mJ;NVML
+CPU_CYCLES;count;perf_event
+INSTRUCTIONS;count;perf_event
+CACHE_MISSES;count;perf_event
+BRANCH_MISSES;count;perf_event
