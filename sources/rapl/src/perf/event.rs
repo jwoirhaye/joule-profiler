@@ -139,7 +139,7 @@ pub fn open_counters(socket_topology: Vec<SocketInfo>) -> Result<Vec<Socket>> {
     Ok(sockets)
 }
 
-static PER_SOCKET_DOMAIN_TYPES: [RaplDomainType; 4] = [
+static PER_SOCKET_DOMAIN_TYPES: &[RaplDomainType] = &[
     RaplDomainType::Package,
     RaplDomainType::Core,
     RaplDomainType::Uncore,
@@ -164,11 +164,11 @@ pub fn open_counters_for_socket(
     let mut domains = Vec::new();
 
     for domain_type in PER_SOCKET_DOMAIN_TYPES {
-        add_counter_to_domain_if_supported(domain_type, socket_info, group, &mut domains)?;
+        add_counter_to_domain_if_supported(*domain_type, socket_info, group, &mut domains)?;
     }
 
     if socket_info.socket_id == 0
-        && let Some(psys_domain) = open_psys_counter(group)?
+        && let Some(psys_domain) = open_psys_counter(socket_info, group)?
     {
         domains.push(psys_domain);
     }
@@ -182,19 +182,18 @@ pub fn open_counters_for_socket(
 /// not tied to any specific socket. It should only be opened once.
 ///
 /// # Arguments
+/// * `socket_info` - Info about the target CPU socket.
 /// * `group` - Group to attach the counter to (can use any CPU's group)
 ///
 /// # Returns
 /// * `Ok(Some(PerfRaplDomain))` if PSYS is available
 /// * `Ok(None)` if PSYS is not supported on this system
 /// * `Err(RaplError)` for other errors
-pub fn open_psys_counter(group: &mut Group) -> Result<Option<PerfRaplDomain>> {
-    let psys_socket_info = SocketInfo {
-        socket_id: 0,
-        cpus_id: vec![0],
-    };
-
-    match RaplEvent::new(RaplDomainType::Psys, &psys_socket_info, group) {
+pub fn open_psys_counter(
+    socket_info: &SocketInfo,
+    group: &mut Group,
+) -> Result<Option<PerfRaplDomain>> {
+    match RaplEvent::new(RaplDomainType::Psys, socket_info, group) {
         Ok(counter) => {
             let domain = PerfRaplDomain::new(RaplDomainType::Psys, counter);
             Ok(Some(domain))

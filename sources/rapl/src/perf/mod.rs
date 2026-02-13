@@ -7,7 +7,7 @@ use std::{
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
-    types::Metric,
+    types::{Metric, Metrics},
 };
 use log::{info, trace};
 use perf_event::GroupData;
@@ -16,7 +16,7 @@ use crate::{
     MICRO_JOULE_UNIT, Result,
     error::{PerfParanoidError, RaplError},
     perf::{
-        compute::compute_measurement_from_snapshots, domain::discover_domains_and_open_counters,
+        compute::{compute_measurement_from_snapshots, joules_to_micro_joules}, domain::discover_domains_and_open_counters,
         socket::Socket,
     },
     snapshot::Snapshot,
@@ -186,7 +186,7 @@ impl MetricReader for Rapl {
     }
 
     /// Convert a Snapshot into Metrics.
-    fn to_metrics(&self, snapshot: Self::Type) -> joule_profiler_core::types::Metrics {
+    fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
         self.sockets
             .iter()
             .flat_map(|socket| {
@@ -209,8 +209,8 @@ impl MetricReader for Rapl {
             .collect()
     }
 
-    /// Enable the perf_event counters
-    async fn init(&mut self) -> Result<()> {
+    /// Enable the perf_event counters.
+    async fn init(&mut self, _: i32) -> Result<()> {
         self.sockets
             .iter_mut()
             .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;
@@ -245,10 +245,4 @@ fn read_paranoid_level() -> Result<u8> {
         })
         .map(|paranoid_level_str| paranoid_level_str.trim().parse::<u8>())?
         .map_err(|err| PerfParanoidError::ParseParanoidLevelError(err).into())
-}
-
-/// Convert joules to microjoules.
-#[inline]
-pub fn joules_to_micro_joules(joules: f64) -> u64 {
-    (joules * 1_000_000.0) as u64
 }

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicI32;
+
 use crate::aggregate::sensor_result::SensorResult;
 use crate::orchestrator::error::OrchestratorError;
 use crate::source::types::SourceEvent;
@@ -24,13 +27,13 @@ pub struct SourceOrchestrator {
 impl SourceOrchestrator {
     /// Start the metrics sources worker threads
     #[inline]
-    pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>) {
+    pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>, shared_pid: Arc<AtomicI32>) {
         let nb_sources = sources.len();
         let mut senders = Vec::with_capacity(nb_sources);
         let mut handles = Vec::with_capacity(nb_sources);
 
         for source in sources {
-            let (handle, tx) = source.run();
+            let (handle, tx) = source.run(shared_pid.clone());
             senders.push(tx);
             handles.push(handle);
         }
@@ -45,8 +48,16 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::Measure).await
     }
 
+    /// Reset the counters of each metrics source
+    #[inline]
     pub async fn reset(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Reset).await
+    }
+
+    /// Initialize each metrics source
+    #[inline]
+    pub async fn init(&mut self) -> Result<(), OrchestratorError> {
+        self.send_event(SourceEvent::Init).await
     }
 
     /// Initialize a new phase for each metrics source
@@ -94,6 +105,7 @@ impl SourceOrchestrator {
         }
     }
 
+    /// Handle the error from a disconnected source (failed) and return it
     async fn handle_event_error(
         &mut self,
         failed_index: usize,

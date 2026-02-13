@@ -15,6 +15,8 @@
 use log::{debug, info, trace};
 use regex::Regex;
 use std::io::BufWriter;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::{
     fs::File,
     io::{BufRead, BufReader, ErrorKind, Write},
@@ -108,13 +110,14 @@ impl JouleProfiler {
 
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
-        self.orchestrator.run(sources).await;
+        let shared_pid = Arc::new(AtomicI32::new(0));
+        self.orchestrator.run(sources, shared_pid.clone()).await;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
         for i in 0..config.iterations {
             info!("Starting iteration {}", i);
-            let iteration = self.measure_phases(config).await?;
+            let iteration = self.measure_phases(config, shared_pid.clone()).await?;
             command_results.push(iteration);
         }
 
@@ -183,7 +186,11 @@ impl JouleProfiler {
     }
 
     /// Measure one iteration in phases mode
-    async fn measure_phases(&mut self, config: &ProfileConfig) -> Result<MeasurePhasesReturnType> {
+    async fn measure_phases(
+        &mut self,
+        config: &ProfileConfig,
+        shared_pid: Arc<AtomicI32>,
+    ) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 
         let regex = Regex::new(&config.token_pattern).map_err(|err| {
@@ -212,11 +219,9 @@ impl JouleProfiler {
         self.orchestrator.measure().await?;
 
         let mut command = process::Command::new(&config.cmd[0]);
-        let begin_timestamp = get_timestamp_millis();
         if config.cmd.len() > 1 {
             command.args(&config.cmd[1..]);
         }
-        trace!("Begin timestamp: {}", begin_timestamp);
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
@@ -231,14 +236,30 @@ impl JouleProfiler {
             }
         })?;
 
+        let pid = child.id() as i32;
+
+        unsafe {
+            libc::kill(pid, libc::SIGSTOP);
+        }
+
+        shared_pid.store(pid, Ordering::SeqCst);
+        self.orchestrator.init().await?;
+
         let child_stdout = child
             .stdout
             .take()
             .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
         let reader = BufReader::new(child_stdout);
-
         let mut detected_phases = Vec::with_capacity(2);
+
+        let begin_timestamp = get_timestamp_millis();
+        trace!("Begin timestamp: {}", begin_timestamp);
+
+        unsafe {
+            libc::kill(pid, libc::SIGCONT);
+        }
+
         let start_phase_info = PhaseInfo {
             token: PhaseToken::Start,
             timestamp: begin_timestamp,
