@@ -1,0 +1,15 @@
+[package]
+name = "source-perf_event"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Intel RAPL energy measurement source for joule-profiler"
+keywords = ["energy", "nvml", "nvidia", "GPU", "hardware"]
+
+[dependencies]
+joule-profiler-core.workspace = true
+log.workspace = true
+perf-event2 = "0.7.4"
+thiserror.workspace = true
