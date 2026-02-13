@@ -216,7 +216,6 @@ impl JouleProfiler {
         };
 
         self.orchestrator.reset().await?;
-        self.orchestrator.measure().await?;
 
         let mut command = process::Command::new(&config.cmd[0]);
         if config.cmd.len() > 1 {
@@ -252,6 +251,8 @@ impl JouleProfiler {
 
         let reader = BufReader::new(child_stdout);
         let mut detected_phases = Vec::with_capacity(2);
+
+        self.orchestrator.measure().await?;
 
         let begin_timestamp = get_timestamp_millis();
         trace!("Begin timestamp: {}", begin_timestamp);
