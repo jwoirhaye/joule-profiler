@@ -21,13 +21,17 @@ For more control over the installation process, you can pass arguments to the in
 curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --dir ~/.local/bin
 ```
 
-**Install specific version:**
+**Install a specific version:**
+
+If you need to install a specific version depending on the features you need:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --version v0.1.0
 ```
 
 **List available versions:**
+
+You can see the list of available versions with the installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash -s -- --list

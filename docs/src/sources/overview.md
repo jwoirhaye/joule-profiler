@@ -4,9 +4,9 @@
 
 ### Supported Architectures
 
-- **CPU:** The primary target is x86, with future plans for selected ARM processors.  
+- **CPU:** The primary target is Intel x86 architecture.  
 - **GPU:** Current focus is on Nvidia GPUs.  
-- **OS:** Only Linux-based systems are officially supported at the moment, but support for Windows and macOS is a potential future extension.  
+- **OS:** Only Linux-based systems are officially supported at the moment.  
 
 ### Available Sources
 
@@ -15,8 +15,12 @@
   - For details, see [RAPL Overview](rapl/introduction.md).  
 
 - **Nvidia GPUs (NVML):** Provides energy and performance metrics for Nvidia GPUs.  
-  - Currently tested on Linux; should work on Windows, but not fully verified.  
+  - Currently tested on Linux; should work on Windows also.  
   - For details, see [NVML Overview](nvml/introduction.md).  
+
+- **perf_event:** Measures various performance counters like hardware, software, kernel probes, etc.
+  - Available only on Linux.
+  - For details, see [perf_event Overview](perf_event/introduction.md).
 
 ### Extending Joule Profiler
 

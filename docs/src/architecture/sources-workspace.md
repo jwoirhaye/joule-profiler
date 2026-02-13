@@ -4,7 +4,7 @@ The Sources Workspace contains all metric source implementations.
 
 Each source is responsible for collecting a specific type of measurement data.
 
-## Responsibilities
+## Usage
 
 Metric sources are responsible for:
 - Interfacing with external systems or measurement providers

@@ -4,7 +4,7 @@ The CLI Module is the straightforward entry point for users.
 
 It parses command-line input and configure the profiler to be usable quickly and easily while providing several configuration options.
 
-## Responsibilities
+## Usage
 
 The CLI Module is responsible for:
 - Parsing command-line arguments

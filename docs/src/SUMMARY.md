@@ -15,7 +15,8 @@
 
 # Usage
 
-- [Measurement](usage/measurement.md)
+- [Measurements](usage/measurements.md)
+- [Phases](usage/phases.md)
 - [Iterations](usage/iterations.md)
 
 --- 
@@ -41,11 +42,13 @@
 # Examples
 
 - [Overview](examples/overview.md)
+- [Minimal Example](examples/minimal-example.md)
+- [Phases Detection](examples/phases-detection.md)
+- [Listing Sensors](examples/listing-sensors.md)
 - [Output Formats](examples/outputs/outputs.md)
     - [Terminal](examples/outputs/terminal.md)
     - [Json](examples/outputs/json.md)
     - [CSV](examples/outputs/csv.md)
-- [Listing Sensors](examples/listing-sensors.md)
 - [Source Implementation](examples/source-implementation.md)
 
 ---

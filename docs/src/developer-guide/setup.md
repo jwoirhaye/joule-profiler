@@ -14,18 +14,8 @@ Before starting, ensure you have the following installed:
 ### Software Dependencies
 
 - **rustc** 1.70+ and **cargo** (official Rust installer recommended)
-- **mdBook** >= 0.4.40 and < 0.5 and its dependencies (for building documentation, see documentation requirements)
 
-## 2. Clone the Repository
-
-Use Git to clone the repository:
-
-```bash
-git clone https://github.com/jwoirhaye/joule-profiler.git
-cd joule-profiler
-```
-
-## 3. Build the Project
+## 2. Build the Project
 
 Build in **release mode**:
 
@@ -45,14 +35,14 @@ You can run it directly using:
 ./target/release/joule-profiler --version
 ```
 
-For **debug mode** (faster iteration during development):
+For **debug mode** (faster building during development):
 
 ```bash
 cargo build
 ./target/debug/joule-profiler --version
 ```
 
-## 4. Run Tests
+## 3. Run Tests
 
 Run the full test suite with:
 
@@ -69,7 +59,7 @@ cargo test --doc       # only doctests
 cargo test -- --nocapture  # show test output
 ```
 
-## 5. Formatting & Linting
+## 4. Formatting & Linting
 
 Ensure code follows project style using **rustfmt** and **clippy**:
 
@@ -81,12 +71,12 @@ cargo clippy    # lint code for warnings and suggestions
 > [!NOTE]
 > Recommended to run these before committing changes and required for submitting pull requests.
 
-## 6. Development Tips
+## 5. Development Tips
 
 - Use the `examples/` folder to experiment with different scripts and phase token patterns.
 - Use logging flags (`-v`, `-vv`, `-vvv`) for debugging purposes.
 
-## 7. Notes
+## 6. Notes
 
 > [!NOTE]
 > - Energy measurements require **Intel CPUs** and Linux with the **powercap** framework or **perf_event** kernel module.

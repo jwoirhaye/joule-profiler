@@ -4,7 +4,7 @@ The Core Module is the engine of **Joule Profiler**.
 
 It defines the profiling model, coordinates measurements, and produces structured results.
 
-## Responsibilities
+## Usage
 
 The **Core Module** is responsible for:
 - Managing the measurements
