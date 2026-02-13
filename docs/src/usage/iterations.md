@@ -8,12 +8,12 @@ Each iteration repeats the profiling session of your program:
 
 ## Why use multiple iterations?
 
-**Reduce Measurement Variance:**
+**Reduce measurement variance:**
 - CPU and GPU power measurements can fluctuate due to background processes.
 - Running multiple iterations allows you to get a **stable average** and reduce variance between measurements.
 - It helps smooth out the profiler's own warmup overhead.
 
-**Account for Machine Warmup:**
+**Account for machine warmup:**
 - The first run of a program often behaves differently due to:
   - CPU frequency scaling (performance governor scaling up)
   - Cold caches

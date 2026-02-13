@@ -8,7 +8,7 @@ Instead of accessing low-level hardware registers (e.g MSRs), Powercap safely ex
 
 The use of powercap instead of MSRs may seem disadvantageous and cause more overhead while measuring energy consumption, but there is actually no or an insignificant overhead introduced by the use of the powercap framework. Moreover, the abstraction provided by powercap increases the maintainibility, and powercap smoothens the energy results to avoid noise.
 
-## Sysfs file structure
+## Sysfs File Structure
 
 The Powercap framework exports energy data through the `/sys/devices/virtual/powercap` or `/sys/class/powercap` directories. Each physical CPU socket or hardware component is represented as a **control type** (usually `intel-rapl`).
 
@@ -41,7 +41,7 @@ To retrieve the domains measure energy consumption, the following files are acce
 * **`energy_uj`**: This is the core metric. It provides the current energy consumption in microjoules (µj).
 * **`max_energy_range_uj`**: This file gives the maximum value before the counter wraps back to zero.
 
-## Overflow handling
+## Overflow Handling
 
 Because the RAPL energy counters are stored in hardware with four bytes of information, they will eventually reach their maximum value and **wrap around** (overflow) back to zero.
 

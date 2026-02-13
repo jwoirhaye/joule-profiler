@@ -75,7 +75,6 @@ sudo joule-profiler --gpu phases -- ./my-program
 sudo joule-profiler --perf phases -- ./my-program
 ```
 
-
 GPU profiling requires the NVML library (part of NVIDIA driver installation).
 
 ### Choosing RAPL Backend
