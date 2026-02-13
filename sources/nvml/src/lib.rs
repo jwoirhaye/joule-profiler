@@ -178,4 +178,11 @@ impl MetricReader for Nvml {
             })
             .collect()
     }
+
+    /// Reset the current counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.current_counters = NvmlSnapshot::default();
+        self.last_snapshot = None;
+        Ok(())
+    }
 }
