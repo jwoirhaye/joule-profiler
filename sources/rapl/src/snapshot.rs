@@ -11,7 +11,7 @@ pub struct Snapshot {
 impl AddAssign<HashMap<RaplDomainIndex, u64>> for Snapshot {
     fn add_assign(&mut self, rhs: HashMap<RaplDomainIndex, u64>) {
         for (domain, value) in rhs {
-            *self.metrics.entry(domain).or_insert(0) += value;
+            *self.metrics.entry(domain).or_default() += value;
         }
     }
 }
