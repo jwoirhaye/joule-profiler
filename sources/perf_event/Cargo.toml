@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Intel RAPL energy measurement source for joule-profiler"
-keywords = ["energy", "nvml", "nvidia", "GPU", "hardware"]
+keywords = ["energy", "perf_event", "performance_counters"]
 
 [dependencies]
 joule-profiler-core.workspace = true
