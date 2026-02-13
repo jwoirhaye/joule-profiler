@@ -2,7 +2,7 @@
 
 ## Overview
 
-For a detailed overview of what **perf_event** is and how it works, see [perf_event](../perf_event.md), here we will discuss only about the measurements of RAPL domains counters.
+For a detailed overview of what **perf_event** is and how it works, see [perf_event](../perf_event/introduction.md), here we will discuss only about the measurements of RAPL domains counters.
 
 To measure the energy consumption of the RAPL domains through perf_event, we're using the **perf_event_open_sys** rust crate, which is a wrapper around the **perf_event_open** Linux system call, used to open perf event counters. The crate also provides bindings to associated perf_event I/O controllers to manage the opened counters.
 
