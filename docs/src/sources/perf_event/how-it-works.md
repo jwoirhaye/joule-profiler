@@ -37,6 +37,8 @@ The standard `read()` system call requires a context switch (100-300ns overhead)
 
 This is useful for high-frequency monitoring where system call overhead would be significant.
 
+For now, **Joule Profiler** is using the `read` syscall, but we may implement an mmap version to reduce the overhead of the syscalls.
+
 ## References
 
 - [perf_event_open(2) man page](https://man7.org/linux/man-pages/man2/perf_event_open.2.html)

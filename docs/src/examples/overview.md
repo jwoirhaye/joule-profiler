@@ -8,7 +8,7 @@ Throughout this documentation, you'll find examples showing common use cases and
 
 ## Examples in Repository
 
-The [Joule Profiler repository](https://github.com/joular/joule-profiler) contains complete working examples:
+The [Joule Profiler repository](https://github.com/jwoirhaye/joule-profiler) contains complete working examples:
 
 - **Example Programs** (`examples/programs/`): Sample programs in various languages.
 - **Example Outputs** (`examples/data/`): Real profiling results in all supported formats (terminal, JSON, CSV).

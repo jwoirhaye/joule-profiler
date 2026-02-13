@@ -12,19 +12,17 @@ Instead of measuring total program energy, phases let you pinpoint expensive sec
 
 ```python
 print("__INIT__", flush=True)
-loading()  # How much loading consume?
+loading()
 
 print("__WORK__", flush=True)
-for batch in data:
-    process(batch)  # vs actual work
+process()
 
 print("__CLEANUP__", flush=True)
-save_results()
 ```
 
 Each phase appears separately in the results, showing its individual energy consumption.
 
-### Exclude Initialization Overhead
+### Exclude Initialization
 
 Interpreted languages (Python, JavaScript, Ruby) have significant startup overhead that dominates short programs:
 
@@ -32,7 +30,7 @@ Interpreted languages (Python, JavaScript, Ruby) have significant startup overhe
 # Python interpreter initialization can be 50-100ms
 # Your actual work might be only 10ms
 sudo joule-profiler simple -- python my_script.py
-# Result: 90% of energy is interpreter startup, not your code
+# Result: 90% of energy is interpreter startup, not what you want to measure
 ```
 
 If you want to exclude this initialization phase, then using phases might be a good answer:
@@ -40,13 +38,11 @@ If you want to exclude this initialization phase, then using phases might be a g
 ```python
 # my_script.py
 import heavy_libraries
-model = load_model()  # Initialization overhead
+model = load()  # Initialization overhead
 
 print("__START__", flush=True)  # Mark the beginning of actual work
-result = run_inference(data)    # This is what you want to measure
+process()    # This is what you want to measure
 print("__END__", flush=True)
-
-save_output(result)
 ```
 
 ```bash
