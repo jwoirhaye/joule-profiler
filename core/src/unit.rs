@@ -3,7 +3,7 @@
 //! This module defines basic units, SI prefixes, and their composition
 //! into metric units used throughout the profiler.
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::fmt::Display;
 
 /// SI prefixes used to scale metric units.
@@ -70,12 +70,21 @@ impl Display for Unit {
 }
 
 /// A metric unit composed of an SI prefix and a base unit.
-#[derive(Debug, Serialize, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct MetricUnit {
     /// SI prefix applied to the unit.
     pub prefix: UnitPrefix,
     /// Base measurement unit.
     pub unit: Unit,
+}
+
+impl Serialize for MetricUnit {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 impl Display for MetricUnit {

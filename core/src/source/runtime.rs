@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicI32, Ordering},
+};
+
 use log::debug;
 use tokio::sync::mpsc::Receiver;
 
@@ -28,15 +33,13 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     }
 
     /// Run the worker responsible for source and accumulator management
+    ///
+    /// The pid_arc refers to the pid of the profiled program, updated on every Init event
     pub async fn run_worker(
         mut self,
         mut rx: Receiver<SourceEvent>,
+        pid_arc: Arc<AtomicI32>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        self.source
-            .init()
-            .await
-            .map_err(IntoMetricSourceError::into_metric_source_error)?;
-
         loop {
             if let Some(event) = rx.recv().await {
                 match event {
@@ -44,6 +47,10 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
                     SourceEvent::Reset => self.reset_source_counters().await?,
                     SourceEvent::NewPhase => self.init_new_phase().await?,
                     SourceEvent::NewIteration => self.init_new_iteration()?,
+                    SourceEvent::Init => {
+                        let pid = pid_arc.load(Ordering::Relaxed);
+                        self.init_source(pid).await?;
+                    }
                     SourceEvent::JoinWorker => break,
                 }
             }
@@ -59,6 +66,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     }
 
     /// Measure the source and convert the error if any occur into a MetricSourceError
+    #[inline]
     async fn measure_source(&mut self) -> Result<(), MetricSourceError> {
         self.source
             .measure()
@@ -66,6 +74,8 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
 
+    /// Resets the source counters
+    #[inline]
     async fn reset_source_counters(&mut self) -> Result<(), MetricSourceError> {
         self.source
             .reset()
@@ -73,7 +83,17 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
 
+    /// Init the source with the profiled program pid
+    #[inline]
+    async fn init_source(&mut self, pid: i32) -> Result<(), MetricSourceError> {
+        self.source
+            .init(pid)
+            .await
+            .map_err(IntoMetricSourceError::into_metric_source_error)
+    }
+
     /// Initialize a new phase and convert the error if any occur into a MetricSourceError
+    #[inline]
     async fn init_new_phase(&mut self) -> Result<(), MetricSourceError> {
         let result = self
             .source
@@ -85,11 +105,13 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     }
 
     /// Initialize a new iteration and convert the error if any occur into a MetricSourceError
+    #[inline]
     fn init_new_iteration(&mut self) -> Result<(), MetricSourceError> {
         self.accumulator.new_iteration()
     }
 
     /// Retrieve the results from the accumulator and convert them into metrics
+    #[inline]
     fn retrieve(&mut self) -> SensorResult {
         let result = self
             .accumulator
@@ -109,6 +131,8 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         SensorResult { iterations: result }
     }
 
+    /// Retrieve source sensors
+    #[inline]
     pub fn get_source_sensors(&self) -> Result<Sensors, MetricSourceError> {
         self.source
             .get_sensors()

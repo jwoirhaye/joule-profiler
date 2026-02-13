@@ -83,3 +83,9 @@ fn energy_diff(start: u64, end: u64) -> u64 {
         (u64::MAX - start) + end
     }
 }
+
+/// Convert joules to microjoules.
+#[inline]
+pub fn joules_to_micro_joules(joules: f64) -> u64 {
+    (joules * 1_000_000.0) as u64
+}

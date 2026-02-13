@@ -249,7 +249,7 @@ impl MetricReader for Rapl {
             .collect()
     }
 
-    async fn init(&mut self) -> Result<()> {
+    async fn init(&mut self, _: i32) -> Result<()> {
         check_rapl_access(&self.rapl_path)?;
 
         let mut ticker = if let Some(interval) = self.poll_interval {
