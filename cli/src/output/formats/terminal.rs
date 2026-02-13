@@ -73,6 +73,10 @@ impl TerminalOutput {
                 .push(metric)
         }
 
+        let mut metrics_per_source: Vec<(&String, Vec<&Metric>)> =
+            metrics_per_source.into_iter().collect();
+        metrics_per_source.sort_by_key(|(source, _)| *source);
+
         for (source, metrics) in metrics_per_source {
             self.print_subheader(source, prefix);
 

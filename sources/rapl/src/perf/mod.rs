@@ -16,7 +16,8 @@ use crate::{
     MICRO_JOULE_UNIT, Result,
     error::{PerfParanoidError, RaplError},
     perf::{
-        compute::{compute_measurement_from_snapshots, joules_to_micro_joules}, domain::discover_domains_and_open_counters,
+        compute::{compute_measurement_from_snapshots, joules_to_micro_joules},
+        domain::discover_domains_and_open_counters,
         socket::Socket,
     },
     snapshot::Snapshot,

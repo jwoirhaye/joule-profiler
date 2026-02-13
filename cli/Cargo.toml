@@ -17,11 +17,12 @@ path = "src/bin/main.rs"
 joule-profiler-core.workspace = true
 source-rapl = { path = "../sources/rapl" }
 source-nvml = { path = "../sources/nvml" }
-anyhow.workspace = true
-env_logger.workspace = true
+source-perf_event = { path = "../sources/perf_event" }
 log.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+anyhow = "1.0.100"
+env_logger = "0.11.8"
 clap = { version = "4.5.53", features = ["derive"] }
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
 tokio = { version = "1.25", features = ["rt-multi-thread"] }
