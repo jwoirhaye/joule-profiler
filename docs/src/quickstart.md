@@ -67,6 +67,15 @@ If your system has an Nvidia GPU and you want to measure GPU energy consumption 
 sudo joule-profiler --gpu phases -- ./my-program
 ```
 
+### Performance Counters
+
+**Joule Profiler** supports [perf_event](sources/perf_event/introduction.md) performance counters on Linux systems, you can activate this feature with the `--perf` flag.
+
+```bash
+sudo joule-profiler --perf phases -- ./my-program
+```
+
+
 GPU profiling requires the NVML library (part of NVIDIA driver installation).
 
 ### Choosing RAPL Backend
