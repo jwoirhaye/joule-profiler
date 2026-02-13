@@ -217,6 +217,13 @@ impl MetricReader for Rapl {
             .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;
         Ok(())
     }
+
+    /// Resets the counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.current_counters = Snapshot::default();
+        self.last_snapshot = None;
+        Ok(())
+    }
 }
 
 /// Read the PMU type from sysfs.

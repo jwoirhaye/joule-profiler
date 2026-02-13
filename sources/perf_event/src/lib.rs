@@ -152,12 +152,18 @@ impl MetricReader for PerfEvent {
     /// Initialize counters for a specific process and start monitoring.
     async fn init(&mut self, pid: i32) -> Result<()> {
         info!("Initializing perf_event source for PID {}", pid);
-        self.perf_counters = HashMap::new();
-        self.last_snapshot = None;
         self.init_group(pid)?;
         self.init_counters(EVENTS, pid)?;
         self.group.enable()?;
         debug!("perf_event counters enabled");
+        Ok(())
+    }
+
+    /// Reset the current counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.perf_counters = HashMap::new();
+        self.last_snapshot = None;
+        self.current_counters = Default::default();
         Ok(())
     }
 
