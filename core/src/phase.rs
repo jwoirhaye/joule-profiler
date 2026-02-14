@@ -59,7 +59,6 @@ pub struct PhaseInfo {
 }
 
 impl PhaseInfo {
-
     pub fn start(timestamp: u128) -> Self {
         Self {
             token: PhaseToken::Start,

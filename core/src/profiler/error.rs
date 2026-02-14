@@ -61,7 +61,7 @@ pub enum JouleProfilerError {
         #[source]
         std::io::Error,
     ),
-    
+
     #[error("Process control failed: {0}")]
     ProcessControlFailed(String),
 
@@ -70,5 +70,4 @@ pub enum JouleProfilerError {
 
     #[error(transparent)]
     OrchestratorError(#[from] OrchestratorError),
-
 }
