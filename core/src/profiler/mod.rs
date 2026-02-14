@@ -25,7 +25,7 @@ use std::{
 pub mod error;
 
 use crate::aggregate::iteration::SensorIteration;
-use crate::config::{Config, ProfileConfig};
+use crate::config::ProfileConfig;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
 use crate::profiler::types::{Iteration, Iterations, MeasurePhasesReturnType, Phase, Result};
@@ -428,19 +428,29 @@ fn resume_process(pid: i32) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{BufReader, Cursor};
-
-    use regex::Regex;
-
+    use crate::config::ProfileConfig;
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
-    use crate::profiler::phase_token_in_line;
-    use crate::{util::time::get_timestamp_millis, JouleProfiler};
+    use crate::profiler::{phase_token_in_line, spawn_profiled_command};
+    use crate::{util::time::get_timestamp_millis, JouleProfiler, JouleProfilerError};
+    use regex::Regex;
+    use std::fs;
+    use std::io::{BufReader, Cursor, Read};
+    use tempfile::TempDir;
 
     fn joule_profiler() -> JouleProfiler {
         JouleProfiler {
             orchestrator: SourceOrchestrator::default(),
             sources: Vec::new(),
+        }
+    }
+
+    fn create_test_config(cmd: Vec<String>) -> ProfileConfig {
+        ProfileConfig {
+            cmd,
+            iterations: 1,
+            token_pattern: "__PHASE__".to_string(),
+            stdout_file: None,
         }
     }
 
@@ -643,4 +653,97 @@ mod tests {
         let tok_ptr = token.as_ptr() as usize;
         assert!(tok_ptr >= line_ptr && tok_ptr < line_ptr + line.len());
     }
+
+    #[test]
+    fn spawn_profiled_command_with_valid_command() {
+        let config = create_test_config(vec!["echo".to_string(), "hello".to_string()]);
+
+        let result = spawn_profiled_command(&config);
+
+        assert!(result.is_ok());
+        let mut child = result.unwrap();
+
+        assert!(child.stdout.is_some());
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn spawn_profiled_command_with_nonexistent_command() {
+        let config = create_test_config(vec!["mais_t_es_pas_la_mais_t_es_ou".to_string()]);
+
+        let result = spawn_profiled_command(&config);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            JouleProfilerError::CommandNotFound(cmd) => {
+                assert_eq!(cmd, "mais_t_es_pas_la_mais_t_es_ou");
+            }
+            _ => panic!("Expected CommandNotFound error"),
+        }
+    }
+
+    #[test]
+    fn spawn_profiled_command_with_single_arg() {
+        let config = create_test_config(vec!["echo".to_string()]);
+
+        let result = spawn_profiled_command(&config);
+
+        assert!(result.is_ok());
+        let mut child = result.unwrap();
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn spawn_profiled_command_with_multiple_args() {
+        let config = create_test_config(vec![
+            "echo".to_string(),
+            "help".to_string(),
+            "me".to_string(),
+            "plz".to_string(),
+        ]);
+
+        let result = spawn_profiled_command(&config);
+
+        assert!(result.is_ok());
+        let mut child = result.unwrap();
+
+        let mut output = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            stdout.read_to_string(&mut output).unwrap();
+        }
+
+        assert!(output.contains("help"));
+        assert!(output.contains("me"));
+        assert!(output.contains("plz"));
+
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_profiled_command_permission_denied() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir.path().join("no_exec.sh");
+
+        fs::write(&script_path, "#!/bin/sh\necho test").unwrap();
+        let mut perms = fs::metadata(&script_path).unwrap().permissions();
+        perms.set_mode(0o644); // rw-r--r--
+        fs::set_permissions(&script_path, perms).unwrap();
+
+        let config = create_test_config(vec![script_path.to_string_lossy().to_string()]);
+
+        let result = spawn_profiled_command(&config);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            JouleProfilerError::CommandExecutionFailed(_) => (),
+            _ => panic!("Expected CommandExecutionFailed error"),
+        }
+    }
+
 }
