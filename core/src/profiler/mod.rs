@@ -15,8 +15,8 @@
 use log::{debug, info, trace};
 use regex::Regex;
 use std::io::BufWriter;
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::{
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
@@ -432,7 +432,7 @@ mod tests {
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
     use crate::profiler::{phase_token_in_line, spawn_profiled_command};
-    use crate::{util::time::get_timestamp_millis, JouleProfiler, JouleProfilerError};
+    use crate::{JouleProfiler, JouleProfilerError, util::time::get_timestamp_millis};
     use regex::Regex;
     use std::fs;
     use std::io::{BufReader, Cursor, Read};
@@ -745,5 +745,4 @@ mod tests {
             _ => panic!("Expected CommandExecutionFailed error"),
         }
     }
-
 }
