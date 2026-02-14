@@ -15,10 +15,9 @@
 use log::{debug, info, trace};
 use regex::Regex;
 use std::io::BufWriter;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
 use std::{
-    fs::File,
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
 };
@@ -26,7 +25,7 @@ use std::{
 pub mod error;
 
 use crate::aggregate::iteration::SensorIteration;
-use crate::config::ProfileConfig;
+use crate::config::{Config, ProfileConfig};
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
 use crate::profiler::types::{Iteration, Iterations, MeasurePhasesReturnType, Phase, Result};
@@ -197,51 +196,17 @@ impl JouleProfiler {
             JouleProfilerError::InvalidPattern(format!("{}: {}", config.token_pattern, err))
         })?;
 
-        let mut file_sink: Option<BufWriter<File>> = if let Some(path) = &config.stdout_file {
-            let file = create_file_with_user_permissions(path).map_err(|err| {
-                JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
-            })?;
-
-            Some(BufWriter::new(file))
-        } else {
-            None
-        };
-
-        let mut stdout_sink = BufWriter::new(std::io::stdout().lock());
-
-        let sink: &mut dyn Write = if let Some(f) = file_sink.as_mut() {
-            f
-        } else {
-            &mut stdout_sink
-        };
+        let mut sink = create_output_sink(&config.stdout_file)?;
 
         self.orchestrator.reset().await?;
 
-        let mut command = process::Command::new(&config.cmd[0]);
-        if config.cmd.len() > 1 {
-            command.args(&config.cmd[1..]);
-        }
-
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::inherit());
-
         debug!("Spawning command: {:?}", config.cmd);
-
-        let mut child = command.spawn().map_err(|err| {
-            if err.kind() == ErrorKind::NotFound {
-                JouleProfilerError::CommandNotFound(config.cmd[0].clone())
-            } else {
-                JouleProfilerError::CommandExecutionFailed(err.to_string())
-            }
-        })?;
-
+        let mut child = spawn_profiled_command(config)?;
         let pid = child.id() as i32;
 
-        unsafe {
-            libc::kill(pid, libc::SIGSTOP);
-        }
-
+        pause_prosess(pid)?;
         shared_pid.store(pid, Ordering::SeqCst);
+
         self.orchestrator.init().await?;
 
         let child_stdout = child
@@ -257,22 +222,15 @@ impl JouleProfiler {
         let begin_timestamp = get_timestamp_millis();
         trace!("Begin timestamp: {}", begin_timestamp);
 
-        unsafe {
-            libc::kill(pid, libc::SIGCONT);
-        }
+        resume_process(pid)?;
 
-        let start_phase_info = PhaseInfo {
-            token: PhaseToken::Start,
-            timestamp: begin_timestamp,
-            line_number: None,
-        };
-        detected_phases.push(start_phase_info);
+        detected_phases.push(PhaseInfo::start(begin_timestamp));
 
         self.detect_and_handle_phases_from_program_output(
             &mut detected_phases,
             reader,
             &regex,
-            sink,
+            &mut sink,
         )
         .await?;
 
@@ -287,15 +245,9 @@ impl JouleProfiler {
 
         let duration_ms = end_timestamp - begin_timestamp;
 
-        let end_phase_info = PhaseInfo {
-            token: PhaseToken::End,
-            timestamp: end_timestamp,
-            line_number: None,
-        };
-        detected_phases.push(end_phase_info);
+        detected_phases.push(PhaseInfo::end(end_timestamp));
 
-        let status = child.wait()?;
-        let exit_code = status.code().unwrap_or(1);
+        let exit_code = wait_for_child_exit(&mut child)?;
 
         info!(
             "Command finished: duration={} µs exit_code={}",
@@ -377,6 +329,103 @@ pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> 
     regex.find(line).map(|mat| mat.as_str())
 }
 
+fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
+    let mut command = process::Command::new(&config.cmd[0]);
+
+    if config.cmd.len() > 1 {
+        command.args(&config.cmd[1..]);
+    }
+
+    command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                JouleProfilerError::CommandNotFound(config.cmd[0].clone())
+            } else {
+                JouleProfilerError::CommandExecutionFailed(err.to_string())
+            }
+        })
+}
+
+fn wait_for_child_exit(child: &mut process::Child) -> Result<i32> {
+    let status = child.wait()?;
+    Ok(status.code().unwrap_or(1))
+}
+
+fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
+    if let Some(path) = path {
+        let file = create_file_with_user_permissions(path).map_err(|err| {
+            JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
+        })?;
+
+        Ok(Box::new(BufWriter::new(file)))
+    } else {
+        Ok(Box::new(BufWriter::new(std::io::stdout().lock())))
+    }
+}
+
+/// Sends `SIGSTOP` to a child process to pause its execution.
+///
+/// SAFETY
+///
+/// - 'pid' must refer to a valid process identifier obtained from
+///   'std::process::Child::id()' immediately after spawning.
+/// - The process must be owned by the current user (we only signal
+///   child processes we created).
+/// - Calling 'libc::kill' is unsafe because it performs a raw syscall.
+///
+/// Race Condition
+///
+/// The target process may terminate between 'spawn()' and the
+/// 'SIGSTOP' call. In that case, the system call will fail and
+/// an error is returned.
+///
+/// Errors
+///
+/// Returns [`JouleProfilerError::ProcessControlFailed`] if the
+/// signal could not be delivered (e.g., invalid PID or already exited).
+fn pause_prosess(pid: i32) -> Result<()> {
+    let result = unsafe { libc::kill(pid, libc::SIGSTOP) };
+
+    if result != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(JouleProfilerError::ProcessControlFailed(format!(
+            "Failed to SIGSTOP pid {}: {}",
+            pid, err
+        )));
+    }
+
+    Ok(())
+}
+
+/// Sends `SIGCONT` to resume a previously paused process.
+///
+/// SAFETY
+///
+/// - `pid` must refer to a valid, running or stopped child process.
+/// - The process must still exist when the signal is sent.
+/// - `libc::kill` is unsafe because it invokes a raw syscall.
+///
+/// Errors
+///
+/// Returns [`JouleProfilerError::ProcessControlFailed`] if the
+/// signal delivery fails.
+fn resume_process(pid: i32) -> Result<()> {
+    let result = unsafe { libc::kill(pid, libc::SIGCONT) };
+
+    if result != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(JouleProfilerError::ProcessControlFailed(format!(
+            "Failed to SIGCONT pid {}: {}",
+            pid, err
+        )));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::{BufReader, Cursor};
@@ -386,7 +435,7 @@ mod tests {
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
     use crate::profiler::phase_token_in_line;
-    use crate::{JouleProfiler, util::time::get_timestamp_millis};
+    use crate::{util::time::get_timestamp_millis, JouleProfiler};
 
     fn joule_profiler() -> JouleProfiler {
         JouleProfiler {
