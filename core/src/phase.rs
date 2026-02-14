@@ -57,3 +57,22 @@ pub struct PhaseInfo {
     /// Optional line number in output where token was detected
     pub line_number: Option<usize>,
 }
+
+impl PhaseInfo {
+
+    pub fn start(timestamp: u128) -> Self {
+        Self {
+            token: PhaseToken::Start,
+            timestamp,
+            line_number: None,
+        }
+    }
+
+    pub fn end(timestamp: u128) -> Self {
+        Self {
+            token: PhaseToken::End,
+            timestamp,
+            line_number: None,
+        }
+    }
+}
