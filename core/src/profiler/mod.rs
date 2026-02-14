@@ -138,7 +138,7 @@ impl JouleProfiler {
                         .map(|((index, window), real_phase)| {
                             let (d1, d2) = (&window[0], &window[1]);
                             let mut phase_metrics = real_phase.metrics.clone();
-                            phase_metrics.sort_by_key(|metric| metric.name.clone());
+                            phase_metrics.sort_by(|a, b| a.name.cmp(&b.name));
                             Phase {
                                 index,
                                 metrics: phase_metrics,
