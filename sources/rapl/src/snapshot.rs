@@ -15,3 +15,29 @@ impl AddAssign<HashMap<RaplDomainIndex, u64>> for Snapshot {
         }
     }
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct Phase {
+    pub begin: Snapshot,
+    pub end: Snapshot,
+}
+
+impl Phase {
+    pub fn diff(&self) -> Snapshot {
+        Snapshot {
+            metrics: self
+                .end
+                .metrics
+                .iter()
+                .map(|(domain, end_value)| {
+                    let diff = if let Some(begin_value) = self.begin.metrics.get(domain) {
+                        end_value - begin_value
+                    } else {
+                        0
+                    };
+                    (*domain, diff)
+                })
+                .collect(),
+        }
+    }
+}

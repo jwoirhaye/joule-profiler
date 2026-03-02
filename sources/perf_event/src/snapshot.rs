@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::AddAssign};
+use std::collections::HashMap;
 
 use crate::event::Event;
 
@@ -8,16 +8,21 @@ pub struct Snapshot {
     pub metrics: HashMap<Event, u64>,
 }
 
-impl Snapshot {
-    /// Compute the delta between two snapshots (self - previous).
-    ///
-    /// Returns a new Snapshot with the difference in counter values.
-    pub fn delta(&self, previous: &Snapshot) -> Snapshot {
+#[derive(Debug, Clone, Default)]
+pub struct Phase {
+    pub begin: Snapshot,
+    pub end: Snapshot,
+}
+
+impl Phase {
+    pub fn diff(&self) -> Snapshot {
         let metrics = self
+            .end
             .metrics
             .iter()
             .map(|(event, &current_value)| {
-                let delta = previous
+                let delta = self
+                    .begin
                     .metrics
                     .get(event)
                     .map(|&prev| current_value.saturating_sub(prev))
@@ -28,16 +33,5 @@ impl Snapshot {
             .collect();
 
         Snapshot { metrics }
-    }
-}
-
-impl AddAssign for Snapshot {
-    fn add_assign(&mut self, rhs: Snapshot) {
-        for (event, value) in rhs.metrics {
-            self.metrics
-                .entry(event)
-                .and_modify(|total| *total += value)
-                .or_insert(value);
-        }
     }
 }

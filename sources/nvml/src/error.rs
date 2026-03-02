@@ -19,4 +19,7 @@ pub enum NvmlError {
         #[source]
         nvml_wrapper::error::NvmlError,
     ),
+
+    #[error("Not enough measures to compute GPU energy counters differences")]
+    NotEnoughSamples,
 }
