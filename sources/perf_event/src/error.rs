@@ -16,4 +16,7 @@ pub enum PerfEventError {
 
     #[error("Error reading counter {0}")]
     ErrorReadingCounter(Event),
+
+    #[error("Not enough measures to compute perf counters differences")]
+    NotEnoughSamples,
 }

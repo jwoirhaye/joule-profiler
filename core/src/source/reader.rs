@@ -63,7 +63,7 @@ pub trait MetricReader: Send + 'static {
     fn get_sensors(&self) -> Result<Sensors, Self::Error>;
 
     /// Convert the metric reader data to metrics.
-    fn to_metrics(&self, result: Self::Type) -> Metrics;
+    fn to_metrics(&self, result: Self::Type) -> Result<Metrics, Self::Error>;
 
     /// Get the name of the metric source.
     fn get_name() -> &'static str;

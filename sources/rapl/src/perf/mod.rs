@@ -20,7 +20,7 @@ use crate::{
         domain::discover_domains_and_open_counters,
         socket::Socket,
     },
-    snapshot::Snapshot,
+    snapshot::{Phase, Snapshot},
     util::check_os,
 };
 
@@ -45,11 +45,11 @@ pub struct Rapl {
     /// Discovered RAPL domains and associated counters.
     sockets: Vec<Socket>,
 
-    /// Accumulated metrics from measurements.
-    current_counters: Snapshot,
+    /// Begin snapshot of the current phase.
+    begin_snapshot: Option<Snapshot>,
 
-    /// Snapshot of the last measurement for delta calculations.
-    last_snapshot: Option<Snapshot>,
+    /// End snapshot of the current phase.
+    end_snapshot: Option<Snapshot>,
 }
 
 impl Rapl {
@@ -94,8 +94,8 @@ impl Rapl {
 
         Ok(Self {
             sockets,
-            current_counters: Default::default(),
-            last_snapshot: None,
+            begin_snapshot: None,
+            end_snapshot: None,
         })
     }
 
@@ -131,7 +131,7 @@ impl Rapl {
 }
 
 impl MetricReader for Rapl {
-    type Type = Snapshot;
+    type Type = Phase;
     type Error = RaplError;
 
     /// Perform a measurement and accumulate metrics.
@@ -139,23 +139,35 @@ impl MetricReader for Rapl {
     /// Computes delta between last and current snapshot.
     async fn measure(&mut self) -> Result<()> {
         let new_snapshot = self.read_domains_counter()?;
-        if let Some(last_snapshot) = &self.last_snapshot {
-            let metrics =
-                compute_measurement_from_snapshots(&self.sockets, last_snapshot, &new_snapshot)?;
-            self.current_counters += metrics;
+        if self.begin_snapshot.is_none() {
+            self.begin_snapshot = Some(new_snapshot);
+        } else {
+            self.end_snapshot = Some(new_snapshot);
         }
-        self.last_snapshot = Some(new_snapshot);
+        // if let Some(last_snapshot) = &self.last_snapshot {
+        //     let metrics =
+        //         compute_measurement_from_snapshots(&self.sockets, last_snapshot, &new_snapshot)?;
+        //     self.current_counters += metrics;
+        // }
+        // self.last_snapshot = Some(new_snapshot);
         Ok(())
     }
 
     /// Retrieve accumulated metrics since the last reset.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        trace!(
-            "Retrieving RAPL counters ({} entries)",
-            self.current_counters.metrics.len()
-        );
-        let counters = std::mem::take(&mut self.current_counters);
-        Ok(counters)
+        // trace!(
+        //     "Retrieving RAPL counters ({} entries)",
+        //     self.current_counters.metrics.len()
+        // );
+
+        if let Some(begin) = self.begin_snapshot.take()
+            && let Some(end) = self.end_snapshot.take()
+        {
+            self.begin_snapshot = Some(end.clone());
+            Ok(Phase { begin, end })
+        } else {
+            Err(RaplError::NotEnoughSamples)
+        }
     }
 
     /// Return the list of available sensors for this source.
@@ -187,13 +199,16 @@ impl MetricReader for Rapl {
     }
 
     /// Convert a Snapshot into Metrics.
-    fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
-        self.sockets
+    fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
+        let diff =
+            compute_measurement_from_snapshots(&self.sockets, &snapshot.begin, &snapshot.end)?;
+        let result = self
+            .sockets
             .iter()
             .flat_map(|socket| {
                 socket.domains.iter().filter_map(|domain| {
                     let domain_index = (domain.domain_type, socket.id);
-                    if let Some(metric) = snapshot.metrics.get(&domain_index) {
+                    if let Some(metric) = diff.get(&domain_index) {
                         let joules = domain.compute_scale(*metric);
                         let micro_joules = joules_to_micro_joules(joules);
                         Some(Metric {
@@ -207,7 +222,8 @@ impl MetricReader for Rapl {
                     }
                 })
             })
-            .collect()
+            .collect();
+        Ok(result)
     }
 
     /// Enable the perf_event counters.
@@ -220,8 +236,8 @@ impl MetricReader for Rapl {
 
     /// Resets the counters.
     async fn reset(&mut self) -> Result<()> {
-        self.current_counters = Snapshot::default();
-        self.last_snapshot = None;
+        self.begin_snapshot = None;
+        self.end_snapshot = None;
         Ok(())
     }
 }

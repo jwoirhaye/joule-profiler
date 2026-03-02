@@ -236,8 +236,8 @@ impl MetricReader for Rapl {
         POWERCAP_SOURCE_NAME
     }
 
-    fn to_metrics(&self, snapshot: Self::Type) -> Metrics {
-        snapshot
+    fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
+        Ok(snapshot
             .metrics
             .into_iter()
             .map(|((domain, socket), value)| Metric {
@@ -246,7 +246,7 @@ impl MetricReader for Rapl {
                 unit: MICRO_JOULE_UNIT,
                 source: POWERCAP_SOURCE_NAME.to_string(),
             })
-            .collect()
+            .collect())
     }
 
     async fn init(&mut self, _: i32) -> Result<()> {
