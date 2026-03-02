@@ -65,6 +65,9 @@ pub enum RaplError {
         #[source]
         std::num::ParseFloatError,
     ),
+
+    #[error("Not enough measures to compute RAPL counters differences")]
+    NotEnoughSamples,
 }
 
 impl From<std::io::Error> for RaplError {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::AddAssign};
+use std::collections::HashMap;
 
 /// A snapshot of GPU energy consumption.
 ///
@@ -8,18 +8,33 @@ use std::{collections::HashMap, ops::AddAssign};
 /// # Fields
 ///
 /// * `gpus_energy` - A map from GPU device index to total energy consumption in millijoules.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct NvmlSnapshot {
     pub gpus_energy: HashMap<u32, u64>,
 }
 
-impl AddAssign for NvmlSnapshot {
-    fn add_assign(&mut self, rhs: Self) {
-        for (gpu_name, energy) in rhs.gpus_energy {
-            self.gpus_energy
-                .entry(gpu_name)
-                .or_default()
-                .add_assign(energy);
+#[derive(Debug, Clone, Default)]
+pub struct Phase {
+    pub begin: NvmlSnapshot,
+    pub end: NvmlSnapshot,
+}
+
+impl Phase {
+    pub fn diff(&self) -> NvmlSnapshot {
+        NvmlSnapshot {
+            gpus_energy: self
+                .end
+                .gpus_energy
+                .iter()
+                .map(|(gpu, end_value)| {
+                    let diff = if let Some(begin_value) = self.begin.gpus_energy.get(gpu) {
+                        end_value - begin_value
+                    } else {
+                        0
+                    };
+                    (*gpu, diff)
+                })
+                .collect(),
         }
     }
 }

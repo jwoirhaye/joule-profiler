@@ -16,7 +16,7 @@ use perf_event::{Builder, Counter, Group, events::Hardware};
 use crate::{
     error::PerfEventError,
     event::{EVENTS, Event},
-    snapshot::Snapshot,
+    snapshot::{Phase, Snapshot},
 };
 
 mod error;
@@ -34,8 +34,8 @@ pub struct PerfEvent {
     group: Group,
     /// Active performance counters by event type
     perf_counters: HashMap<Event, Counter>,
-    /// Accumulated counter deltas
-    current_counters: Snapshot,
+    /// Begin phase snapshot
+    begin_snapshot: Option<Snapshot>,
     /// Last measurement snapshot for delta calculation
     last_snapshot: Option<Snapshot>,
 }
@@ -49,7 +49,7 @@ impl PerfEvent {
         Ok(Self {
             group: Group::new()?,
             perf_counters: HashMap::default(),
-            current_counters: Default::default(),
+            begin_snapshot: None,
             last_snapshot: None,
         })
     }
@@ -81,7 +81,7 @@ impl PerfEvent {
 }
 
 impl MetricReader for PerfEvent {
-    type Type = Snapshot;
+    type Type = Phase;
 
     type Error = PerfEventError;
 
@@ -99,31 +99,30 @@ impl MetricReader for PerfEvent {
                         .get(counter)
                         .map(|d| d.value())
                         .ok_or(PerfEventError::ErrorReadingCounter(*event))?;
-                    trace!("{:?}: {} count", event, value);
                     Ok((*event, value))
                 })
                 .collect::<Result<HashMap<_, _>>>()?,
         };
 
-        if let Some(last) = &self.last_snapshot {
-            let delta = new_snapshot.delta(last);
-            trace!("Computed delta with {} events", delta.metrics.len());
-            self.current_counters += delta;
+        if self.begin_snapshot.is_none() {
+            self.begin_snapshot = Some(new_snapshot);
         } else {
-            trace!("First measurement, no delta computed");
+            self.last_snapshot = Some(new_snapshot);
         }
 
-        self.last_snapshot = Some(new_snapshot);
         Ok(())
     }
 
     /// Retrieve and consume the last measurement snapshot.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        trace!(
-            "Retrieving perf_event counters ({} entries)",
-            self.current_counters.metrics.len()
-        );
-        Ok(std::mem::take(&mut self.current_counters))
+        if let Some(begin) = self.begin_snapshot.take()
+            && let Some(end) = self.last_snapshot.take()
+        {
+            self.begin_snapshot = Some(end.clone());
+            Ok(Phase { begin, end })
+        } else {
+            Err(PerfEventError::NotEnoughSamples)
+        }
     }
 
     /// Returns available hardware performance counter sensors.
@@ -163,14 +162,18 @@ impl MetricReader for PerfEvent {
     async fn reset(&mut self) -> Result<()> {
         self.perf_counters = HashMap::new();
         self.last_snapshot = None;
-        self.current_counters = Default::default();
+        self.begin_snapshot = Default::default();
         Ok(())
     }
 
     /// Convert raw counter values to metrics with metadata.
-    fn to_metrics(&self, result: Self::Type) -> Metrics {
-        trace!("Converting {} counters to metrics", result.metrics.len());
-        result
+    fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
+        trace!(
+            "Converting {} counters to metrics",
+            result.begin.metrics.len()
+        );
+        let diff = result.diff();
+        Ok(diff
             .metrics
             .into_iter()
             .map(|(event, counter)| Metric {
@@ -179,6 +182,6 @@ impl MetricReader for PerfEvent {
                 value: counter,
                 unit: event.unit(),
             })
-            .collect()
+            .collect())
     }
 }
