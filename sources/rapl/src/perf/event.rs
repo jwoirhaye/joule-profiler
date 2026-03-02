@@ -50,7 +50,7 @@ impl RaplEvent {
 
         let scale = builder.scale()?.ok_or(RaplError::RetrieveScaleError)?;
 
-        for cpu in &socket_info.cpus_id {
+        for cpu in &socket_info.cpumask {
             debug!(
                 "Trying to build RAPL event {:?} on CPU {}",
                 domain_type, cpu

@@ -144,21 +144,14 @@ impl MetricReader for Rapl {
         } else {
             self.end_snapshot = Some(new_snapshot);
         }
-        // if let Some(last_snapshot) = &self.last_snapshot {
-        //     let metrics =
-        //         compute_measurement_from_snapshots(&self.sockets, last_snapshot, &new_snapshot)?;
-        //     self.current_counters += metrics;
-        // }
-        // self.last_snapshot = Some(new_snapshot);
         Ok(())
     }
 
     /// Retrieve accumulated metrics since the last reset.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        // trace!(
-        //     "Retrieving RAPL counters ({} entries)",
-        //     self.current_counters.metrics.len()
-        // );
+        trace!(
+            "Retrieving RAPL counters",
+        );
 
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.end_snapshot.take()
