@@ -61,7 +61,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?;
 
-        let result = self.retrieve();
+        let result = self.retrieve()?;
         Ok((result, self.source.into()))
     }
 
@@ -112,7 +112,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
 
     /// Retrieve the results from the accumulator and convert them into metrics
     #[inline]
-    fn retrieve(&mut self) -> SensorResult {
+    fn retrieve(&mut self) -> Result<SensorResult, MetricSourceError> {
         let result = self
             .accumulator
             .retrieve()
@@ -121,14 +121,21 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
                 let phases = iteration
                     .phases
                     .into_iter()
-                    .map(|phase| SensorPhase {
-                        metrics: self.source.to_metrics(phase.metrics),
+                    .map(|phase| {
+                        Ok(SensorPhase {
+                            metrics: self
+                                .source
+                                .to_metrics(phase.metrics)
+                                .map_err(IntoMetricSourceError::into_metric_source_error)?,
+                        })
                     })
-                    .collect();
-                SensorIteration { phases }
+                    .collect::<Result<Vec<_>, MetricSourceError>>()?;
+
+                Ok(SensorIteration { phases })
             })
-            .collect();
-        SensorResult { iterations: result }
+            .collect::<Result<Vec<_>, MetricSourceError>>()?;
+
+        Ok(SensorResult { iterations: result })
     }
 
     /// Retrieve source sensors

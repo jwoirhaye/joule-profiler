@@ -14,7 +14,10 @@ use joule_profiler_core::{
 };
 use log::{debug, trace};
 
-use crate::{error::NvmlError, snapshot::NvmlSnapshot};
+use crate::{
+    error::NvmlError,
+    snapshot::{NvmlSnapshot, Phase},
+};
 
 mod error;
 mod snapshot;
@@ -46,7 +49,7 @@ pub struct Nvml {
 
     devices_max_index: u32,
 
-    current_counters: NvmlSnapshot,
+    begin_snapshot: Option<NvmlSnapshot>,
 
     last_snapshot: Option<NvmlSnapshot>,
 }
@@ -84,7 +87,7 @@ impl Nvml {
         Ok(Self {
             nvml,
             devices_max_index,
-            current_counters: Default::default(),
+            begin_snapshot: None,
             last_snapshot: None,
         })
     }
@@ -109,42 +112,52 @@ impl Nvml {
     /// the old and new snapshots. Uses wrapping subtraction to handle counter wraparound
     /// correctly (even so it will never occur in theory).
     fn compute_energy_diff(
-        &self,
-        new_snapshot: &NvmlSnapshot,
-        old_snapshot: NvmlSnapshot,
+        end_snapshot: &NvmlSnapshot,
+        begin_snapshot: &NvmlSnapshot,
     ) -> Result<NvmlSnapshot> {
         let mut gpus_energy = HashMap::new();
-        for (device_index, old_energy) in old_snapshot.gpus_energy {
-            let new_energy = new_snapshot.gpus_energy.get(&device_index).ok_or(
-                NvmlError::UnknownMetricError(format!("Device {} unknown", device_index)),
-            )?;
-            let diff = new_energy.wrapping_sub(old_energy);
-            gpus_energy.insert(device_index, diff);
+        for (device_index, old_energy) in &begin_snapshot.gpus_energy {
+            let new_energy =
+                end_snapshot
+                    .gpus_energy
+                    .get(device_index)
+                    .ok_or(NvmlError::UnknownMetricError(format!(
+                        "Device {} unknown",
+                        device_index
+                    )))?;
+            let diff = new_energy.wrapping_sub(*old_energy);
+            gpus_energy.insert(*device_index, diff);
         }
         Ok(NvmlSnapshot { gpus_energy })
     }
 }
 
 impl MetricReader for Nvml {
-    type Type = NvmlSnapshot;
+    type Type = Phase;
 
     type Error = NvmlError;
 
     /// Make a measure and accumulate current counters.
     async fn measure(&mut self) -> Result<()> {
         let new_snapshot = self.read_snapshot()?;
-        if let Some(last_snapshot) = self.last_snapshot.take() {
-            trace!("Computing delta from previous snapshot");
-            self.current_counters += self.compute_energy_diff(&new_snapshot, last_snapshot)?;
+        if self.begin_snapshot.is_none() {
+            self.begin_snapshot = Some(new_snapshot);
+        } else {
+            self.last_snapshot = Some(new_snapshot);
         }
-        self.last_snapshot = Some(new_snapshot);
         Ok(())
     }
 
     /// Retrieve current counter and reset it
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        let counters = std::mem::take(&mut self.current_counters);
-        Ok(counters)
+        if let Some(begin) = self.begin_snapshot.take()
+            && let Some(end) = self.last_snapshot.take()
+        {
+            self.begin_snapshot = Some(end.clone());
+            Ok(Phase { begin, end })
+        } else {
+            Err(NvmlError::NotEnoughSamples)
+        }
     }
 
     /// Get the sensors by iterating over the detected devices.
@@ -166,8 +179,9 @@ impl MetricReader for Nvml {
     }
 
     /// Convert an NvmlSnapshot into Metrics.
-    fn to_metrics(&self, result: Self::Type) -> Metrics {
-        result
+    fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
+        let diff = Self::compute_energy_diff(&result.end, &result.begin)?;
+        Ok(diff
             .gpus_energy
             .into_iter()
             .map(|(device_index, energy)| Metric {
@@ -176,12 +190,12 @@ impl MetricReader for Nvml {
                 unit: MILLI_JOULE_UNIT,
                 source: NVML_SOURCE_NAME.to_string(),
             })
-            .collect()
+            .collect())
     }
 
     /// Reset the current counters.
     async fn reset(&mut self) -> Result<()> {
-        self.current_counters = NvmlSnapshot::default();
+        self.begin_snapshot = None;
         self.last_snapshot = None;
         Ok(())
     }
