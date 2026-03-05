@@ -59,6 +59,7 @@ impl PerfEvent {
         debug!("Initializing perf_event group for PID {}", pid);
         self.group = Group::builder()
             .observe_pid(pid)
+            .inherit(true)
             .build_group()
             .map_err(PerfEventError::from)?;
         trace!("perf_event group successfully created");
@@ -70,9 +71,11 @@ impl PerfEvent {
         debug!("Adding {} performance counters", events.len());
         for event in events {
             trace!("Adding counter: {:?}", event);
-            let counter = self
-                .group
-                .add(Builder::new(Hardware::from(*event)).observe_pid(pid))?;
+            let counter = self.group.add(
+                Builder::new(Hardware::from(*event))
+                    .inherit(true)
+                    .observe_pid(pid),
+            )?;
             self.perf_counters.insert(*event, counter);
         }
         info!("Initialized {} hardware performance counters", events.len());
