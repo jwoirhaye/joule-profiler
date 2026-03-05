@@ -100,7 +100,11 @@ pub fn discover_socket_topology(
             };
 
             cpus_id.sort_unstable();
-            SocketInfo { socket_id, cpus_id, cpumask }
+            SocketInfo {
+                socket_id,
+                cpus_id,
+                cpumask,
+            }
         })
         .collect();
 
