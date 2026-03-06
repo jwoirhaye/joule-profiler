@@ -2,6 +2,9 @@
 //!
 //! Measures CPU cycles, instructions, cache misses, and branch misses
 //! using Linux perf_event subsystem.
+//!
+//! Note: Counters are created individually (not grouped) because
+//! `inherit(true)` is incompatible with perf_event groups on Linux.
 
 use std::collections::HashMap;
 
@@ -11,7 +14,7 @@ use joule_profiler_core::{
     types::{Metric, Metrics},
 };
 use log::{debug, info, trace};
-use perf_event::{Builder, Counter, Group, events::Hardware};
+use perf_event::{Builder, Counter, events::Hardware};
 
 use crate::{
     error::PerfEventError,
@@ -28,10 +31,8 @@ type Result<T> = std::result::Result<T, PerfEventError>;
 /// Hardware performance counter source using perf_event.
 ///
 /// Tracks CPU performance metrics (cycles, instructions, cache/branch misses)
-/// for a specific process. Counters are scoped per-process when initialized.
+/// for a specific process.
 pub struct PerfEvent {
-    /// perf_event group managing all counters together
-    group: Group,
     /// Active performance counters by event type
     perf_counters: HashMap<Event, Counter>,
     /// Begin phase snapshot
@@ -47,38 +48,37 @@ impl PerfEvent {
     pub fn new() -> Result<Self> {
         debug!("Creating new perf_event source");
         Ok(Self {
-            group: Group::new()?,
             perf_counters: HashMap::default(),
             begin_snapshot: None,
             last_snapshot: None,
         })
     }
 
-    /// Initialize the perf_event group for a specific process.
-    fn init_group(&mut self, pid: i32) -> Result<()> {
-        debug!("Initializing perf_event group for PID {}", pid);
-        self.group = Group::builder()
-            .observe_pid(pid)
-            .inherit(true)
-            .build_group()
-            .map_err(PerfEventError::from)?;
-        trace!("perf_event group successfully created");
-        Ok(())
-    }
-
-    /// Add all configured event counters to the group.
+    /// Create individual counters for all configured events.
+    ///
+    /// Each counter is built separately with `inherit(true)` and `observe_pid`,
+    /// since grouped counters do not support inheritance.
     fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()> {
-        debug!("Adding {} performance counters", events.len());
+        debug!("Adding {} individual performance counters", events.len());
         for event in events {
-            trace!("Adding counter: {:?}", event);
-            let counter = self.group.add(
-                Builder::new(Hardware::from(*event))
-                    .inherit(true)
-                    .observe_pid(pid),
-            )?;
+            trace!("Building counter: {:?}", event);
+            let counter = Builder::new(Hardware::from(*event))
+                .inherit(true)
+                .observe_pid(pid)
+                .build()?;
             self.perf_counters.insert(*event, counter);
         }
         info!("Initialized {} hardware performance counters", events.len());
+        Ok(())
+    }
+
+    /// Enable all counters.
+    fn enable_all(&mut self) -> Result<()> {
+        for (event, counter) in &mut self.perf_counters {
+            trace!("Enabling counter: {:?}", event);
+            counter.enable()?;
+        }
+        debug!("All perf_event counters enabled");
         Ok(())
     }
 }
@@ -91,17 +91,15 @@ impl MetricReader for PerfEvent {
     /// Read current counter values and compute delta since last measurement.
     async fn measure(&mut self) -> Result<()> {
         trace!("Reading perf_event counters");
-        let data = self.group.read()?;
 
         let new_snapshot = Snapshot {
             metrics: self
                 .perf_counters
-                .iter()
+                .iter_mut()
                 .map(|(event, counter)| {
-                    let value = data
-                        .get(counter)
-                        .map(|d| d.value())
-                        .ok_or(PerfEventError::ErrorReadingCounter(*event))?;
+                    let value = counter
+                        .read()
+                        .map_err(|_| PerfEventError::ErrorReadingCounter(*event))?;
                     Ok((*event, value))
                 })
                 .collect::<Result<HashMap<_, _>>>()?,
@@ -154,10 +152,8 @@ impl MetricReader for PerfEvent {
     /// Initialize counters for a specific process and start monitoring.
     async fn init(&mut self, pid: i32) -> Result<()> {
         info!("Initializing perf_event source for PID {}", pid);
-        self.init_group(pid)?;
         self.init_counters(EVENTS, pid)?;
-        self.group.enable()?;
-        debug!("perf_event counters enabled");
+        self.enable_all()?;
         Ok(())
     }
 
