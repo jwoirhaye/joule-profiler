@@ -9,6 +9,7 @@ description = "Core library for joule-profiler, handling orchestration and energ
 keywords = ["energy", "profiling"]
 
 [dependencies]
+docker-initializer = { path = "../initializers/docker" }
 log.workspace = true
 serde.workspace = true
 thiserror.workspace = true
@@ -17,6 +18,7 @@ regex = "1.12.2"
 derive_builder = "0.20.2"
 futures = "0.3.31"
 libc = "0.2.181"
+bollard = "0.20.1"
 
 [dev-dependencies]
 tempfile = "3"

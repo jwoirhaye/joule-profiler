@@ -1,0 +1,15 @@
+[package]
+name = "docker-initializer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Docker initializer for joule-profiler"
+keywords = ["docker", "system", "containers"]
+
+[dependencies]
+anyhow = "1.0.102"
+bollard = "0.20.1"
+futures-util = "0.3.32"
+tokio = "1.50.0"

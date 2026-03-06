@@ -12,11 +12,15 @@
 //! - Display is handled via the [`Displayer`] trait, which can output to
 //!   terminal, JSON, CSV, or custom formats.
 
+use bollard::Docker;
+use docker_initializer::DockerInitializer;
 use log::{debug, info, trace};
 use regex::Regex;
+use std::fs;
 use std::io::BufWriter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
+use std::time::Duration;
 use std::{
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
@@ -201,20 +205,29 @@ impl JouleProfiler {
         self.orchestrator.reset().await?;
 
         debug!("Spawning command: {:?}", config.cmd);
-        let mut child = spawn_profiled_command(config)?;
-        let pid = child.id() as i32;
+        // let mut child = spawn_profiled_command(config)?;
+
+    // let cid = extract_cidfile(&config.cmd).unwrap();
+
+    // let pid = get_pid_from_cidfile(&cid).await.unwrap() as i32;
+
+        // let pid = child.id() as i32;
+
+        let mut spawned = DockerInitializer::spawn(&config.cmd).await.unwrap();
+        
+        let pid = spawned.pid;
 
         pause_prosess(pid)?;
         shared_pid.store(pid, Ordering::SeqCst);
 
         self.orchestrator.init().await?;
 
-        let child_stdout = child
-            .stdout
-            .take()
-            .ok_or(JouleProfilerError::StdOutCaptureFail)?;
+        // let child_stdout = child
+        //     .stdout
+        //     .take()
+        //     .ok_or(JouleProfilerError::StdOutCaptureFail)?;
 
-        let reader = BufReader::new(child_stdout);
+        // let reader = BufReader::new(child_stdout);
         let mut detected_phases = Vec::with_capacity(2);
 
         self.orchestrator.measure().await?;
@@ -228,7 +241,7 @@ impl JouleProfiler {
 
         self.detect_and_handle_phases_from_program_output(
             &mut detected_phases,
-            reader,
+            &mut spawned.stdout,
             &regex,
             &mut sink,
         )
@@ -247,7 +260,8 @@ impl JouleProfiler {
 
         detected_phases.push(PhaseInfo::end(end_timestamp));
 
-        let exit_code = wait_for_child_exit(&mut child)?;
+        // let exit_code = wait_for_child_exit(&mut child)?;
+        let exit_code = spawned.wait().await.unwrap() as i32;
 
         info!(
             "Command finished: duration={} µs exit_code={}",
@@ -262,7 +276,7 @@ impl JouleProfiler {
     async fn detect_and_handle_phases_from_program_output<R, W>(
         &mut self,
         phases: &mut Vec<PhaseInfo>,
-        mut reader: R,
+        reader: &mut R,
         regex: &Regex,
         sink: &mut W,
     ) -> Result<()>
@@ -459,12 +473,12 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -479,11 +493,11 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__[A-Z0-9_]+__").unwrap();
         let cursor = Cursor::new("hello\nworld\nno phases here");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -495,12 +509,12 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__PHASE__").unwrap();
         let cursor = Cursor::new("");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -512,12 +526,12 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("start __PHASE1__ end");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -531,12 +545,12 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("a\nb\n__PHASE1__\nc\n__PHASE2__");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -550,13 +564,13 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__PHASE[0-9]+__").unwrap();
         let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let begin_timestamp = get_timestamp_millis();
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -576,7 +590,7 @@ mod tests {
         let mut profiler = joule_profiler();
         let regex = Regex::new("__PHASE__").unwrap();
         let cursor = Cursor::new("hello\n__PHASE__\nworld");
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
 
         let mut temp_file = NamedTempFile::new().unwrap();
         let mut phases = Vec::new();
@@ -584,7 +598,7 @@ mod tests {
         profiler
             .detect_and_handle_phases_from_program_output(
                 &mut phases,
-                reader,
+                &mut reader,
                 &regex,
                 temp_file.as_file_mut(),
             )
@@ -606,12 +620,12 @@ mod tests {
             0xff, 0xfe, b'\n', b'_', b'_', b'P', b'H', b'A', b'S', b'E', b'_', b'_',
         ];
         let cursor = Cursor::new(bytes);
-        let reader = BufReader::new(cursor);
+        let mut reader = BufReader::new(cursor);
         let mut phases = Vec::new();
         let mut sink: Vec<u8> = Vec::new();
 
         profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
+            .detect_and_handle_phases_from_program_output(&mut phases, &mut reader, &regex, &mut sink)
             .await
             .unwrap();
 
@@ -744,5 +758,29 @@ mod tests {
             JouleProfilerError::CommandExecutionFailed(_) => (),
             _ => panic!("Expected CommandExecutionFailed error"),
         }
+    }
+}
+
+fn extract_cidfile(args: &[String]) -> Option<String> {
+    args.windows(2)
+        .find(|w| w[0] == "--cidfile")
+        .map(|w| w[1].clone())
+}
+
+async fn get_pid_from_cidfile(cidfile: &str) -> Result<i64> {
+    let cid = loop {
+        match fs::read_to_string(cidfile) {
+            Ok(s) if !s.trim().is_empty() => break s.trim().to_string(),
+            _ => tokio::time::sleep(Duration::from_millis(1)).await,
+        }
+    };
+
+    let docker = Docker::connect_with_socket_defaults().unwrap();
+    let inspect = docker.inspect_container(&cid, None).await.unwrap();
+
+    if let Some(pid) = inspect.state.and_then(|s| s.pid) {
+        Ok(pid)
+    } else {
+        Err(JouleProfilerError::StdOutCaptureFail)
     }
 }

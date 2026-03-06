@@ -5,7 +5,8 @@ members = [
     "cli",
     "sources/rapl",
     "sources/nvml",
-    "sources/perf_event"
+    "sources/perf_event",
+    "initializers/docker"
 ]
 
 [workspace.package]
