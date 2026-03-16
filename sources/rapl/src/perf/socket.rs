@@ -17,8 +17,6 @@ const CPU_TOPOLOGY_SOCKET_ID: &str = "/topology/physical_package_id";
 /// Path to the online CPUs file in sysfs.
 const ONLINE_CPU_SYSFS_PATH: &str = "/sys/devices/system/cpu/online";
 
-const CPUMASK_SYSFS_PATH: &str = "/sys/devices/power/cpumask";
-
 /// Represents a CPU socket and the list of CPUs it contains.
 #[derive(Debug)]
 pub struct SocketInfo {
@@ -26,8 +24,6 @@ pub struct SocketInfo {
     pub socket_id: u32,
     /// List of CPU IDs associated with this socket.
     pub cpus_id: Vec<u32>,
-    /// cpumask of the socket.
-    pub cpumask: Vec<u32>,
 }
 
 pub struct Socket {
@@ -55,8 +51,6 @@ pub fn discover_socket_topology(
     let mut sockets: HashMap<u32, Vec<u32>> = HashMap::new();
     let online_cpus = read_online_cpus()?;
     trace!("Found {} cpu(s)", online_cpus.len());
-
-    let mut cpumask_per_socket = read_cpumask()?;
 
     for entry in fs::read_dir(CPU_SYSFS_PATH)? {
         let entry = entry?;
@@ -91,20 +85,8 @@ pub fn discover_socket_topology(
         .into_iter()
         .map(|(socket_id, mut cpus_id)| {
             trace!("Found {:?} cpus for socket {}", cpus_id, socket_id);
-            let cpumask = if let Some(cpumask) = cpumask_per_socket.remove(&socket_id) {
-                trace!("cpumask for socket {}: {:?}", socket_id, cpumask);
-                cpumask
-            } else {
-                trace!("Unable to find cpumask for socket {}", socket_id);
-                vec![]
-            };
-
             cpus_id.sort_unstable();
-            SocketInfo {
-                socket_id,
-                cpus_id,
-                cpumask,
-            }
+            SocketInfo { socket_id, cpus_id }
         })
         .collect();
 
@@ -138,23 +120,4 @@ fn read_online_cpus() -> Result<HashSet<u32>> {
         }
     }
     Ok(cpus)
-}
-
-fn read_cpumask() -> Result<HashMap<u32, Vec<u32>>> {
-    let content = fs::read_to_string(CPUMASK_SYSFS_PATH)?;
-    let mut cpus_per_socket = HashMap::new();
-
-    for (i, part) in content.trim().split(',').enumerate() {
-        let cpu_mask = if let Some((start, end)) = part.split_once('-') {
-            let start: u32 = start.parse()?;
-            let end: u32 = end.parse()?;
-
-            (start..end).collect()
-        } else {
-            let cpu: u32 = part.parse()?;
-            vec![cpu]
-        };
-        cpus_per_socket.insert(i as u32, cpu_mask);
-    }
-    Ok(cpus_per_socket)
 }
