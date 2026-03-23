@@ -227,23 +227,119 @@ impl MetricReader for Rapl {
 ///
 /// Returns an RaplError if the file cannot be read or parsed.
 fn read_pmu_type() -> Result<u32> {
-    let type_path = format!("{}/type", PERF_RAPL_PATH);
-    fs::read_to_string(type_path)
-        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
-        .map(|pmu_type_str| pmu_type_str.trim().parse::<u32>())?
-        .map_err(Into::into)
+    read_pmu_type_from_path(PERF_RAPL_PATH)
 }
 
 /// Read the perf_event_paranoid level from `/proc`.
 ///
 /// Returns a PerfParanoidError if the file cannot be read or parsed.
 fn read_paranoid_level() -> Result<u8> {
-    fs::read_to_string(PERF_PARANOID_PATH)
+    read_paranoid_level_from_path(PERF_PARANOID_PATH)
+}
+
+fn read_pmu_type_from_path(path: &str) -> Result<u32> {
+    let type_path = format!("{}/type", path);
+    fs::read_to_string(type_path)
+        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
+        .map(|s| s.trim().parse::<u32>())?
+        .map_err(Into::into)
+}
+
+fn read_paranoid_level_from_path(path: &str) -> Result<u8> {
+    fs::read_to_string(path)
         .map_err(|err| match err.kind() {
             ErrorKind::NotFound => PerfParanoidError::NotFound,
             ErrorKind::PermissionDenied => PerfParanoidError::PermissionDenied(err.to_string()),
             _ => PerfParanoidError::IoError(err),
         })
-        .map(|paranoid_level_str| paranoid_level_str.trim().parse::<u8>())?
+        .map(|s| s.trim().parse::<u8>())?
         .map_err(|err| PerfParanoidError::ParseParanoidLevelError(err).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn write_file(dir: &TempDir, name: &str, content: &str) -> String {
+        let path = dir.path().join(name);
+        fs::write(&path, content).unwrap();
+        path.to_str().unwrap().to_owned()
+    }
+
+    #[test]
+    fn read_paranoid_level_valid_value() {
+        let dir = TempDir::new().unwrap();
+        let path = write_file(&dir, "paranoid", "1\n");
+        assert_eq!(read_paranoid_level_from_path(&path).unwrap(), 1);
+    }
+
+    #[test]
+    fn read_paranoid_level_negative_stored_as_high_byte() {
+        // -1 in the kernel is written as 255 when parsed as u8
+        let dir = TempDir::new().unwrap();
+        let path = write_file(&dir, "paranoid", "255\n");
+        assert_eq!(read_paranoid_level_from_path(&path).unwrap(), 255);
+    }
+
+    #[test]
+    fn read_paranoid_level_missing_file_returns_not_found() {
+        let result = read_paranoid_level_from_path("/nonexistent/paranoid");
+        assert!(matches!(
+            result,
+            Err(RaplError::PerfParanoid(PerfParanoidError::NotFound))
+        ));
+    }
+
+    #[test]
+    fn read_paranoid_level_invalid_content_returns_parse_error() {
+        let dir = TempDir::new().unwrap();
+        let path = write_file(&dir, "paranoid", "not_a_number\n");
+        assert!(matches!(
+            read_paranoid_level_from_path(&path),
+            Err(RaplError::PerfParanoid(
+                PerfParanoidError::ParseParanoidLevelError(_)
+            ))
+        ));
+    }
+
+    #[test]
+    fn read_paranoid_level_empty_file_returns_parse_error() {
+        let dir = TempDir::new().unwrap();
+        let path = write_file(&dir, "paranoid", "");
+        assert!(matches!(
+            read_paranoid_level_from_path(&path),
+            Err(RaplError::PerfParanoid(
+                PerfParanoidError::ParseParanoidLevelError(_)
+            ))
+        ));
+    }
+
+    #[test]
+    fn read_pmu_type_valid_value() {
+        let dir = TempDir::new().unwrap();
+        let type_dir = dir.path().join("type");
+        fs::write(&type_dir, "").unwrap(); // create parent structure
+        let base = TempDir::new().unwrap();
+        fs::create_dir_all(base.path()).unwrap();
+        fs::write(base.path().join("type"), "7\n").unwrap();
+
+        let result = read_pmu_type_from_path(base.path().to_str().unwrap()).unwrap();
+        assert_eq!(result, 7);
+    }
+
+    #[test]
+    fn read_pmu_type_missing_file_returns_rapl_not_available() {
+        let result = read_pmu_type_from_path("/nonexistent");
+        assert!(matches!(result, Err(RaplError::RaplNotAvailable(_))));
+    }
+
+    #[test]
+    fn read_pmu_type_invalid_content_returns_error() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("type"), "garbage\n").unwrap();
+        let result = read_pmu_type_from_path(dir.path().to_str().unwrap());
+        assert!(result.is_err());
+    }
 }

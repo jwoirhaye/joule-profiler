@@ -16,6 +16,9 @@ pub mod reader;
 pub(crate) mod runtime;
 pub(crate) mod types;
 
+#[cfg(any(test, feature = "test-utils"))]
+pub mod mock;
+
 use crate::sensor::Sensors;
 use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};
@@ -43,7 +46,7 @@ where
     R: MetricReader,
 {
     /// Runs the worker task and returns its handle and the sender, used to send events to manage the metric source.
-    /// 
+    ///
     /// The metric source is consumed and transformed into a [`MetricSourceRuntime`] with the metric source as a reader.
     /// This transformation allows to monomorphize the metric source and discover its type after its launch.
     fn run(self: Box<Self>, pid: Arc<AtomicI32>) -> (SourceWorkerHandle, Sender<SourceEvent>) {

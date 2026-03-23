@@ -15,5 +15,9 @@ pub use profiler::{JouleProfiler, JouleProfilerError};
 pub mod unit;
 pub mod types {
     pub use super::aggregate::{Metric, Metrics, sensor_result::SensorResult};
+    pub use super::phase::PhaseToken;
     pub use super::profiler::types::{Iteration, Iterations, Phase, Phases};
 }
+
+#[cfg(any(test, feature = "test-utils"))]
+pub use source::mock;

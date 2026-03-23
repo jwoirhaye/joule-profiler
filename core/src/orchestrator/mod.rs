@@ -31,7 +31,7 @@ pub struct SourceOrchestrator {
 
 impl SourceOrchestrator {
     /// Starts all the metric sources.
-    /// 
+    ///
     /// The function shares the atomic integer representing the profiled program's pid, used by some sources for per-process profiling (e.g. perf_event).
     /// Stores the sources handles and the channels senders to be able to gracefully join the sources and send events.
     #[inline]
@@ -82,13 +82,13 @@ impl SourceOrchestrator {
     }
 
     /// Retrieves and merge results from all sources.
-    /// 
+    ///
     /// Returns a tuple containing the aggregated results and the list of the metric sources in order to reuse them.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// If not enough snapshots have been made, a [NotEnoughSnapshots](`OrchestratorError::NotEnoughSnapshots`) error is returned.
-    /// Also if an error has occured in one of the sources, it will be returned. 
+    /// Also if an error has occured in one of the sources, it will be returned.
     pub async fn finalize(
         &mut self,
     ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
@@ -158,5 +158,127 @@ impl SourceOrchestrator {
         }
 
         Ok((results, sources))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::mock::MockMetricReader;
+    use std::sync::{Mutex, atomic::Ordering};
+
+    fn pid() -> Arc<AtomicI32> {
+        Arc::new(AtomicI32::new(0))
+    }
+
+    fn mock_source() -> Box<dyn MetricSource> {
+        MockMetricReader::new().into()
+    }
+
+    fn mock_source_with_counts() -> (
+        Box<dyn MetricSource>,
+        Arc<Mutex<crate::source::mock::Counts>>,
+    ) {
+        let r = MockMetricReader::new();
+        let counts = r.counts.clone();
+        (r.into(), counts)
+    }
+
+    #[tokio::test]
+    async fn finalize_no_sources_returns_not_enough_snapshots() {
+        let mut o = SourceOrchestrator::default();
+        assert!(matches!(
+            o.finalize().await,
+            Err(OrchestratorError::NotEnoughSnapshots)
+        ));
+    }
+
+    #[tokio::test]
+    async fn run_registers_one_sender_and_handle_per_source() {
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![mock_source(), mock_source()], pid()).await;
+        assert_eq!(o.senders.len(), 2);
+        assert_eq!(o.handles.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn run_replaces_previous_sources() {
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![mock_source(), mock_source()], pid()).await;
+        o.run(vec![mock_source()], pid()).await;
+        assert_eq!(o.senders.len(), 1);
+        assert_eq!(o.handles.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn measure_event_reaches_worker() {
+        let (source, counts) = mock_source_with_counts();
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![source], pid()).await;
+
+        o.measure().await.unwrap();
+        o.measure().await.unwrap();
+
+        let _ = o.finalize().await;
+        assert_eq!(counts.lock().unwrap().measure, 2);
+    }
+
+    #[tokio::test]
+    async fn reset_event_reaches_worker() {
+        let (source, counts) = mock_source_with_counts();
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![source], pid()).await;
+
+        o.reset().await.unwrap();
+
+        let _ = o.finalize().await;
+        assert_eq!(counts.lock().unwrap().reset, 1);
+    }
+
+    #[tokio::test]
+    async fn init_event_reaches_worker() {
+        let (source, counts) = mock_source_with_counts();
+        let shared_pid = pid();
+        shared_pid.store(42, Ordering::SeqCst);
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![source], shared_pid).await;
+
+        o.init().await.unwrap();
+
+        let _ = o.finalize().await;
+        assert_eq!(counts.lock().unwrap().init, 1);
+    }
+
+    #[tokio::test]
+    async fn new_phase_event_reaches_worker() {
+        let (source, counts) = mock_source_with_counts();
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![source], pid()).await;
+
+        o.new_phase().await.unwrap();
+
+        let _ = o.finalize().await;
+        assert_eq!(counts.lock().unwrap().retrieve, 1);
+    }
+
+    #[tokio::test]
+    async fn finalize_drains_handles() {
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![mock_source()], pid()).await;
+        let _ = o.finalize().await;
+        assert!(o.handles.is_empty());
+    }
+
+    #[tokio::test]
+    async fn measure_error_in_worker_propagates_to_orchestrator() {
+        let mut r = MockMetricReader::new();
+        r.measure_error = Some("injected failure".into());
+        let source: Box<dyn MetricSource> = r.into();
+        let mut o = SourceOrchestrator::default();
+        o.run(vec![source], pid()).await;
+
+        o.measure().await.unwrap();
+        let result = o.finalize().await;
+        assert!(result.is_err());
     }
 }

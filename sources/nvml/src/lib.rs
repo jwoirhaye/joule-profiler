@@ -185,3 +185,90 @@ impl MetricReader for Nvml {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::snapshot::NvmlSnapshot;
+
+    fn snapshot(entries: Vec<(u32, u64)>) -> NvmlSnapshot {
+        NvmlSnapshot {
+            gpus_energy: entries.into_iter().collect(),
+        }
+    }
+
+    #[test]
+    fn diff_basic() {
+        let begin = snapshot(vec![(0, 100), (1, 200)]);
+        let end = snapshot(vec![(0, 150), (1, 300)]);
+        let diff = Nvml::compute_energy_diff(&end, &begin).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 50);
+        assert_eq!(diff.gpus_energy[&1], 100);
+    }
+
+    #[test]
+    fn diff_zero_when_equal() {
+        let snap = snapshot(vec![(0, 500)]);
+        let diff = Nvml::compute_energy_diff(&snap, &snap).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 0);
+    }
+
+    #[test]
+    fn diff_wraps_on_counter_overflow() {
+        let begin = snapshot(vec![(0, u64::MAX - 5)]);
+        let end = snapshot(vec![(0, 10)]);
+        let diff = Nvml::compute_energy_diff(&end, &begin).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 16);
+    }
+
+    #[test]
+    fn diff_multiple_devices() {
+        let begin = snapshot(vec![(0, 0), (1, 1000), (2, 500)]);
+        let end = snapshot(vec![(0, 42), (1, 1200), (2, 500)]);
+        let diff = Nvml::compute_energy_diff(&end, &begin).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 42);
+        assert_eq!(diff.gpus_energy[&1], 200);
+        assert_eq!(diff.gpus_energy[&2], 0);
+    }
+
+    #[test]
+    fn diff_device_missing_in_end_returns_error() {
+        let begin = snapshot(vec![(0, 100), (1, 200)]);
+        let end = snapshot(vec![(0, 150)]); // device 1 missing
+        let result = Nvml::compute_energy_diff(&end, &begin);
+        assert!(matches!(result, Err(NvmlError::UnknownMetricError(_))));
+    }
+
+    #[test]
+    fn diff_empty_snapshots_returns_empty() {
+        let diff = Nvml::compute_energy_diff(&snapshot(vec![]), &snapshot(vec![])).unwrap();
+        assert!(diff.gpus_energy.is_empty());
+    }
+
+    #[test]
+    fn to_metrics_produces_one_metric_per_gpu() {
+        let begin = snapshot(vec![(0, 0), (1, 0)]);
+        let end = snapshot(vec![(0, 100), (1, 200)]);
+        let diff = Nvml::compute_energy_diff(&end, &begin).unwrap();
+
+        let mut metrics: Vec<Metric> = diff
+            .gpus_energy
+            .into_iter()
+            .map(|(i, energy)| Metric {
+                name: format!("GPU-{}", i),
+                value: energy,
+                unit: MILLI_JOULE_UNIT,
+                source: NVML_SOURCE_NAME.to_string(),
+            })
+            .collect();
+
+        metrics.sort_by_key(|m| m.name.clone());
+
+        assert_eq!(metrics.len(), 2);
+        assert_eq!(metrics[0].name, "GPU-0");
+        assert_eq!(metrics[0].value, 100);
+        assert_eq!(metrics[0].unit, MILLI_JOULE_UNIT);
+        assert_eq!(metrics[1].name, "GPU-1");
+        assert_eq!(metrics[1].value, 200);
+    }
+}

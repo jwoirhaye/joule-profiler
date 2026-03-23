@@ -34,18 +34,30 @@ pub mod types;
 /// `JouleProfiler` runs a command, collects energy metrics from registered
 /// sources (e.g. RAPL, perf_event, NVML), and aggregates them into a
 /// structured result organized by iterations and phases.
-/// 
+///
 /// It is also responsible for the detection of phases (parts of a program execution)
 /// through the standard output.
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use joule_profiler_core::JouleProfiler;
+/// ```
+/// use joule_profiler_core::{JouleProfiler, config::ProfileConfig};
+/// use joule_profiler_core::mock::MockMetricReader;
 ///
+/// # tokio_test::block_on(async {
 /// let mut profiler = JouleProfiler::new();
-/// profiler.add_source(my_source);
-/// let iterations = profiler.profile(&config).await?;
+/// profiler.add_source(MockMetricReader::new());
+///
+/// let config = ProfileConfig {
+///     cmd: vec!["echo".to_string(), "hello".to_string()],
+///     iterations: 1,
+///     token_pattern: "__PHASE__".to_string(),
+///     stdout_file: None,
+/// };
+///
+/// let iterations = profiler.profile(&config).await.unwrap();
+/// assert_eq!(iterations.len(), 1);
+/// # });
 /// ```
 #[derive(Default)]
 pub struct JouleProfiler {
@@ -95,7 +107,7 @@ impl JouleProfiler {
     }
 
     /// Profiles a program spawned with the configured command and return the aggregated results.
-    /// 
+    ///
     /// It starts the orchestrator with the metric sources and profile the program for the configured iterations count.
     pub async fn profile(&mut self, config: &ProfileConfig) -> Result<Iterations> {
         info!("Running phase-based profiling");
@@ -181,11 +193,11 @@ impl JouleProfiler {
 
     /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
     /// a configured regular expression.
-    /// 
+    ///
     /// The shared pid atomic integer is used to configure the sources supporting pid filtering (e.g. perf_event)
-    /// 
+    ///
     /// The profiling is composed of several steps:
-    /// 
+    ///
     /// - Firstly, the orchestrator resets all the sources for the ones needing to be reset across iterations.
     /// - Then, the program is spawned and its pid is retrieved.
     /// - The process is immediately stopped using a SIGSTOP signal to configure the sources without introducing a significant overhead.
@@ -343,10 +355,10 @@ pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> 
 }
 
 /// Spawns a sub-process with the specified command and arguments.
-/// 
+///
 /// Returns the attached sub-process on success. If an error occur, a [`JouleProfilerError::CommandNotFound`]
 /// error is returned if the specified program cannot be found, or a [`JouleProfilerError::CommandExecutionFailed`] otherwise.
-/// 
+///
 /// The standard output is piped to be analyzed for phases detection.
 fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
     let mut command = process::Command::new(&config.cmd[0]);
@@ -369,7 +381,7 @@ fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
 }
 
 /// Waits for the sub-process termination, returns the status code of the child.
-/// 
+///
 /// If the child cannot be terminated, its associated error will be forwarded, also if the
 /// exit status code cannot be retrieved, 1 is returned, signifying that an error occured.
 fn wait_for_child_exit(child: &mut process::Child) -> Result<i32> {
@@ -378,7 +390,7 @@ fn wait_for_child_exit(child: &mut process::Child) -> Result<i32> {
 }
 
 /// Creates a sink to be able to write the program output into either the process output file, either the standard output of the profiler.
-/// 
+///
 /// A buffered writer is used to limit the system calls made, thus reducing the overhead introduced by the profiler.
 fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
     if let Some(path) = path {
@@ -456,7 +468,9 @@ mod tests {
     use crate::config::ProfileConfig;
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
-    use crate::profiler::{phase_token_in_line, spawn_profiled_command};
+    use crate::profiler::{
+        create_output_sink, phase_token_in_line, spawn_profiled_command, wait_for_child_exit,
+    };
     use crate::{JouleProfiler, JouleProfilerError, util::time::get_timestamp_millis};
     use regex::Regex;
     use std::fs;
@@ -680,6 +694,57 @@ mod tests {
     }
 
     #[test]
+    fn phase_token_in_line_empty_line_returns_none() {
+        let regex = Regex::new("X").unwrap();
+        assert_eq!(phase_token_in_line(&regex, ""), None);
+    }
+
+    #[test]
+    fn phase_token_in_line_full_line_match() {
+        let regex = Regex::new(".*").unwrap();
+        assert_eq!(phase_token_in_line(&regex, "abc"), Some("abc"));
+    }
+
+    #[tokio::test]
+    async fn profile_invalid_regex_returns_error() {
+        let mut profiler = joule_profiler();
+        let config = ProfileConfig {
+            cmd: vec!["echo".to_string()],
+            iterations: 1,
+            token_pattern: "[invalid".to_string(),
+            stdout_file: None,
+        };
+        let result = profiler.profile(&config).await;
+        assert!(matches!(result, Err(JouleProfilerError::InvalidPattern(_))));
+    }
+
+    #[test]
+    fn create_output_sink_none_returns_stdout_sink() {
+        let result = create_output_sink(&None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn create_output_sink_with_path_creates_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("out.txt").to_str().unwrap().to_owned();
+
+        let result = create_output_sink(&Some(path.clone()));
+        assert!(result.is_ok());
+        assert!(fs::metadata(&path).is_ok());
+    }
+
+    #[test]
+    fn create_output_sink_invalid_path_returns_error() {
+        let result = create_output_sink(&Some("/nonexistent/dir/out.txt".to_string()));
+        assert!(result.is_err());
+        assert!(matches!(
+            result.err().unwrap(),
+            JouleProfilerError::OutputFileCreationFailed(_)
+        ));
+    }
+
+    #[test]
     fn spawn_profiled_command_with_valid_command() {
         let config = create_test_config(vec!["echo".to_string(), "hello".to_string()]);
 
@@ -769,5 +834,38 @@ mod tests {
             JouleProfilerError::CommandExecutionFailed(_) => (),
             _ => panic!("Expected CommandExecutionFailed error"),
         }
+    }
+
+    #[test]
+    fn wait_for_child_exit_zero_on_success() {
+        let config = create_test_config(vec!["true".to_string()]);
+        let mut child = spawn_profiled_command(&config).unwrap();
+        assert_eq!(wait_for_child_exit(&mut child).unwrap(), 0);
+    }
+
+    #[test]
+    fn wait_for_child_exit_nonzero_on_failure() {
+        let config = create_test_config(vec!["false".to_string()]);
+        let mut child = spawn_profiled_command(&config).unwrap();
+        assert_ne!(wait_for_child_exit(&mut child).unwrap(), 0);
+    }
+
+    #[test]
+    fn list_sensors_no_sources_returns_empty() {
+        let mut profiler = joule_profiler();
+        let sensors = profiler.list_sensors().unwrap();
+        assert!(sensors.is_empty());
+    }
+
+    #[test]
+    fn list_sensors_with_mock_source_returns_right_sensors() {
+        use crate::source::mock::MockMetricReader;
+        let mut profiler = joule_profiler();
+        profiler.add_source(MockMetricReader::new());
+
+        assert_eq!(
+            profiler.list_sensors().unwrap(),
+            MockMetricReader::sensors()
+        )
     }
 }

@@ -5,7 +5,7 @@ use thiserror::Error;
 /// Top-level error type for JouleProfiler.
 ///
 /// This enum represents all possible errors that can occur during the
-/// execution of the profiler from initialization, orchestration, sources errors, aggregation and etc. 
+/// execution of the profiler from initialization, orchestration, sources errors, aggregation and etc.
 #[derive(Debug, Error)]
 pub enum JouleProfilerError {
     #[error("Invalid iterations value: {0}. Must be >= 1")]

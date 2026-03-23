@@ -33,7 +33,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     }
 
     /// Runs the worker responsible for source and accumulator management.
-    /// 
+    ///
     /// It listens for events through a channel and execute them.
     ///
     /// The pid_arc refers to the pid of the profiled program, shared amongst all metric sources.
@@ -146,5 +146,177 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         self.source
             .get_sensors()
             .map_err(IntoMetricSourceError::into_metric_source_error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::mock::MockMetricReader;
+    use tokio::sync::mpsc;
+
+    fn pid(value: i32) -> Arc<AtomicI32> {
+        Arc::new(AtomicI32::new(value))
+    }
+
+    async fn run_events(events: Vec<SourceEvent>) -> Result<SensorResult, MetricSourceError> {
+        let reader = MockMetricReader::new();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        for event in events {
+            tx.send(event).await.unwrap();
+        }
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        let (result, _source) = rt.run_worker(rx, pid(0)).await?;
+        Ok(result)
+    }
+
+    #[test]
+    fn get_source_sensors_returns_ok() {
+        let rt = MetricSourceRuntime::new(MockMetricReader::new());
+        assert!(rt.get_source_sensors().is_ok());
+    }
+
+    #[tokio::test]
+    async fn run_worker_join_immediately_returns_ok() {
+        let result = run_events(vec![]).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn run_worker_measure_event_calls_measure() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::Measure).await.unwrap();
+        tx.send(SourceEvent::Measure).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        rt.run_worker(rx, pid(0)).await.unwrap();
+
+        assert_eq!(counts.lock().unwrap().measure, 2);
+    }
+
+    #[tokio::test]
+    async fn run_worker_reset_event_calls_reset() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::Reset).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        rt.run_worker(rx, pid(0)).await.unwrap();
+
+        assert_eq!(counts.lock().unwrap().reset, 1);
+    }
+
+    #[tokio::test]
+    async fn run_worker_init_event_passes_pid() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+        let shared_pid = pid(42);
+
+        tx.send(SourceEvent::Init).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        rt.run_worker(rx, shared_pid).await.unwrap();
+
+        assert_eq!(counts.lock().unwrap().init, 1);
+    }
+
+    #[tokio::test]
+    async fn run_worker_new_phase_calls_retrieve() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::NewPhase).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        rt.run_worker(rx, pid(0)).await.unwrap();
+
+        assert_eq!(counts.lock().unwrap().retrieve, 1);
+    }
+
+    #[tokio::test]
+    async fn run_worker_join_calls_join_on_source() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+        rt.run_worker(rx, pid(0)).await.unwrap();
+
+        assert_eq!(counts.lock().unwrap().join, 1);
+    }
+
+    #[tokio::test]
+    async fn run_worker_measure_error_propagates() {
+        let mut reader = MockMetricReader::new();
+        reader.measure_error = Some("injected".into());
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::Measure).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        assert!(rt.run_worker(rx, pid(0)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn run_worker_retrieve_error_on_new_phase_propagates() {
+        let mut reader = MockMetricReader::new();
+        reader.retrieve_error = Some("injected".into());
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::NewPhase).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        assert!(rt.run_worker(rx, pid(0)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn run_worker_new_iteration_without_phase_returns_error() {
+        let rt = MetricSourceRuntime::new(MockMetricReader::new());
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::NewIteration).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        let result = rt.run_worker(rx, pid(0)).await;
+        let _ = result;
+    }
+
+    #[tokio::test]
+    async fn run_worker_full_lifecycle() {
+        let reader = MockMetricReader::new();
+        let counts = reader.counts.clone();
+        let rt = MetricSourceRuntime::new(reader);
+        let (tx, rx) = mpsc::channel(16);
+
+        tx.send(SourceEvent::Measure).await.unwrap();
+        tx.send(SourceEvent::Measure).await.unwrap();
+        tx.send(SourceEvent::NewPhase).await.unwrap();
+        tx.send(SourceEvent::NewIteration).await.unwrap();
+        tx.send(SourceEvent::JoinWorker).await.unwrap();
+
+        let result = rt.run_worker(rx, pid(0)).await;
+        assert!(result.is_ok());
+
+        let c = counts.lock().unwrap();
+        assert_eq!(c.measure, 2);
+        assert_eq!(c.retrieve, 1);
+        assert_eq!(c.join, 1);
     }
 }
