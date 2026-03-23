@@ -23,7 +23,7 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     // Initialize a RAPL reader (no polling, monitoring all sockets)
-//!     let mut rapl = powercap::Rapl::from_default().unwrap();
+//!     let mut rapl = powercap::Rapl::default().unwrap();
 //!
 //!     // Measure and update internal counters
 //!     rapl.measure().await.unwrap();

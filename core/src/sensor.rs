@@ -34,7 +34,7 @@ use crate::unit::MetricUnit;
 /// assert_eq!(sensor.unit.to_string(), "µJ");
 /// assert_eq!(sensor.source, "powercap");
 /// ```
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Sensor {
     /// The name of the sensor.
     pub name: String,
