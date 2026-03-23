@@ -1,3 +1,13 @@
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_field_names
+)]
+
 //! Module `rapl` — Intel RAPL metric source.
 //!
 //! This module provides several implementations of [`MetricReader`] for
@@ -7,7 +17,7 @@
 //!
 //! This module supports **two backends** for reading energy metrics:
 //! - [`powercap`] — uses the Linux `powercap` interface for energy readings.
-//! - [`perf`] — uses perf_event counters (`perf_event_open`) for RAPL domains.
+//! - [`perf`] — uses `perf_event` counters (`perf_event_open`) for RAPL domains.
 //!
 //! # Features
 //!

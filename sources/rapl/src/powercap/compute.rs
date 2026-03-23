@@ -24,32 +24,30 @@ pub fn compute_measurement_from_snapshots(
 
         let domain_index = (domain.domain_type, domain.socket);
 
-        let start_uj = match begin.metrics.get(&domain_index) {
-            Some(v) => *v,
-            None => {
-                error!(
-                    "Missing start energy snapshot for domain '{}'",
-                    domain.get_name()
-                );
-                return Err(RaplError::RaplReadError(format!(
-                    "Missing start energy snapshot for domain '{}'",
-                    domain.get_name()
-                )));
-            }
+        let start_uj = if let Some(v) = begin.metrics.get(&domain_index) {
+            *v
+        } else {
+            error!(
+                "Missing start energy snapshot for domain '{}'",
+                domain.get_name()
+            );
+            return Err(RaplError::RaplReadError(format!(
+                "Missing start energy snapshot for domain '{}'",
+                domain.get_name()
+            )));
         };
 
-        let end_uj = match end.metrics.get(&domain_index) {
-            Some(v) => *v,
-            None => {
-                error!(
-                    "Missing end energy snapshot for domain '{}'",
-                    domain.get_name()
-                );
-                return Err(RaplError::RaplReadError(format!(
-                    "Missing end energy snapshot for domain '{}'",
-                    domain.get_name()
-                )));
-            }
+        let end_uj = if let Some(v) = end.metrics.get(&domain_index) {
+            *v
+        } else {
+            error!(
+                "Missing end energy snapshot for domain '{}'",
+                domain.get_name()
+            );
+            return Err(RaplError::RaplReadError(format!(
+                "Missing end energy snapshot for domain '{}'",
+                domain.get_name()
+            )));
         };
 
         let max_uj = domain.max_energy_uj;

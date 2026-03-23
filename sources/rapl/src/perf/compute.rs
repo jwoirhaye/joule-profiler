@@ -29,36 +29,31 @@ pub fn compute_measurement_from_snapshots(
 
         for domain in &socket.domains {
             let domain_name = domain.get_name(socket.id);
-            trace!("Processing domain '{}'", domain_name);
+            trace!("Processing domain '{domain_name}'");
 
             let domain_index = (domain.domain_type, socket.id);
 
-            let start_value = match begin.metrics.get(&domain_index) {
-                Some(v) => *v,
-                None => {
-                    error!("Missing start energy snapshot for domain '{}'", domain_name);
-                    return Err(RaplError::RaplReadError(format!(
-                        "Missing start energy snapshot for domain '{}'",
-                        domain_name
-                    )));
-                }
+            let start_value = if let Some(v) = begin.metrics.get(&domain_index) {
+                *v
+            } else {
+                error!("Missing start energy snapshot for domain '{domain_name}'");
+                return Err(RaplError::RaplReadError(format!(
+                    "Missing start energy snapshot for domain '{domain_name}'"
+                )));
             };
 
-            let end_value = match end.metrics.get(&domain_index) {
-                Some(v) => *v,
-                None => {
-                    error!("Missing end energy snapshot for domain '{}'", domain_name);
-                    return Err(RaplError::RaplReadError(format!(
-                        "Missing end energy snapshot for domain '{}'",
-                        domain_name
-                    )));
-                }
+            let end_value = if let Some(v) = end.metrics.get(&domain_index) {
+                *v
+            } else {
+                error!("Missing end energy snapshot for domain '{domain_name}'");
+                return Err(RaplError::RaplReadError(format!(
+                    "Missing end energy snapshot for domain '{domain_name}'"
+                )));
             };
 
             let diff = energy_diff(start_value, end_value);
             debug!(
-                "Domain '{}': start={} µJ, end={} µJ, diff={} µJ",
-                domain_name, start_value, end_value, diff,
+                "Domain '{domain_name}': start={start_value} µJ, end={end_value} µJ, diff={diff} µJ",
             );
 
             per_domain_energy
@@ -86,6 +81,7 @@ fn energy_diff(start: u64, end: u64) -> u64 {
 }
 
 /// Convert joules to microjoules.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 #[inline]
 pub fn joules_to_micro_joules(joules: f64) -> u64 {
     (joules * 1_000_000.0) as u64

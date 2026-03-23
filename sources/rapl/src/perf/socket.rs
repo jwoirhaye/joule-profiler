@@ -75,7 +75,7 @@ pub(crate) fn discover_socket_topology_from_path(
             continue;
         }
 
-        let pkg_path = format!("{}/{}{}", cpu_sysfs_path, name, CPU_TOPOLOGY_SOCKET_ID);
+        let pkg_path = format!("{cpu_sysfs_path}/{name}{CPU_TOPOLOGY_SOCKET_ID}");
         let socket_id: u32 = fs::read_to_string(pkg_path)?.trim().parse()?;
 
         if let Some(sockets) = sockets_to_discover
@@ -90,7 +90,7 @@ pub(crate) fn discover_socket_topology_from_path(
     let mut socket_topology: Vec<SocketInfo> = sockets
         .into_iter()
         .map(|(socket_id, mut cpus_id)| {
-            trace!("Found {:?} cpus for socket {}", cpus_id, socket_id);
+            trace!("Found {cpus_id:?} cpus for socket {socket_id}");
             cpus_id.sort_unstable();
             SocketInfo { socket_id, cpus_id }
         })

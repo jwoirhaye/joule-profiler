@@ -13,7 +13,7 @@ use log::{debug, error, info, trace, warn};
 /// Represents a RAPL (Running Average Power Limit) energy domain.
 #[derive(Debug, Clone)]
 pub struct RaplDomain {
-    /// Path to the energy_uj file for reading current energy counter
+    /// Path to the `energy_uj` file for reading current energy counter
     pub path: PathBuf,
 
     /// Type of the domain (e.g., "package", "core", "dram", "psys")
@@ -61,16 +61,16 @@ pub fn get_domains(base_path: &str, spec: Option<&HashSet<u32>>) -> Result<Vec<R
 
 /// Discovers all available RAPL domains at the given base path.
 fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
-    info!("Discovering RAPL domains in {}", base);
+    info!("Discovering RAPL domains in {base}");
 
     let mut domains = Vec::new();
 
     let entries = fs::read_dir(base).map_err(|err| {
-        error!("Failed to read RAPL base directory: {}", err);
+        error!("Failed to read RAPL base directory: {err}");
         if err.kind() == ErrorKind::PermissionDenied {
             RaplError::InsufficientPermissions
         } else {
-            RaplError::RaplReadError(format!("Failed to read {}: {}", base, err))
+            RaplError::RaplReadError(format!("Failed to read {base}: {err}"))
         }
     })?;
 
@@ -79,7 +79,7 @@ fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
         let path = entry.path();
 
         if !path.is_dir() {
-            trace!("Skipping non-directory {:?}", path);
+            trace!("Skipping non-directory {}", path.display());
             continue;
         }
 
@@ -88,7 +88,7 @@ fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
         };
 
         if !name.starts_with("intel-rapl:") {
-            trace!("Skipping unrelated directory {}", name);
+            trace!("Skipping unrelated directory {name}");
             continue;
         }
 
@@ -112,11 +112,11 @@ fn discover_domains(base: &str) -> Result<Vec<RaplDomain>> {
     Ok(domains)
 }
 
-/// Adds a RAPL domain to the output vector if it contains an energy_uj file.
+/// Adds a RAPL domain to the output vector if it contains an `energy_uj` file.
 fn add_domain_if_energy(dir: &Path, out: &mut Vec<RaplDomain>) -> Result<()> {
     let path = dir.join("energy_uj");
     if !path.exists() {
-        trace!("No energy_uj in {:?}", dir);
+        trace!("No energy_uj in {}", dir.display());
         return Ok(());
     }
 
@@ -125,7 +125,7 @@ fn add_domain_if_energy(dir: &Path, out: &mut Vec<RaplDomain>) -> Result<()> {
         .trim()
         .to_string();
 
-    let socket = extract_socket_number(dir)?;
+    let socket = extract_socket_number(dir);
 
     let max_energy_uj_option = dir
         .join("max_energy_range_uj")
@@ -138,22 +138,19 @@ fn add_domain_if_energy(dir: &Path, out: &mut Vec<RaplDomain>) -> Result<()> {
         .flatten();
 
     if let Some(max_energy_uj) = max_energy_uj_option {
-        debug!(
-            "Found domain: name={}, socket={}, max_energy_uj={}",
-            name, socket, max_energy_uj
-        );
+        debug!("Found domain: name={name}, socket={socket}, max_energy_uj={max_energy_uj}");
 
         let domain = RaplDomain::try_new(path, name, socket, max_energy_uj)?;
         out.push(domain);
     } else {
-        warn!("Domain {:?} missing max_energy_range_uj", dir);
+        warn!("Domain {} missing max_energy_range_uj", dir.display());
     }
 
     Ok(())
 }
 
 /// Extracts the socket number from a RAPL domain path.
-fn extract_socket_number(path: &Path) -> Result<u32> {
+fn extract_socket_number(path: &Path) -> u32 {
     for comp in path.components() {
         if let Component::Normal(os) = comp
             && let Some(s) = os.to_str()
@@ -161,10 +158,10 @@ fn extract_socket_number(path: &Path) -> Result<u32> {
             && let Some(idx) = rest.split(':').next()
             && let Ok(n) = idx.parse::<u32>()
         {
-            return Ok(n);
+            return n;
         }
     }
-    Ok(0)
+    0
 }
 
 /// Reads the current energy counter value from a RAPL domain.
@@ -206,14 +203,14 @@ mod tests {
     #[test]
     fn extract_socket_number_from_path() {
         let path = Path::new("/sys/devices/intel-rapl:2/intel-rapl:2:0");
-        let socket = extract_socket_number(path).unwrap();
+        let socket = extract_socket_number(path);
         assert_eq!(socket, 2);
     }
 
     #[test]
     fn extract_socket_number_defaults_to_zero() {
         let path = Path::new("/weird/path/no-socket");
-        let socket = extract_socket_number(path).unwrap();
+        let socket = extract_socket_number(path);
         assert_eq!(socket, 0);
     }
 

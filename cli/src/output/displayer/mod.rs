@@ -1,7 +1,7 @@
 //! Display profiler results.
 //!
 //! This module provides abstractions and implementations for displaying
-//! JouleProfiler results in various formats, such as terminal output, JSON,
+//! `JouleProfiler` results in various formats, such as terminal output, JSON,
 //! or CSV. It also defines the trait [`Displayer`] for custom display implementations.
 //!
 //! # Overview

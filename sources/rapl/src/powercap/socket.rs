@@ -9,7 +9,7 @@ pub fn discover_sockets(domains: &[RaplDomain]) -> HashSet<u32> {
 
 /// Parses a socket specification string and validates against available domains.
 pub fn filter_sockets(spec: &HashSet<u32>, sockets: &HashSet<u32>) -> HashSet<u32> {
-    spec.intersection(sockets).cloned().collect()
+    spec.intersection(sockets).copied().collect()
 }
 
 /// Filter RAPL sockets with specified spec.

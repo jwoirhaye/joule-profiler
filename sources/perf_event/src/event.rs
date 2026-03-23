@@ -12,7 +12,7 @@ pub enum Event {
     BranchMisses,
 }
 
-/// Default hardware events to be used in perf_event.
+/// Default hardware events to be used in `perf_event`.
 pub static EVENTS: &[Event] = &[
     Event::CpuCycles,
     Event::Instructions,
@@ -22,7 +22,7 @@ pub static EVENTS: &[Event] = &[
 
 impl Event {
     /// Returns the unit for this event.
-    pub const fn unit(&self) -> MetricUnit {
+    pub const fn unit() -> MetricUnit {
         MetricUnit {
             prefix: UnitPrefix::None,
             unit: Unit::Count,
@@ -104,7 +104,7 @@ mod tests {
             unit: Unit::Count,
         };
         for event in EVENTS {
-            assert_eq!(event.unit(), expected, "unexpected unit for {event}");
+            assert_eq!(Event::unit(), expected, "unexpected unit for {event}");
         }
     }
 

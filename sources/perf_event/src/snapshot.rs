@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::event::Event;
 
-/// Snapshot of perf_event counters.
+/// Snapshot of `perf_event` counters.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
     pub metrics: HashMap<Event, u64>,
@@ -30,8 +30,7 @@ impl Phase {
                     .begin
                     .metrics
                     .get(event)
-                    .map(|&prev| current_value.wrapping_sub(prev))
-                    .unwrap_or(current_value);
+                    .map_or(current_value, |&prev| current_value.wrapping_sub(prev));
 
                 (*event, delta)
             })

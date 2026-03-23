@@ -34,13 +34,13 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
     /// Initialize a new iteration.
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
-        if !self.current_iteration.phases.is_empty() {
+        if self.current_iteration.phases.is_empty() {
+            error!("Attempted to create iteration with no phases");
+            Err(MetricSourceError::NoPhaseInIterationError)
+        } else {
             self.iterations
                 .push(std::mem::take(&mut self.current_iteration));
             Ok(())
-        } else {
-            error!("Attempted to create iteration with no phases");
-            Err(MetricSourceError::NoPhaseInIterationError)
         }
     }
 
@@ -54,8 +54,8 @@ impl<R: MetricReader> MetricAccumulator<R> {
 impl<R: MetricReader> Default for MetricAccumulator<R> {
     fn default() -> Self {
         Self {
-            iterations: Default::default(),
-            current_iteration: Default::default(),
+            iterations: Vec::default(),
+            current_iteration: RawIteration::default(),
         }
     }
 }

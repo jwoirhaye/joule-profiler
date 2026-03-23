@@ -23,7 +23,7 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     // Initialize a RAPL reader (no polling, monitoring all sockets)
-//!     let mut rapl = powercap::Rapl::default().unwrap();
+//!     let mut rapl = powercap::Rapl::try_default().unwrap();
 //!
 //!     // Measure and update internal counters
 //!     rapl.measure().await.unwrap();
@@ -105,8 +105,8 @@ pub struct Rapl {
 impl Rapl {
     /// Creates a new RAPL reader for the given path and sockets.
     ///
-    /// `rapl_path` — base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)  
-    /// `sockets` — optional set of CPU sockets to monitor  
+    /// `rapl_path` — base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)\
+    /// `sockets` — optional set of CPU sockets to monitor\
     /// `polling_rate_s` — optional interval in seconds for periodic measurement
     ///
     /// # Errors
@@ -117,19 +117,18 @@ impl Rapl {
     /// - Permissions are insufficient
     pub fn new(
         rapl_path: Option<&str>,
-        sockets_spec: Option<HashSet<u32>>,
+        sockets_spec: Option<&HashSet<u32>>,
         polling_rate_s: Option<f64>,
     ) -> Result<Self> {
         let rapl_path = rapl_base_path(rapl_path);
 
         trace!(
-            "Attempting to initialize RAPL reader: rapl_path={}, sockets={:?}",
-            rapl_path, sockets_spec
+            "Attempting to initialize RAPL reader: rapl_path={rapl_path}, sockets={sockets_spec:?}"
         );
 
         check_os()?;
 
-        let domains = get_domains(&rapl_path, sockets_spec.as_ref())?;
+        let domains = get_domains(&rapl_path, sockets_spec)?;
 
         if domains.is_empty() {
             error!("No domain discovered");
@@ -150,14 +149,14 @@ impl Rapl {
             rapl_path,
             domains,
             poll_interval,
-            current_counters: Default::default(),
-            last_snapshot: Default::default(),
+            current_counters: Arc::default(),
+            last_snapshot: Arc::default(),
             handle: None,
         })
     }
 
     /// Initializes an Rapl source with default configuration.
-    pub fn default() -> Result<Self> {
+    pub fn try_default() -> Result<Self> {
         Rapl::new(None, None, None)
     }
 
@@ -179,7 +178,7 @@ impl Rapl {
             );
 
             let val_uj = read_energy(domain)?;
-            trace!("Energy read: {} µJ", val_uj);
+            trace!("Energy read: {val_uj} µJ");
 
             map.insert((domain.domain_type, domain.socket), val_uj);
         }
@@ -267,12 +266,9 @@ impl MetricReader for Rapl {
                 ticker.next().await;
                 trace!("Rapl polled");
 
-                let mut last_guard = match last_snapshot.try_lock() {
-                    Ok(guard) => guard,
-                    Err(_) => {
-                        trace!("RAPL measure skipped: previous measurement still running");
-                        continue;
-                    }
+                let Ok(mut last_guard) = last_snapshot.try_lock() else {
+                    trace!("RAPL measure skipped: previous measurement still running");
+                    continue;
                 };
 
                 let new_snapshot = {
@@ -336,7 +332,7 @@ fn rapl_base_path(config_override: Option<&str>) -> String {
 
 /// Check if the program can read RAPL powercap files
 fn check_rapl_access(base: &str) -> Result<()> {
-    debug!("Checking RAPL access using base path: {}", base);
+    debug!("Checking RAPL access using base path: {base}");
     let path = Path::new(base);
 
     let entries = fs::read_dir(path).map_err(|e| match e.kind() {
@@ -359,8 +355,7 @@ fn check_rapl_access(base: &str) -> Result<()> {
     }
 
     Err(RaplError::RaplNotAvailable(format!(
-        "{} is not an RAPL folder",
-        base
+        "{base} is not an RAPL folder"
     )))
 }
 
