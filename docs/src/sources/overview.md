@@ -4,8 +4,8 @@
 
 ### Supported Architectures
 
-- **CPU:** The primary target is Intel x86 architecture.  
-- **GPU:** Current focus is on Nvidia GPUs.  
+- **CPU:** The only target is Intel x86 architecture at the moment.  
+- **GPU:** Current focus is on Nvidia GPUs.
 - **OS:** Only Linux-based systems are officially supported at the moment.  
 
 ### Available Sources
@@ -15,7 +15,7 @@
   - For details, see [RAPL Overview](rapl/introduction.md).  
 
 - **Nvidia GPUs (NVML):** Provides energy and performance metrics for Nvidia GPUs.  
-  - Currently tested on Linux; should work on Windows also.  
+  - NVML is available on Linux and Windows, but we do not support Windows systems.  
   - For details, see [NVML Overview](nvml/introduction.md).  
 
 - **perf_event:** Measures various performance counters like hardware, software, kernel probes, etc.

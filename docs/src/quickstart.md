@@ -79,7 +79,7 @@ GPU profiling requires the NVML library (part of NVIDIA driver installation).
 
 ### Choosing RAPL Backend
 
-By default, **Joule Profiler** measures [**RAPL**](sources/rapl/introduction.md) counters using either [**perf_event**](sources/rapl/perf-event.md) or [**Powercap**](sources/rapl/powercap.md) backend depending on your system.
+By default, **Joule Profiler** measures [**RAPL**](sources/rapl/introduction.md) counters using either [**perf_event**](sources/rapl/perf-event.md) (default) or [**Powercap**](sources/rapl/powercap.md) backend depending on your system.
 
 You can explicitly choose which backend to use:
 
@@ -91,7 +91,7 @@ sudo joule-profiler --rapl-backend=powercap phases -- ./my-program
 sudo joule-profiler --rapl-backend=perf phases -- ./my-program
 ```
 
-The choice of backend can affect measurement granularity and permission requirements. See the RAPL documentation for details on each backend.
+The choice of backend can affect measurement granularity and permission requirements. See the [RAPL](sources/rapl/introduction.md) documentation for details on each backend.
 
 ---
 

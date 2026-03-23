@@ -1,6 +1,6 @@
 # Introduction
 
-**Joule Profiler** is a tool for measuring program metrics from various sources, such as RAPL, perf_event or NVML, with a focus on energy consumption. It supports profiling CPU, GPU, and other system metrics at multiple scopes. Its modular and extensible architecture allows new sources to be added easily, while minimizing overhead to provide reliable measurements.
+**Joule Profiler** is a tool for measuring program metrics from various sources, such as RAPL, perf_event or NVML, with a focus on energy consumption. It supports profiling CPU, GPU, and other system metrics at multiple scopes. Its modular and extensible architecture, written in Rust, allows new sources to be added easily, while minimizing overhead to provide reliable measurements.
 
 It can be used through the CLI or via the exposed library, which offers more flexible configuration and the ability to add user-defined sources. Some traits are exposed through the crate API, enabling users to implement custom metric sources easily.
 
@@ -16,7 +16,9 @@ It enables energy profiling on different parts of a program, called phases, allo
 Phases are detected via tokens printed to standard output and matched with a configurable regular expression.
 This approach may introduce overhead and noise depending on the system’s I/O performance.
 
-In the future, we may implement an alternative using inter-process communication with language-specific wrappers to reduce overhead.
+In the future, we may implement an alternative using inter-process communication with language-specific wrappers to reduce the overhead introduced.
+
+![Phases](figures/phases.png)
 
 [^jouleit]: [Jouleit](github.com/powerapi-ng/jouleit)
 [^alumet]: [Alumet](https://alumet.dev)
