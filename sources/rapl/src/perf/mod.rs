@@ -35,7 +35,7 @@ const PERF_RAPL_PATH: &str = "/sys/bus/event_source/devices/power";
 /// perf RAPL source name for this metric reader.
 const PERF_SOURCE_NAME: &str = "RAPL (perf_event)";
 
-/// Path to check the kernel perf_event_paranoid level.
+/// Path to check the kernel `perf_event_paranoid` level.
 const PERF_PARANOID_PATH: &str = "/proc/sys/kernel/perf_event_paranoid";
 
 /// RAPL energy measurement source using Linux perf events.
@@ -61,18 +61,15 @@ impl Rapl {
     /// - OS is unsupported
     /// - RAPL counters cannot be read
     /// - Perf PMU type cannot be retrieved
-    pub fn new(sockets_spec: Option<HashSet<u32>>) -> Result<Self> {
+    pub fn new(sockets_spec: Option<&HashSet<u32>>) -> Result<Self> {
         check_os()?;
 
         let paranoid_level = read_paranoid_level()?;
-        trace!("Perf paranoid level set to {}", paranoid_level);
+        trace!("Perf paranoid level set to {paranoid_level}");
 
-        trace!(
-            "Attempting to initialize RAPL reader: sockets={:?}",
-            sockets_spec
-        );
+        trace!("Attempting to initialize RAPL reader: sockets={sockets_spec:?}");
 
-        let sockets = discover_domains_and_open_counters(sockets_spec.as_ref()).map_err(|err| {
+        let sockets = discover_domains_and_open_counters(sockets_spec).map_err(|err| {
             if let RaplError::PerfParanoid(_) = err
                 && paranoid_level > 0
             {
@@ -111,8 +108,7 @@ impl Rapl {
 
                 let value = group_data
                     .get(&domain.event_counter.counter)
-                    .map(|d| d.value())
-                    .unwrap_or(0);
+                    .map_or(0, |d| d.value());
 
                 metrics.insert(domain_index, value);
             }
@@ -163,7 +159,7 @@ impl MetricReader for Rapl {
             .flat_map(|socket| {
                 socket.domains.iter().map(|domain| {
                     let domain_name = domain.get_name(socket.id);
-                    trace!("Registering sensor: {}", domain_name);
+                    trace!("Registering sensor: {domain_name}");
                     Sensor {
                         name: domain_name,
                         unit: MICRO_JOULE_UNIT,
@@ -207,7 +203,7 @@ impl MetricReader for Rapl {
         Ok(result)
     }
 
-    /// Enable the perf_event counters.
+    /// Enable the `perf_event` counters.
     async fn init(&mut self, _: i32) -> Result<()> {
         self.sockets
             .iter_mut()
@@ -225,22 +221,22 @@ impl MetricReader for Rapl {
 
 /// Read the PMU type from sysfs.
 ///
-/// Returns an RaplError if the file cannot be read or parsed.
+/// Returns an `RaplError` if the file cannot be read or parsed.
 fn read_pmu_type() -> Result<u32> {
     read_pmu_type_from_path(PERF_RAPL_PATH)
 }
 
-/// Read the perf_event_paranoid level from `/proc`.
+/// Read the `perf_event_paranoid` level from `/proc`.
 ///
-/// Returns a PerfParanoidError if the file cannot be read or parsed.
+/// Returns a `PerfParanoidError` if the file cannot be read or parsed.
 fn read_paranoid_level() -> Result<u8> {
     read_paranoid_level_from_path(PERF_PARANOID_PATH)
 }
 
 fn read_pmu_type_from_path(path: &str) -> Result<u32> {
-    let type_path = format!("{}/type", path);
+    let type_path = format!("{path}/type");
     fs::read_to_string(type_path)
-        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {}", err)))
+        .map_err(|err| RaplError::RaplNotAvailable(format!("Failed to read perf PMU type {err}")))
         .map(|s| s.trim().parse::<u32>())?
         .map_err(Into::into)
 }

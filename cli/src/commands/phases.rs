@@ -8,9 +8,9 @@ pub struct PhasesArgs {
     /// Matches tokens in stdout; if the pattern has a capture group, the
     /// captured text is used as the token name. Energy phases computed:
     ///   - global (START -> END)
-    ///   - START -> first_token
-    ///   - token_i -> token_i+1
-    ///   - last_token -> END
+    ///   - START -> `first_token`
+    ///   - `token_i` -> `token_i+1`
+    ///   - `last_token` -> END
     #[arg(
         long = "token-pattern",
         default_value = "__[A-Z0-9_]+__",

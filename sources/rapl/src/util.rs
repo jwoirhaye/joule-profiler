@@ -1,6 +1,7 @@
 use crate::Result;
 
 /// Checks if the operating system is Linux.
+#[allow(clippy::unnecessary_wraps)]
 pub fn check_os() -> Result<()> {
     #[cfg(target_os = "linux")]
     {

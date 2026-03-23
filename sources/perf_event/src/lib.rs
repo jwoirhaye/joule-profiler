@@ -1,10 +1,20 @@
-//! perf_event source for hardware performance counters.
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_field_names
+)]
+
+//! `perf_event` source for hardware performance counters.
 //!
 //! Measures CPU cycles, instructions, cache misses, and branch misses
-//! using Linux perf_event subsystem.
+//! using Linux `perf_event` subsystem.
 //!
 //! Note: Counters are created individually (not grouped) because
-//! `inherit(true)` is incompatible with perf_event groups on Linux.
+//! `inherit(true)` is incompatible with `perf_event` groups on Linux.
 
 use std::collections::HashMap;
 
@@ -28,7 +38,7 @@ mod snapshot;
 
 type Result<T> = std::result::Result<T, PerfEventError>;
 
-/// Hardware performance counter source using perf_event.
+/// Hardware performance counter source using `perf_event`.
 ///
 /// Tracks CPU performance metrics (cycles, instructions, cache/branch misses)
 /// for a specific process.
@@ -42,7 +52,7 @@ pub struct PerfEvent {
 }
 
 impl PerfEvent {
-    /// Creates a new uninitialized perf_event source.
+    /// Creates a new uninitialized `perf_event` source.
     ///
     /// Call `init()` with a PID before measuring.
     pub fn new() -> Result<Self> {
@@ -61,7 +71,7 @@ impl PerfEvent {
     fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()> {
         debug!("Adding {} individual performance counters", events.len());
         for event in events {
-            trace!("Building counter: {:?}", event);
+            trace!("Building counter: {event:?}");
             let counter = Builder::new(Hardware::from(*event))
                 .inherit(true)
                 .observe_pid(pid)
@@ -75,7 +85,7 @@ impl PerfEvent {
     /// Enable all counters.
     fn enable_all(&mut self) -> Result<()> {
         for (event, counter) in &mut self.perf_counters {
-            trace!("Enabling counter: {:?}", event);
+            trace!("Enabling counter: {event:?}");
             counter.enable()?;
         }
         debug!("All perf_event counters enabled");
@@ -132,11 +142,11 @@ impl MetricReader for PerfEvent {
         let sensors: Sensors = EVENTS
             .iter()
             .map(|event| {
-                trace!("Registering sensor: {}", event);
+                trace!("Registering sensor: {event}");
                 Sensor {
                     name: event.to_string(),
                     source: Self::get_name().to_string(),
-                    unit: event.unit(),
+                    unit: Event::unit(),
                 }
             })
             .collect();
@@ -151,7 +161,7 @@ impl MetricReader for PerfEvent {
 
     /// Initialize counters for a specific process and start monitoring.
     async fn init(&mut self, pid: i32) -> Result<()> {
-        info!("Initializing perf_event source for PID {}", pid);
+        info!("Initializing perf_event source for PID {pid}");
         self.init_counters(EVENTS, pid)?;
         self.enable_all()?;
         Ok(())
@@ -161,7 +171,7 @@ impl MetricReader for PerfEvent {
     async fn reset(&mut self) -> Result<()> {
         self.perf_counters = HashMap::new();
         self.last_snapshot = None;
-        self.begin_snapshot = Default::default();
+        self.begin_snapshot = Option::default();
         Ok(())
     }
 
@@ -179,7 +189,7 @@ impl MetricReader for PerfEvent {
                 name: event.to_string(),
                 source: Self::get_name().to_string(),
                 value: counter,
-                unit: event.unit(),
+                unit: Event::unit(),
             })
             .collect())
     }

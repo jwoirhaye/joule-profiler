@@ -28,22 +28,20 @@ async fn main() -> Result<()> {
     match cli.rapl_backend {
         RaplBackend::Perf => {
             if let Err(err) = perf::Rapl::check_perf_access() {
-                warn!(
-                    "Cannot initialize RAPL with perf_event, switching to powercap: {}",
-                    err
-                );
+                warn!("Cannot initialize RAPL with perf_event, switching to powercap: {err}");
                 let rapl_powercap =
-                    powercap::Rapl::new(rapl_path, rapl_sockets_spec, rapl_polling)?;
+                    powercap::Rapl::new(rapl_path, rapl_sockets_spec.as_ref(), rapl_polling)?;
                 profiler.add_source(rapl_powercap);
             } else {
                 trace!("Using perf_event for RAPL profiling");
-                let perf_rapl = perf::Rapl::new(rapl_sockets_spec)?;
+                let perf_rapl = perf::Rapl::new(rapl_sockets_spec.as_ref())?;
                 profiler.add_source(perf_rapl);
             }
         }
         RaplBackend::Powercap => {
             trace!("Using Powercap for RAPL profiling");
-            let rapl_powercap = powercap::Rapl::new(rapl_path, rapl_sockets_spec, rapl_polling)?;
+            let rapl_powercap =
+                powercap::Rapl::new(rapl_path, rapl_sockets_spec.as_ref(), rapl_polling)?;
             profiler.add_source(rapl_powercap);
         }
     }
@@ -52,9 +50,9 @@ async fn main() -> Result<()> {
         match Nvml::new() {
             Ok(nvml) => {
                 trace!("Using NVML for Nvidia GPU profiling");
-                profiler.add_source(nvml)
+                profiler.add_source(nvml);
             }
-            Err(err) => warn!("{}", err),
+            Err(err) => warn!("{err}"),
         }
     }
 

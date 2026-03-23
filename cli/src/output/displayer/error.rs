@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// Error type for display operations in JouleProfiler.
+/// Error type for display operations in `JouleProfiler`.
 ///
 /// This enum represents errors that can occur when displaying or exporting
 /// profiler results, whether to the terminal, JSON, or CSV.

@@ -1,4 +1,4 @@
-//! Core aggregation module for JouleProfiler.
+//! Core aggregation module for `JouleProfiler`.
 //!
 //! Provides structures to aggregate metrics from various sources into a unified
 //! format, organized by iterations, phases, and sensor-level results.

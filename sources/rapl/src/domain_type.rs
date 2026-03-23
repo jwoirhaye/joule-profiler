@@ -29,7 +29,7 @@ pub enum RaplDomainType {
 
     /// Platform-level power (System on Chip).
     ///
-    /// Measures total platform power including Package and additional SoC components.
+    /// Measures total platform power including Package and additional `SoC` components.
     Psys,
 }
 
@@ -38,7 +38,7 @@ impl RaplDomainType {
     pub fn to_string_socket(self, socket: u32) -> String {
         match self {
             RaplDomainType::Psys => RaplDomainType::Psys.to_string(),
-            domain_type => format!("{}-{}", domain_type, socket),
+            domain_type => format!("{domain_type}-{socket}"),
         }
     }
 

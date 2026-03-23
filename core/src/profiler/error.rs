@@ -2,7 +2,7 @@ use crate::orchestrator::error::OrchestratorError;
 use crate::source::error::MetricSourceError;
 use thiserror::Error;
 
-/// Top-level error type for JouleProfiler.
+/// Top-level error type for `JouleProfiler`.
 ///
 /// This enum represents all possible errors that can occur during the
 /// execution of the profiler from initialization, orchestration, sources errors, aggregation and etc.

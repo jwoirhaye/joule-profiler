@@ -1,3 +1,13 @@
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_field_names
+)]
+
 //! NVML (NVIDIA Management Library) energy profiling integration.
 //!
 //! This module provides energy consumption monitoring for NVIDIA GPUs using the NVML library.
@@ -113,8 +123,7 @@ impl Nvml {
                     .gpus_energy
                     .get(device_index)
                     .ok_or(NvmlError::UnknownMetricError(format!(
-                        "Device {} unknown",
-                        device_index
+                        "Device {device_index} unknown"
                     )))?;
             let diff = new_energy.wrapping_sub(*old_energy);
             gpus_energy.insert(*device_index, diff);
@@ -153,7 +162,7 @@ impl MetricReader for Nvml {
         (0..self.devices_max_index)
             .map(|i| {
                 Ok(Sensor {
-                    name: format!("GPU-{}", i),
+                    name: format!("GPU-{i}"),
                     unit: MILLI_JOULE_UNIT,
                     source: NVML_SOURCE_NAME.to_string(),
                 })
@@ -171,7 +180,7 @@ impl MetricReader for Nvml {
             .gpus_energy
             .into_iter()
             .map(|(device_index, energy)| Metric {
-                name: format!("GPU-{}", device_index),
+                name: format!("GPU-{device_index}"),
                 value: energy,
                 unit: MILLI_JOULE_UNIT,
                 source: NVML_SOURCE_NAME.to_string(),

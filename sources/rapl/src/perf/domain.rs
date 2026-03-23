@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-/// Represents a RAPL domain with its perf_event counter.
+/// Represents a RAPL domain with its `perf_event` counter.
 ///
 /// Each domain corresponds to a measurable component like `PACKAGE-0`, `DRAM-0`, etc.
 #[derive(Debug)]
@@ -34,6 +34,7 @@ impl PerfRaplDomain {
     }
 
     /// Apply the domain-specific scaling factor to convert raw value to joules.
+    #[allow(clippy::cast_precision_loss)]
     pub fn compute_scale(&self, value: u64) -> f64 {
         value as f64 * self.event_counter.scale
     }
@@ -44,10 +45,10 @@ impl PerfRaplDomain {
     }
 }
 
-/// Attempts to create a perf_event group for a given socket by trying each CPU
+/// Attempts to create a `perf_event` group for a given socket by trying each CPU
 /// in the list of CPUs until one succeeds.
 ///
-/// Returns the group if it has been successfully initialized, else returns an RaplError::FailToOpenDomainCounter.
+/// Returns the group if it has been successfully initialized, else returns an `RaplError::FailToOpenDomainCounter`.
 ///
 /// # Notes
 ///
@@ -56,7 +57,7 @@ impl PerfRaplDomain {
 ///   portability by trying all CPUs in the socket.
 pub fn build_group_for_socket(socket_info: &SocketInfo) -> Result<Group> {
     for cpu in &socket_info.cpus_id {
-        debug!("Trying to build perf group on CPU {}", cpu);
+        debug!("Trying to build perf group on CPU {cpu}");
 
         match Builder::new(Software::DUMMY)
             .read_format(ReadFormat::GROUP)
@@ -67,16 +68,13 @@ pub fn build_group_for_socket(socket_info: &SocketInfo) -> Result<Group> {
             .build_group()
         {
             Ok(group) => {
-                debug!("Perf group successfully built on CPU {}", cpu);
+                debug!("Perf group successfully built on CPU {cpu}");
                 return Ok(group);
             }
             Err(err) => {
-                debug!("Failed to build group on CPU {}: {:?}", cpu, err);
-                match err.kind() {
-                    ErrorKind::PermissionDenied => {
-                        return Err(PerfParanoidError::IoError(err).into());
-                    }
-                    _ => continue,
+                debug!("Failed to build group on CPU {cpu}: {err:?}");
+                if err.kind() == ErrorKind::PermissionDenied {
+                    return Err(PerfParanoidError::IoError(err).into());
                 }
             }
         }
@@ -91,7 +89,7 @@ pub fn build_group_for_socket(socket_info: &SocketInfo) -> Result<Group> {
 /// Discover the system's socket topology.
 pub fn discover_domains(domains_to_discover: Option<&HashSet<u32>>) -> Result<Vec<SocketInfo>> {
     let socket_topology = discover_socket_topology(domains_to_discover)?;
-    debug!("Socket topology: {:?}", socket_topology);
+    debug!("Socket topology: {socket_topology:?}");
     Ok(socket_topology)
 }
 
