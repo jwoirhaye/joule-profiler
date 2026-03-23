@@ -7,20 +7,26 @@ use serde::{Serialize, Serializer};
 use std::fmt::Display;
 
 /// SI prefixes used to scale metric units.
-#[derive(Debug, Serialize, Clone, Copy)]
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 pub enum UnitPrefix {
     /// Nano prefix (10^-9).
     Nano,
+
     /// Micro prefix (10^-6).
     Micro,
+
     /// Milli prefix (10^-3).
     Milli,
+
     /// No prefix (base unit).
     None,
+
     /// Kilo prefix (10^3).
     Kilo,
+
     /// Mega prefix (10^6).
     Mega,
+
     /// Giga prefix (10^9).
     Giga,
 }
@@ -40,18 +46,23 @@ impl Display for UnitPrefix {
 }
 
 /// Base measurement units.
-#[derive(Debug, Serialize, Clone, Copy)]
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
     /// Energy unit.
     Joule,
+
     /// Power unit.
     Watt,
+
     /// Time unit.
     Second,
+
     /// Count.
     Count,
+
     /// Memory or data size.
     Byte,
+
     /// Percentage.
     Percent,
 }
@@ -70,10 +81,11 @@ impl Display for Unit {
 }
 
 /// A metric unit composed of an SI prefix and a base unit.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MetricUnit {
     /// SI prefix applied to the unit.
     pub prefix: UnitPrefix,
+
     /// Base measurement unit.
     pub unit: Unit,
 }

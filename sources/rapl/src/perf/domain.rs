@@ -44,17 +44,10 @@ impl PerfRaplDomain {
     }
 }
 
-/// Attempts to create a perf `Group` for a given socket by trying each CPU
-/// in the provided list until one succeeds.
+/// Attempts to create a perf_event group for a given socket by trying each CPU
+/// in the list of CPUs until one succeeds.
 ///
-/// # Arguments
-///
-/// * `socket_info` - The information of a socket (e.g. its id and associated cpus)
-///
-/// # Returns
-///
-/// * `Ok(Group)` - The first successfully built perf group.
-/// * `Err(RaplError::FailToOpenDomainCounter)` - If no CPU can be used to build the group.
+/// Returns the group if it has been successfully initialized, else returns an RaplError::FailToOpenDomainCounter.
 ///
 /// # Notes
 ///
@@ -96,18 +89,6 @@ pub fn build_group_for_socket(socket_info: &SocketInfo) -> Result<Group> {
 }
 
 /// Discover the system's socket topology.
-///
-/// # Arguments
-///
-/// * `domains_to_discover` - Optional filter for socket IDs.
-///
-/// # Returns
-///
-/// A vector of `SocketInfo` with socket IDs and associated CPUs.
-///
-/// # Errors
-///
-/// Returns `RaplError` if socket topology cannot be determined.
 pub fn discover_domains(domains_to_discover: Option<&HashSet<u32>>) -> Result<Vec<SocketInfo>> {
     let socket_topology = discover_socket_topology(domains_to_discover)?;
     debug!("Socket topology: {:?}", socket_topology);
@@ -115,23 +96,67 @@ pub fn discover_domains(domains_to_discover: Option<&HashSet<u32>>) -> Result<Ve
 }
 
 /// Discover available RAPL domains and open perf counters for each.
-///
-/// Convenience function that combines `discover_domains` and `open_counters`.
-///
-/// # Arguments
-///
-/// * `domains_to_discover` - Optional filter for socket IDs.
-///
-/// # Returns
-///
-/// A vector of initialized `Socket` instances.
-///
-/// # Errors
-///
-/// Returns `RaplError` if any perf counter cannot be opened or parsed.
 pub fn discover_domains_and_open_counters(
     domains_to_discover: Option<&HashSet<u32>>,
 ) -> Result<Vec<Socket>> {
     let socket_topology = discover_domains(domains_to_discover)?;
     open_counters(socket_topology)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain_type::RaplDomainType;
+    use crate::perf::event::RaplEvent;
+    use std::mem::ManuallyDrop;
+
+    fn fake_domain(domain_type: RaplDomainType, scale: f64) -> ManuallyDrop<PerfRaplDomain> {
+        let event = RaplEvent {
+            scale,
+            counter: unsafe { std::mem::zeroed() },
+        };
+        ManuallyDrop::new(PerfRaplDomain::new(domain_type, event))
+    }
+
+    #[test]
+    fn compute_scale_multiplies_raw_value_by_scale() {
+        let d = fake_domain(RaplDomainType::Package, 2.5);
+        assert_eq!(d.compute_scale(4), 10.0);
+    }
+
+    #[test]
+    fn compute_scale_zero_value_returns_zero() {
+        let d = fake_domain(RaplDomainType::Package, 2.5);
+        assert_eq!(d.compute_scale(0), 0.0);
+    }
+
+    #[test]
+    fn compute_scale_scale_of_one_is_identity() {
+        let d = fake_domain(RaplDomainType::Dram, 1.0);
+        assert_eq!(d.compute_scale(42), 42.0);
+    }
+
+    #[test]
+    fn get_name_includes_socket_for_regular_domains() {
+        assert_eq!(
+            fake_domain(RaplDomainType::Package, 1.0).get_name(0),
+            "PACKAGE-0"
+        );
+        assert_eq!(
+            fake_domain(RaplDomainType::Package, 1.0).get_name(1),
+            "PACKAGE-1"
+        );
+        assert_eq!(fake_domain(RaplDomainType::Core, 1.0).get_name(0), "CORE-0");
+        assert_eq!(fake_domain(RaplDomainType::Dram, 1.0).get_name(2), "DRAM-2");
+        assert_eq!(
+            fake_domain(RaplDomainType::Uncore, 1.0).get_name(0),
+            "UNCORE-0"
+        );
+    }
+
+    #[test]
+    fn get_name_psys_omits_socket_number() {
+        assert_eq!(fake_domain(RaplDomainType::Psys, 1.0).get_name(0), "PSYS");
+        assert_eq!(fake_domain(RaplDomainType::Psys, 1.0).get_name(99), "PSYS");
+    }
 }

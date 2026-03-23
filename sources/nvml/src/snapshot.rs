@@ -12,30 +12,9 @@ pub struct NvmlSnapshot {
 
 #[derive(Debug, Clone, Default)]
 pub struct Phase {
-    /// The begin snapshot made at the start of a phase.
+    /// The snapshot made at the start of a phase.
     pub begin: NvmlSnapshot,
 
     /// The snapshot made at the end of a phase.
     pub end: NvmlSnapshot,
-}
-
-impl Phase {
-    /// Compute the differences between the start and the end of a snapshot.
-    pub fn diff(&self) -> NvmlSnapshot {
-        NvmlSnapshot {
-            gpus_energy: self
-                .end
-                .gpus_energy
-                .iter()
-                .map(|(gpu, end_value)| {
-                    let diff = if let Some(begin_value) = self.begin.gpus_energy.get(gpu) {
-                        end_value - begin_value
-                    } else {
-                        0
-                    };
-                    (*gpu, diff)
-                })
-                .collect(),
-        }
-    }
 }

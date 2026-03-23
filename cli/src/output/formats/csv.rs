@@ -187,3 +187,306 @@ impl Displayer for CsvOutput {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use joule_profiler_core::{
+        types::{Iteration, Metric, Phase, PhaseToken},
+        unit::{MetricUnit, Unit, UnitPrefix},
+    };
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    fn unit() -> MetricUnit {
+        MetricUnit {
+            unit: Unit::Joule,
+            prefix: UnitPrefix::Micro,
+        }
+    }
+
+    fn metric(name: &str, value: u64) -> Metric {
+        Metric {
+            name: name.to_string(),
+            value,
+            unit: unit(),
+            source: "rapl".to_string(),
+        }
+    }
+
+    fn phase(
+        index: usize,
+        start: PhaseToken,
+        end: PhaseToken,
+        duration_ms: u128,
+        timestamp: u128,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+        metrics: Vec<Metric>,
+    ) -> Phase {
+        Phase {
+            index,
+            start_token: start,
+            end_token: end,
+            duration_ms,
+            timestamp,
+            start_token_line: start_line,
+            end_token_line: end_line,
+            metrics,
+        }
+    }
+
+    fn simple_phase(metrics: Vec<Metric>) -> Phase {
+        phase(
+            0,
+            PhaseToken::Start,
+            PhaseToken::End,
+            500,
+            1000,
+            None,
+            None,
+            metrics,
+        )
+    }
+
+    fn iteration(index: usize, exit_code: i32, phases: Vec<Phase>) -> Iteration {
+        Iteration {
+            index,
+            timestamp: 0,
+            duration_ms: 0,
+            exit_code,
+            phases,
+        }
+    }
+
+    fn csv_to_tempfile() -> (CsvOutput, NamedTempFile) {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_owned();
+        (CsvOutput::try_new(Some(path)).unwrap(), tmp)
+    }
+
+    fn read(tmp: &NamedTempFile) -> String {
+        fs::read_to_string(tmp.path()).unwrap()
+    }
+
+    #[test]
+    fn try_new_valid_path_creates_file() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("out.csv").to_str().unwrap().to_owned();
+        assert!(CsvOutput::try_new(Some(path.clone())).is_ok());
+        assert!(std::path::Path::new(&path).exists());
+    }
+
+    #[test]
+    fn try_new_invalid_path_returns_error() {
+        assert!(CsvOutput::try_new(Some("/nonexistent/dir/out.csv".to_string())).is_err());
+    }
+
+    #[test]
+    fn phases_single_empty_phases_writes_nothing() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        csv.phases_single(&["echo".into()], ".*", &iteration(0, 0, vec![]))
+            .unwrap();
+        assert!(read(&tmp).is_empty());
+    }
+
+    #[test]
+    fn phases_single_writes_header_without_iteration_id() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(0, 0, vec![simple_phase(vec![metric("PKG", 10)])]);
+        csv.phases_single(&["echo".into()], ".*", &iter).unwrap();
+        let content = read(&tmp);
+        assert!(content.contains("phase_id"));
+        assert!(content.contains("phase_name"));
+        assert!(content.contains("metric_name"));
+        assert!(!content.contains("iteration_id"));
+    }
+
+    #[test]
+    fn phases_single_writes_metric_values() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(0, 0, vec![simple_phase(vec![metric("PKG", 42)])]);
+        csv.phases_single(&["echo".into()], ".*", &iter).unwrap();
+        let content = read(&tmp);
+        assert!(content.contains("PKG"));
+        assert!(content.contains("42"));
+        assert!(content.contains("rapl"));
+    }
+
+    #[test]
+    fn phases_single_writes_phase_metadata() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(0, 3, vec![simple_phase(vec![metric("PKG", 1)])]);
+        csv.phases_single(&["my_cmd".into(), "--flag".into()], "MY_PATTERN", &iter)
+            .unwrap();
+        let content = read(&tmp);
+        assert!(content.contains("500")); // duration_ms
+        assert!(content.contains("MY_PATTERN"));
+        assert!(content.contains("my_cmd --flag"));
+        assert!(content.contains("3")); // exit_code
+    }
+
+    #[test]
+    fn phases_single_writes_token_info() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(
+            0,
+            0,
+            vec![phase(
+                0,
+                PhaseToken::Token("__A__".into()),
+                PhaseToken::Token("__B__".into()),
+                200,
+                0,
+                Some(3),
+                Some(7),
+                vec![metric("PKG", 1)],
+            )],
+        );
+        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+        let content = read(&tmp);
+        assert!(content.contains("__A__"));
+        assert!(content.contains("__B__"));
+        assert!(content.contains("3"));
+        assert!(content.contains("7"));
+    }
+
+    #[test]
+    fn phases_single_one_row_per_metric() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(
+            0,
+            0,
+            vec![simple_phase(vec![
+                metric("PKG", 1),
+                metric("DRAM", 2),
+                metric("CORE", 3),
+            ])],
+        );
+        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+        let content = read(&tmp);
+
+        assert_eq!(content.lines().count(), 4);
+    }
+
+    #[test]
+    fn phases_single_right_phase_name() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iter = iteration(
+            0,
+            0,
+            vec![phase(
+                0,
+                PhaseToken::Token("__START__".into()),
+                PhaseToken::Token("__END__".into()),
+                100,
+                0,
+                None,
+                None,
+                vec![metric("PKG", 1)],
+            )],
+        );
+        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+
+        assert!(read(&tmp).contains("__START__ -> __END__"));
+    }
+
+    #[test]
+    fn phases_iterations_empty_writes_nothing() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        csv.phases_iterations(&["echo".into()], ".*", &[]).unwrap();
+        assert!(read(&tmp).is_empty());
+    }
+
+    #[test]
+    fn phases_iterations_first_iteration_empty_phases_writes_nothing() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        csv.phases_iterations(&["echo".into()], ".*", &[iteration(0, 0, vec![])])
+            .unwrap();
+        assert!(read(&tmp).is_empty());
+    }
+
+    #[test]
+    fn phases_iterations_writes_iteration_id_column() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iters = vec![
+            iteration(0, 0, vec![simple_phase(vec![metric("PKG", 1)])]),
+            iteration(1, 0, vec![simple_phase(vec![metric("PKG", 2)])]),
+        ];
+        csv.phases_iterations(&["echo".into()], ".*", &iters)
+            .unwrap();
+        assert!(read(&tmp).contains("iteration_id"));
+    }
+
+    #[test]
+    fn phases_iterations_one_row_per_iteration_per_metric() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iters = vec![
+            iteration(
+                0,
+                0,
+                vec![simple_phase(vec![metric("PKG", 1), metric("DRAM", 2)])],
+            ),
+            iteration(
+                1,
+                0,
+                vec![simple_phase(vec![metric("PKG", 3), metric("DRAM", 4)])],
+            ),
+        ];
+        csv.phases_iterations(&["echo".into()], ".*", &iters)
+            .unwrap();
+
+        // header + 2 iterations × 2 metrics = 5 lines
+        assert_eq!(read(&tmp).lines().count(), 5);
+    }
+
+    #[test]
+    fn phases_iterations_multiple_phases_per_iteration() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let iters = vec![iteration(
+            0,
+            0,
+            vec![
+                simple_phase(vec![metric("PKG", 1)]),
+                phase(
+                    1,
+                    PhaseToken::Token("__A__".into()),
+                    PhaseToken::End,
+                    100,
+                    0,
+                    None,
+                    None,
+                    vec![metric("PKG", 2)],
+                ),
+            ],
+        )];
+        csv.phases_iterations(&["echo".into()], ".*", &iters)
+            .unwrap();
+
+        // header + 2 phases × 1 metric = 3 lines
+        assert_eq!(read(&tmp).lines().count(), 3);
+    }
+
+    #[test]
+    fn list_sensors_writes_header_and_one_row_per_sensor() {
+        let (mut csv, tmp) = csv_to_tempfile();
+        let sensors = vec![
+            Sensor {
+                name: "PKG".into(),
+                unit: unit(),
+                source: "rapl".into(),
+            },
+            Sensor {
+                name: "DRAM".into(),
+                unit: unit(),
+                source: "rapl".into(),
+            },
+        ];
+        csv.list_sensors(&sensors).unwrap();
+        let content = read(&tmp);
+        assert!(content.contains("sensor;unit;source"));
+        assert!(content.contains("PKG"));
+        assert!(content.contains("DRAM"));
+        assert_eq!(content.lines().count(), 3);
+    }
+}
