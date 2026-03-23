@@ -22,29 +22,26 @@ const ONLINE_CPU_SYSFS_PATH: &str = "/sys/devices/system/cpu/online";
 pub struct SocketInfo {
     /// The ID of the socket.
     pub socket_id: u32,
+
     /// List of CPU IDs associated with this socket.
     pub cpus_id: Vec<u32>,
 }
 
 pub struct Socket {
+    /// The id of the socket.
     pub id: u32,
+
+    /// The group of counters to be able to manage them all at once.
     pub group: Group,
+
+    /// The RAPL domain supported by the hardware.
     pub domains: Vec<PerfRaplDomain>,
 }
 
-/// Discover the CPU socket topology of the system.
+/// Discover the CPU socket topology of the system with an optional filter to discover only specific socket IDs.
 ///
-/// # Arguments
-///
-/// * `sockets_to_discover` - Optional filter to discover only specific socket IDs.
-///
-/// # Returns
-///
-/// A `Vec<SocketInfo>` containing each discovered socket and its CPUs.
-///
-/// # Errors
-///
-/// Returns an error if reading sysfs files fails or parsing fails.
+/// It returns a list containing each discovered socket and its CPUs.
+/// An error occurs if reading sysfs files fails or parsing fails.
 pub fn discover_socket_topology(
     sockets_to_discover: Option<&HashSet<u32>>,
 ) -> Result<Vec<SocketInfo>> {
@@ -97,13 +94,8 @@ pub fn discover_socket_topology(
 
 /// Read the list of online CPUs from sysfs.
 ///
-/// # Returns
-///
-/// A `HashSet<u32>` containing the IDs of all online CPUs.
-///
-/// # Errors
-///
-/// Returns an error if the sysfs file cannot be read or if parsing fails.
+/// Returns a set containing the IDs of all online CPUs.
+/// An error occurs if the sysfs file cannot be read or if parsing fails.
 fn read_online_cpus() -> Result<HashSet<u32>> {
     let content = fs::read_to_string(ONLINE_CPU_SYSFS_PATH)?;
     let mut cpus = HashSet::new();

@@ -1,15 +1,14 @@
 use crate::aggregate::phase::SensorPhase;
 use std::ops::{Add, AddAssign};
 
-/// A single sensor measurement iteration
+/// A single sensor measurement iteration.
 #[derive(Default, Debug)]
 pub struct SensorIteration {
-    /// Measured phases for this iteration
+    /// Measured phases for this iteration.
     pub phases: Vec<SensorPhase>,
 }
 
 impl AddAssign for SensorIteration {
-    /// Aggregates another iteration into this one
     fn add_assign(&mut self, rhs: Self) {
         self.phases
             .iter_mut()
@@ -21,7 +20,6 @@ impl AddAssign for SensorIteration {
 impl Add for SensorIteration {
     type Output = SensorIteration;
 
-    /// Returns the sum of two sensor iterations
     fn add(mut self, rhs: Self) -> Self::Output {
         self += rhs;
         self

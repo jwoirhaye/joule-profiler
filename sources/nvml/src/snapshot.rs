@@ -4,22 +4,23 @@ use std::collections::HashMap;
 ///
 /// This struct holds the total energy consumption (in millijoules) for each GPU device
 /// at the time the snapshot was taken.
-///
-/// # Fields
-///
-/// * `gpus_energy` - A map from GPU device index to total energy consumption in millijoules.
 #[derive(Debug, Default, Clone)]
 pub struct NvmlSnapshot {
+    /// A map from GPU device index to total energy consumption in millijoules.
     pub gpus_energy: HashMap<u32, u64>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Phase {
+    /// The begin snapshot made at the start of a phase.
     pub begin: NvmlSnapshot,
+
+    /// The snapshot made at the end of a phase.
     pub end: NvmlSnapshot,
 }
 
 impl Phase {
+    /// Compute the differences between the start and the end of a snapshot.
     pub fn diff(&self) -> NvmlSnapshot {
         NvmlSnapshot {
             gpus_energy: self

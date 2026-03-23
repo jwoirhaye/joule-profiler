@@ -34,7 +34,7 @@ pub enum RaplDomainType {
 }
 
 impl RaplDomainType {
-    /// Get the domain name, with its type and socket number
+    /// Get the domain name, with its type and socket number.
     pub fn to_string_socket(self, socket: u32) -> String {
         match self {
             RaplDomainType::Psys => RaplDomainType::Psys.to_string(),
@@ -42,6 +42,7 @@ impl RaplDomainType {
         }
     }
 
+    /// Converts event to str.
     pub fn to_perf_event(self) -> &'static str {
         match self {
             RaplDomainType::Package => "energy-pkg",

@@ -5,13 +5,13 @@ use serde::Serialize;
 /// Represents a phase marker in an iteration
 #[derive(Debug, Clone, PartialEq)]
 pub enum PhaseToken {
-    /// Start of a phase
+    /// Start phase.
     Start,
 
-    /// Custom token detected in output
+    /// Custom token detected in standard output, marking the beginning of a phase.
     Token(String),
 
-    /// End of a phase
+    /// Ending phase.
     End,
 }
 
@@ -43,18 +43,16 @@ impl From<PhaseToken> for Option<String> {
     }
 }
 
-/// Detected phase with timestamp and optional line number
+/// Detected phase with timestamp and optional line number.
 #[derive(Debug, Clone)]
 pub struct PhaseInfo {
-    /// Phase token detected
+    /// Phase token detected.
     pub token: PhaseToken,
 
-    /// Timestamp in milliseconds
+    /// Timestamp in milliseconds.
     pub timestamp: u128,
 
-    // /// Duration of the phase in milliseconds
-    // pub duration_ms: u128,
-    /// Optional line number in output where token was detected
+    /// Optional line number in output where token was detected.
     pub line_number: Option<usize>,
 }
 

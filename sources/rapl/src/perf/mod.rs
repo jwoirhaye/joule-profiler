@@ -53,19 +53,11 @@ pub struct Rapl {
 }
 
 impl Rapl {
-    /// Initialize a new RAPL reader.
-    ///
-    /// # Arguments
-    ///
-    /// * `sockets_spec` - Optional set of socket IDs to restrict measurement.
-    ///
-    /// # Returns
-    ///
-    /// A `Rapl` instance with discovered domains.
+    /// Initializes a new RAPL reader with the specified sockets specification.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
+    /// It returns an error if:
     /// - OS is unsupported
     /// - RAPL counters cannot be read
     /// - Perf PMU type cannot be retrieved
@@ -184,12 +176,10 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    /// Return the source name.
     fn get_name() -> &'static str {
         PERF_SOURCE_NAME
     }
 
-    /// Convert a Snapshot into Metrics.
     fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
         let diff =
             compute_measurement_from_snapshots(&self.sockets, &snapshot.begin, &snapshot.end)?;
@@ -235,9 +225,7 @@ impl MetricReader for Rapl {
 
 /// Read the PMU type from sysfs.
 ///
-/// # Errors
-///
-/// Returns `RaplError` if the file cannot be read or parsed.
+/// Returns an RaplError if the file cannot be read or parsed.
 fn read_pmu_type() -> Result<u32> {
     let type_path = format!("{}/type", PERF_RAPL_PATH);
     fs::read_to_string(type_path)
@@ -248,9 +236,7 @@ fn read_pmu_type() -> Result<u32> {
 
 /// Read the perf_event_paranoid level from `/proc`.
 ///
-/// # Errors
-///
-/// Returns `PerfParanoidError` if the file cannot be read or parsed.
+/// Returns a PerfParanoidError if the file cannot be read or parsed.
 fn read_paranoid_level() -> Result<u8> {
     fs::read_to_string(PERF_PARANOID_PATH)
         .map_err(|err| match err.kind() {

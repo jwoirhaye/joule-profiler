@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Represents the errors thrown by the NVML source.
 #[derive(Debug, Error)]
 pub enum NvmlError {
     #[error("Unknow metric \"{0}\" found in old snapshot")]

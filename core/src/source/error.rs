@@ -7,16 +7,8 @@ use thiserror::Error;
 /// This enum is used by all metric sources implementing [`MetricReader`](`super::MetricReader`)
 /// to signal failures during measurement or iteration building.
 ///
-/// # Variants
-///
-/// - `ErrorRetrievingCounters`: Failed to read counters from the source.
-///
-/// - `NoPhaseInIteration`: An iteration cannot be built because no phases
-///   were collected from the source.
-///
-/// - `SourceError` (boxed [`std::error::Error`]): An external or unknown error
-///   from a custom source. The boxed trait object allows any error that is
-///   `Send + Sync` to be propagated.
+/// - `SourceError` (boxed [`std::error::Error`]) is an external or unknown error
+///   from a custom source..
 #[derive(Debug, Error)]
 pub enum MetricSourceError {
     #[error("Error retrieving source counters")]
