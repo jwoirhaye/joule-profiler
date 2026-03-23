@@ -1,7 +1,7 @@
 //! Representation of measurable sensors.
 //!
 //! This module defines the structures used to describe sensors collected
-//! by JouleProfiler. Sensors are associated with metric sources and are
+//! by `JouleProfiler`. Sensors are associated with metric sources and are
 //! used to represent individual measurements.
 
 use serde::Serialize;

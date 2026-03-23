@@ -1,4 +1,4 @@
-//! Core orchestration module for JouleProfiler.
+//! Core orchestration module for `JouleProfiler`.
 //!
 //! This module defines the core logic for metric sources orchestration through [`SourceOrchestrator`] structure.
 
@@ -32,10 +32,10 @@ pub struct SourceOrchestrator {
 impl SourceOrchestrator {
     /// Starts all the metric sources.
     ///
-    /// The function shares the atomic integer representing the profiled program's pid, used by some sources for per-process profiling (e.g. perf_event).
+    /// The function shares the atomic integer representing the profiled program's pid, used by some sources for per-process profiling (e.g. `perf_event`).
     /// Stores the sources handles and the channels senders to be able to gracefully join the sources and send events.
     #[inline]
-    pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>, shared_pid: Arc<AtomicI32>) {
+    pub fn run(&mut self, sources: Vec<Box<dyn MetricSource>>, shared_pid: &Arc<AtomicI32>) {
         let nb_sources = sources.len();
         let mut senders = Vec::with_capacity(nb_sources);
         let mut handles = Vec::with_capacity(nb_sources);
@@ -63,7 +63,7 @@ impl SourceOrchestrator {
     }
 
     /// Initializes each metric source.
-    /// Called when the program execution is stopped to inizialize sources requiring pid filtering (e.g. perf_event).
+    /// Called when the program execution is stopped to inizialize sources requiring pid filtering (e.g. `perf_event`).
     #[inline]
     pub async fn init(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Init).await
@@ -87,7 +87,7 @@ impl SourceOrchestrator {
     ///
     /// # Errors
     ///
-    /// If not enough snapshots have been made, a [NotEnoughSnapshots](`OrchestratorError::NotEnoughSnapshots`) error is returned.
+    /// If not enough snapshots have been made, a [`NotEnoughSnapshots`](`OrchestratorError::NotEnoughSnapshots`) error is returned.
     /// Also if an error has occured in one of the sources, it will be returned.
     pub async fn finalize(
         &mut self,
@@ -196,7 +196,7 @@ mod tests {
     #[tokio::test]
     async fn run_registers_one_sender_and_handle_per_source() {
         let mut o = SourceOrchestrator::default();
-        o.run(vec![mock_source(), mock_source()], pid()).await;
+        o.run(vec![mock_source(), mock_source()], &pid());
         assert_eq!(o.senders.len(), 2);
         assert_eq!(o.handles.len(), 2);
     }
@@ -204,8 +204,8 @@ mod tests {
     #[tokio::test]
     async fn run_replaces_previous_sources() {
         let mut o = SourceOrchestrator::default();
-        o.run(vec![mock_source(), mock_source()], pid()).await;
-        o.run(vec![mock_source()], pid()).await;
+        o.run(vec![mock_source(), mock_source()], &pid());
+        o.run(vec![mock_source()], &pid());
         assert_eq!(o.senders.len(), 1);
         assert_eq!(o.handles.len(), 1);
     }
@@ -214,7 +214,7 @@ mod tests {
     async fn measure_event_reaches_worker() {
         let (source, counts) = mock_source_with_counts();
         let mut o = SourceOrchestrator::default();
-        o.run(vec![source], pid()).await;
+        o.run(vec![source], &pid());
 
         o.measure().await.unwrap();
         o.measure().await.unwrap();
@@ -227,7 +227,7 @@ mod tests {
     async fn reset_event_reaches_worker() {
         let (source, counts) = mock_source_with_counts();
         let mut o = SourceOrchestrator::default();
-        o.run(vec![source], pid()).await;
+        o.run(vec![source], &pid());
 
         o.reset().await.unwrap();
 
@@ -241,7 +241,7 @@ mod tests {
         let shared_pid = pid();
         shared_pid.store(42, Ordering::SeqCst);
         let mut o = SourceOrchestrator::default();
-        o.run(vec![source], shared_pid).await;
+        o.run(vec![source], &shared_pid);
 
         o.init().await.unwrap();
 
@@ -253,7 +253,7 @@ mod tests {
     async fn new_phase_event_reaches_worker() {
         let (source, counts) = mock_source_with_counts();
         let mut o = SourceOrchestrator::default();
-        o.run(vec![source], pid()).await;
+        o.run(vec![source], &pid());
 
         o.new_phase().await.unwrap();
 
@@ -264,7 +264,7 @@ mod tests {
     #[tokio::test]
     async fn finalize_drains_handles() {
         let mut o = SourceOrchestrator::default();
-        o.run(vec![mock_source()], pid()).await;
+        o.run(vec![mock_source()], &pid());
         let _ = o.finalize().await;
         assert!(o.handles.is_empty());
     }
@@ -275,7 +275,7 @@ mod tests {
         r.measure_error = Some("injected failure".into());
         let source: Box<dyn MetricSource> = r.into();
         let mut o = SourceOrchestrator::default();
-        o.run(vec![source], pid()).await;
+        o.run(vec![source], &pid());
 
         o.measure().await.unwrap();
         let result = o.finalize().await;

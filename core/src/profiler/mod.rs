@@ -1,7 +1,7 @@
 //! This module contains the core logic of profiling and is the entrypoint of Joule Profiler.
 //!
 //! It provides the main [`JouleProfiler`] struct, orchestrating
-//! the execution of commands, collecting metrics from various sources (e.g. RAPL, perf_event, NVML, etc.),
+//! the execution of commands, collecting metrics from various sources (e.g. RAPL, `perf_event`, NVML, etc.),
 //! and aggregate them into a clean common structure.
 
 use log::{debug, info, trace};
@@ -32,7 +32,7 @@ pub mod types;
 /// Orchestrates program profiling and metric collection.
 ///
 /// `JouleProfiler` runs a command, collects energy metrics from registered
-/// sources (e.g. RAPL, perf_event, NVML), and aggregates them into a
+/// sources (e.g. RAPL, `perf_event`, NVML), and aggregates them into a
 /// structured result organized by iterations and phases.
 ///
 /// It is also responsible for the detection of phases (parts of a program execution)
@@ -69,6 +69,7 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -94,7 +95,7 @@ impl JouleProfiler {
             .iter()
             .enumerate()
             .map(|(i, source)| {
-                trace!("Querying sensors from source {}", i);
+                trace!("Querying sensors from source {i}");
                 source.list_sensors().map_err(MetricSourceError::into)
             })
             .collect::<Result<Vec<Sensors>>>()?
@@ -117,12 +118,12 @@ impl JouleProfiler {
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
         let shared_pid = Arc::new(AtomicI32::new(0));
-        self.orchestrator.run(sources, shared_pid.clone()).await;
+        self.orchestrator.run(sources, &shared_pid);
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
         for i in 0..config.iterations {
-            info!("Starting iteration {}", i);
+            info!("Starting iteration {i}");
             let iteration = self.measure_phases(config, shared_pid.clone()).await?;
             command_results.push(iteration);
         }
@@ -194,7 +195,7 @@ impl JouleProfiler {
     /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
     /// a configured regular expression.
     ///
-    /// The shared pid atomic integer is used to configure the sources supporting pid filtering (e.g. perf_event)
+    /// The shared pid atomic integer is used to configure the sources supporting pid filtering (e.g. `perf_event`)
     ///
     /// The profiling is composed of several steps:
     ///
@@ -217,13 +218,13 @@ impl JouleProfiler {
             JouleProfilerError::InvalidPattern(format!("{}: {}", config.token_pattern, err))
         })?;
 
-        let mut sink = create_output_sink(&config.stdout_file)?;
+        let mut sink = create_output_sink(config.stdout_file.as_ref())?;
 
         self.orchestrator.reset().await?;
 
         debug!("Spawning command: {:?}", config.cmd);
         let mut child = spawn_profiled_command(config)?;
-        let pid = child.id() as i32;
+        let pid = child.id().cast_signed();
 
         pause_prosess(pid)?;
         shared_pid.store(pid, Ordering::SeqCst);
@@ -241,7 +242,7 @@ impl JouleProfiler {
         self.orchestrator.measure().await?;
 
         let begin_timestamp = get_timestamp_millis();
-        trace!("Begin timestamp: {}", begin_timestamp);
+        trace!("Begin timestamp: {begin_timestamp}");
 
         resume_process(pid)?;
 
@@ -258,7 +259,7 @@ impl JouleProfiler {
         sink.flush()?;
 
         let end_timestamp = get_timestamp_millis();
-        trace!("End timestamp: {}", end_timestamp);
+        trace!("End timestamp: {end_timestamp}");
 
         self.orchestrator.measure().await?;
         self.orchestrator.new_phase().await?;
@@ -303,7 +304,7 @@ impl JouleProfiler {
             let n = match reader.read_line(&mut line) {
                 Ok(n) => n,
                 Err(e) if e.kind() == ErrorKind::InvalidData => {
-                    trace!("Skipping invalid UTF-8 output at line {}", line_number);
+                    trace!("Skipping invalid UTF-8 output at line {line_number}");
                     line_number += 1;
                     continue;
                 }
@@ -321,14 +322,14 @@ impl JouleProfiler {
                 }
             }
 
-            trace!("STDOUT[{}]: {}", line_number, line);
+            trace!("STDOUT[{line_number}]: {line}");
 
-            writeln!(sink, "{}", line)?;
+            writeln!(sink, "{line}")?;
 
             if let Some(token) = phase_token_in_line(regex, &line) {
                 let phase_timestamp = get_timestamp_millis();
 
-                debug!("Detected phase at line {}, token '{}'", line_number, token);
+                debug!("Detected phase at line {line_number}, token '{token}'");
 
                 self.orchestrator.measure().await?;
                 self.orchestrator.new_phase().await?;
@@ -392,10 +393,10 @@ fn wait_for_child_exit(child: &mut process::Child) -> Result<i32> {
 /// Creates a sink to be able to write the program output into either the process output file, either the standard output of the profiler.
 ///
 /// A buffered writer is used to limit the system calls made, thus reducing the overhead introduced by the profiler.
-fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
+fn create_output_sink(path: Option<&String>) -> Result<Box<dyn Write>> {
     if let Some(path) = path {
         let file = create_file_with_user_permissions(path).map_err(|err| {
-            JouleProfilerError::OutputFileCreationFailed(format!("{:?}: {}", path, err))
+            JouleProfilerError::OutputFileCreationFailed(format!("{path:?}: {err}"))
         })?;
 
         Ok(Box::new(BufWriter::new(file)))
@@ -409,14 +410,14 @@ fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
 /// SAFETY
 ///
 /// - 'pid' must refer to a valid process identifier obtained from
-///   'std::process::Child::id()' immediately after spawning.
+///   '`std::process::Child::id()`' immediately after spawning.
 /// - The process must be owned by the current user (we only signal
 ///   child processes we created).
-/// - Calling 'libc::kill' is unsafe because it performs a raw syscall.
+/// - Calling '`libc::kill`' is unsafe because it performs a raw syscall.
 ///
 /// Race Condition
 ///
-/// The target process may terminate between 'spawn()' and the
+/// The target process may terminate between '`spawn()`' and the
 /// 'SIGSTOP' call. In that case, the system call will fail and
 /// an error will be returned.
 ///
@@ -430,8 +431,7 @@ fn pause_prosess(pid: i32) -> Result<()> {
     if result != 0 {
         let err = std::io::Error::last_os_error();
         return Err(JouleProfilerError::ProcessControlFailed(format!(
-            "Failed to SIGSTOP pid {}: {}",
-            pid, err
+            "Failed to SIGSTOP pid {pid}: {err}"
         )));
     }
 
@@ -455,8 +455,7 @@ fn resume_process(pid: i32) -> Result<()> {
     if result != 0 {
         let err = std::io::Error::last_os_error();
         return Err(JouleProfilerError::ProcessControlFailed(format!(
-            "Failed to SIGCONT pid {}: {}",
-            pid, err
+            "Failed to SIGCONT pid {pid}: {err}"
         )));
     }
 
@@ -720,7 +719,7 @@ mod tests {
 
     #[test]
     fn create_output_sink_none_returns_stdout_sink() {
-        let result = create_output_sink(&None);
+        let result = create_output_sink(None);
         assert!(result.is_ok());
     }
 
@@ -729,14 +728,14 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("out.txt").to_str().unwrap().to_owned();
 
-        let result = create_output_sink(&Some(path.clone()));
+        let result = create_output_sink(Some(&path));
         assert!(result.is_ok());
         assert!(fs::metadata(&path).is_ok());
     }
 
     #[test]
     fn create_output_sink_invalid_path_returns_error() {
-        let result = create_output_sink(&Some("/nonexistent/dir/out.txt".to_string()));
+        let result = create_output_sink(Some(&"/nonexistent/dir/out.txt".to_string()));
         assert!(result.is_err());
         assert!(matches!(
             result.err().unwrap(),

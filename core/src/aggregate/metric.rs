@@ -18,7 +18,7 @@ use crate::unit::MetricUnit;
 /// ```
 #[derive(Debug, Serialize, Clone)]
 pub struct Metric {
-    /// The metric name, (e.g. energy_pkg).
+    /// The metric name, (e.g. `energy_pkg`).
     pub name: String,
 
     /// The numeric value of the metric.

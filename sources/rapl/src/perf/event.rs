@@ -21,8 +21,8 @@ impl RaplEvent {
     /// in the socket until one succeeds since some PMUs are only accessible
     /// through specific CPUs.
     ///
-    /// Returns DomainNotSupported if the domain does not exist on the hardware,
-    /// or FailToOpenDomainCounter if no CPU in the socket could open the counter.
+    /// Returns `DomainNotSupported` if the domain does not exist on the hardware,
+    /// or `FailToOpenDomainCounter` if no CPU in the socket could open the counter.
     pub fn new(
         domain_type: RaplDomainType,
         socket_info: &SocketInfo,
@@ -39,10 +39,7 @@ impl RaplEvent {
         let scale = builder.scale()?.ok_or(RaplError::RetrieveScaleError)?;
 
         for cpu in &socket_info.cpus_id {
-            debug!(
-                "Trying to build RAPL event {:?} on CPU {}",
-                domain_type, cpu
-            );
+            debug!("Trying to build RAPL event {domain_type:?} on CPU {cpu}");
 
             let counter_result = Builder::new(
                 builder
@@ -57,18 +54,11 @@ impl RaplEvent {
 
             match counter_result {
                 Ok(counter) => {
-                    debug!(
-                        "RAPL event {:?} successfully built on CPU {}",
-                        domain_type, cpu
-                    );
-                    return Ok(Self { scale, counter });
+                    debug!("RAPL event {domain_type:?} successfully built on CPU {cpu}");
+                    return Ok(Self { counter, scale });
                 }
                 Err(err) => {
-                    debug!(
-                        "Failed to build RAPL event {:?} on CPU {}: {:?}",
-                        domain_type, cpu, err
-                    );
-                    continue;
+                    debug!("Failed to build RAPL event {domain_type:?} on CPU {cpu}: {err:?}");
                 }
             }
         }

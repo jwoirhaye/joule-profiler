@@ -19,22 +19,22 @@ pub struct TerminalOutput;
 
 impl TerminalOutput {
     /// Display command header
-    fn display_command(&self, command: &[String]) {
+    fn display_command(command: &[String]) {
         if !command.is_empty() {
-            self.print_header("Command");
+            Self::print_header("Command");
             println!("  {}", command.join(" "));
         }
     }
 
     /// Print a formatted header
-    fn print_header(&self, title: &str) {
+    fn print_header(title: &str) {
         println!("╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
         println!("║  {:<width$} ║", title, width = BOX_WIDTH - 5);
         println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
     }
 
     /// Print a formatted sub-header
-    fn print_subheader(&self, title: &str, prefix: &str) {
+    fn print_subheader(title: &str, prefix: &str) {
         println!(
             "{}┌{}┐",
             prefix,
@@ -54,7 +54,7 @@ impl TerminalOutput {
     }
 
     /// Display a single measurement result
-    fn display_phase(&self, phase: &Phase, prefix: &str) -> Result<()> {
+    fn display_phase(phase: &Phase, prefix: &str) {
         println!();
 
         let mut keys: Vec<_> = phase
@@ -70,7 +70,7 @@ impl TerminalOutput {
             metrics_per_source
                 .entry(&metric.source)
                 .or_default()
-                .push(metric)
+                .push(metric);
         }
 
         let mut metrics_per_source: Vec<(&String, Vec<&Metric>)> =
@@ -78,7 +78,7 @@ impl TerminalOutput {
         metrics_per_source.sort_by_key(|(source, _)| *source);
 
         for (source, metrics) in metrics_per_source {
-            self.print_subheader(source, prefix);
+            Self::print_subheader(source, prefix);
 
             for metric in metrics {
                 println!(
@@ -87,11 +87,9 @@ impl TerminalOutput {
                 );
             }
         }
-
-        Ok(())
     }
 
-    fn display_iteration(&self, iteration: &Iteration, prefix: &str) -> Result<()> {
+    fn display_iteration(iteration: &Iteration, prefix: &str) {
         println!(
             "{}  {:<20}: {:>10} ms",
             prefix, "Duration", iteration.duration_ms
@@ -102,15 +100,13 @@ impl TerminalOutput {
         );
 
         for phase in &iteration.phases {
-            self.display_phase_header(phase, prefix);
-            self.display_phase(phase, prefix)?;
+            Self::display_phase_header(phase, prefix);
+            Self::display_phase(phase, prefix);
         }
-
-        Ok(())
     }
 
     /// Display iteration header
-    fn display_iteration_header(&self, idx: usize, total: usize) {
+    fn display_iteration_header(idx: usize, total: usize) {
         println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
         println!(
             "║  Iteration {} / {:<width$} ║",
@@ -122,7 +118,7 @@ impl TerminalOutput {
     }
 
     /// Display phase header with token information
-    fn display_phase_header(&self, phase: &Phase, prefix: &str) {
+    fn display_phase_header(phase: &Phase, prefix: &str) {
         let phase_name = phase.get_name();
         println!();
         if prefix.is_empty() {
@@ -130,7 +126,7 @@ impl TerminalOutput {
             println!("║  Phase: {:<width$} ║", phase_name, width = BOX_WIDTH - 12);
             println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
         } else {
-            self.print_subheader(&format!("Phase: {}", phase_name), prefix);
+            Self::print_subheader(&format!("Phase: {phase_name}"), prefix);
         }
 
         // Display token information
@@ -164,10 +160,9 @@ impl Displayer for TerminalOutput {
         _token_pattern: &str,
         iteration: &Iteration,
     ) -> Result<()> {
-        self.display_command(cmd);
+        Self::display_command(cmd);
         println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
-        self.display_iteration(iteration, "")?;
-
+        Self::display_iteration(iteration, "");
         Ok(())
     }
 
@@ -177,12 +172,12 @@ impl Displayer for TerminalOutput {
         _token_pattern: &str,
         iterations: &[Iteration],
     ) -> Result<()> {
-        self.display_command(cmd);
+        Self::display_command(cmd);
         let nb_iterations = iterations.len();
 
         for (idx, iteration) in iterations.iter().enumerate() {
-            self.display_iteration_header(idx, nb_iterations);
-            self.display_iteration(iteration, "")?;
+            Self::display_iteration_header(idx, nb_iterations);
+            Self::display_iteration(iteration, "");
             println!();
         }
 
@@ -195,7 +190,7 @@ impl Displayer for TerminalOutput {
             return Ok(());
         }
 
-        self.print_header("Available Sensors");
+        Self::print_header("Available Sensors");
 
         let mut sensors_by_source: HashMap<&String, Vec<&Sensor>> = HashMap::new();
         for sensor in sensors {
@@ -212,7 +207,7 @@ impl Displayer for TerminalOutput {
             let source_sensors = &sensors_by_source[source];
 
             println!();
-            self.print_subheader(source, "");
+            Self::print_subheader(source, "");
 
             println!("  {:<20} | {:<5}", "Name", "Unit");
             println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));

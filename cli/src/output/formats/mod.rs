@@ -1,7 +1,7 @@
-//! Output formats for JouleProfiler.
+//! Output formats for `JouleProfiler`.
 //!
 //! This module defines the supported output formats and provides utilities
-//! for selecting and displaying metrics collected by JouleProfiler.
+//! for selecting and displaying metrics collected by `JouleProfiler`.
 //! It includes built-in formats for terminal display, JSON export, and CSV export.
 //!
 //! # Overview
@@ -15,7 +15,7 @@ pub mod csv;
 pub mod json;
 pub mod terminal;
 
-/// Represents the supported output formats for JouleProfiler.
+/// Represents the supported output formats for `JouleProfiler`.
 ///
 /// This enum defines how metrics are displayed or exported. It is used
 /// by the profiler to select the appropriate output method based on

@@ -36,7 +36,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     ///
     /// It listens for events through a channel and execute them.
     ///
-    /// The pid_arc refers to the pid of the profiled program, shared amongst all metric sources.
+    /// The `pid_arc` refers to the pid of the profiled program, shared amongst all metric sources.
     pub async fn run_worker(
         mut self,
         mut rx: Receiver<SourceEvent>,

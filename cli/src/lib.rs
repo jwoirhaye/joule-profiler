@@ -1,3 +1,13 @@
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_field_names
+)]
+
 use std::collections::HashSet;
 
 use clap::{ArgAction, Parser, ValueEnum};
@@ -18,6 +28,7 @@ mod logging;
 mod output;
 
 /// joule-profiler: measure program energy consumption
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug)]
 #[command(name = "joule-profiler")]
 #[command(
@@ -35,7 +46,7 @@ pub struct CliArgs {
     ///   /sys/devices/virtual/powercap/intel-rapl
     ///
     /// If not provided, the profiler uses (by priority):
-    ///   1. $JOULE_PROFILER_RAPL_PATH (if set)
+    ///   1. $`JOULE_PROFILER_RAPL_PATH` (if set)
     ///   2. /sys/devices/virtual/powercap/intel-rapl
     #[arg(long = "rapl-path")]
     pub rapl_path: Option<String>,
@@ -60,7 +71,7 @@ pub struct CliArgs {
     #[arg(long)]
     pub gpu: bool,
 
-    /// perf_event counters support
+    /// `perf_event` counters support
     #[arg(long)]
     pub perf: bool,
 
@@ -74,6 +85,7 @@ pub struct CliArgs {
 }
 
 impl CliArgs {
+    #[must_use]
     pub fn from_args() -> Self {
         Self::parse()
     }
@@ -122,6 +134,7 @@ pub fn init_logging(verbose: u8) {
     logging::init_logging(verbose);
 }
 
+#[must_use]
 pub fn parse_sockets_spec(sockets_spec: Option<&str>) -> Option<HashSet<u32>> {
     sockets_spec.map(|s| {
         s.split(',')
