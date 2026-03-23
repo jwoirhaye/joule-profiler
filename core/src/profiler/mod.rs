@@ -1,16 +1,8 @@
-//! Profiler module
+//! This module contains the core logic of profiling and is the entrypoint of Joule Profiler.
 //!
-//! This module provides the main `JouleProfiler` struct, which orchestrates
-//! the execution of commands, collection of metrics from various sources,
-//! and displaying results in different output formats.
-//!
-//! # Overview
-//!
-//! - [`JouleProfiler`] is the main entry point for running profiling sessions.
-//! - Metrics sources implement [`MetricReader`] and [`MetricSource`].
-//! - The profiler supports simple and phase-based profiling modes.
-//! - Display is handled via the [`Displayer`] trait, which can output to
-//!   terminal, JSON, CSV, or custom formats.
+//! It provides the main [`JouleProfiler`] struct, orchestrating
+//! the execution of commands, collecting metrics from various sources (e.g. RAPL, perf_event, NVML, etc.),
+//! and aggregate them into a clean common structure.
 
 use log::{debug, info, trace};
 use regex::Regex;
@@ -37,29 +29,30 @@ pub use error::JouleProfilerError;
 
 pub mod types;
 
-/// Main profiler orchestrating command execution and metrics collection.
+/// Orchestrates program profiling and metric collection.
 ///
-/// `JouleProfiler` handles the following responsibilities:
-/// 1. Executes a configured command (or list sensors command).
-/// 2. Collects metrics from multiple sources implementing [`MetricReader`].
-/// 3. Aggregates results into `Iteration`s and `Phase`s.
-/// 4. Return the aggregated results.
+/// `JouleProfiler` runs a command, collects energy metrics from registered
+/// sources (e.g. RAPL, perf_event, NVML), and aggregates them into a
+/// structured result organized by iterations and phases.
+/// 
+/// It is also responsible for the detection of phases (parts of a program execution)
+/// through the standard output.
 ///
-/// The profiler supports both simple and phase-based modes and can run
-/// multiple iterations.
+/// # Examples
 ///
-/// # Fields
+/// ```no_run
+/// use joule_profiler_core::JouleProfiler;
 ///
-/// - `orchestrator` (`SourceOrchestrator`): Internal structure managing polling and aggregation
-///   from all metric sources.
-///
-/// - `sources` (`Vec<Box<dyn MetricSource>>`): Registered metric sources
-///   to collect data from (e.g., RAPL, custom sensors), MetricSource is an hidden trait
-///   you don't have to implement yourself, you should just know that it is monomorphized
-///   before taking measurements to increase performance and reduce overhead.
+/// let mut profiler = JouleProfiler::new();
+/// profiler.add_source(my_source);
+/// let iterations = profiler.profile(&config).await?;
+/// ```
 #[derive(Default)]
 pub struct JouleProfiler {
+    /// The sources orchestrator, managing sources and sending them the events sent by the profiler.
     orchestrator: SourceOrchestrator,
+
+    /// The different metric sources.
     sources: Vec<Box<dyn MetricSource>>,
 }
 
@@ -68,9 +61,9 @@ impl JouleProfiler {
         Self::default()
     }
 
-    /// Add a custom metric source to the profiler.
+    /// Adds a custom metric source to the profiler.
     ///
-    /// All sources must implement [`MetricReader`].
+    /// A source must implement the [`MetricReader`] trait.
     pub fn add_source<T>(&mut self, reader: T)
     where
         T: MetricReader,
@@ -101,7 +94,9 @@ impl JouleProfiler {
         Ok(sensors)
     }
 
-    /// Run phase-based profiling mode.
+    /// Profiles a program spawned with the configured command and return the aggregated results.
+    /// 
+    /// It starts the orchestrator with the metric sources and profile the program for the configured iterations count.
     pub async fn profile(&mut self, config: &ProfileConfig) -> Result<Iterations> {
         info!("Running phase-based profiling");
         debug!("Iterations: {}", config.iterations);
@@ -184,7 +179,21 @@ impl JouleProfiler {
         Ok(results)
     }
 
-    /// Measure one iteration in phases mode
+    /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
+    /// a configured regular expression.
+    /// 
+    /// The shared pid atomic integer is used to configure the sources supporting pid filtering (e.g. perf_event)
+    /// 
+    /// The profiling is composed of several steps:
+    /// 
+    /// - Firstly, the orchestrator resets all the sources for the ones needing to be reset across iterations.
+    /// - Then, the program is spawned and its pid is retrieved.
+    /// - The process is immediately stopped using a SIGSTOP signal to configure the sources without introducing a significant overhead.
+    /// - The first measure is made and the process is then resume.
+    /// - The profiler listens for phase token in the standard output of the profiled process and make a measure for every token detected.
+    /// - When the program exited, the profiler makes a last measure to compute the last phase metrics.
+    ///
+    /// This methodology is repeated for every iteration. After all the profiling sessions, results are aggregated into a common structure.
     async fn measure_phases(
         &mut self,
         config: &ProfileConfig,
@@ -258,7 +267,10 @@ impl JouleProfiler {
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
     }
 
-    /// Detect and measure the phases from the program output.
+    /// Detects and measures the phases from the profiled program standard output.
+    ///
+    /// When a token in the standard output matches the specified regular expression,
+    /// a measure is made and a new phase begins.
     async fn detect_and_handle_phases_from_program_output<R, W>(
         &mut self,
         phases: &mut Vec<PhaseInfo>,
@@ -325,10 +337,17 @@ impl JouleProfiler {
     }
 }
 
+/// Checks whether a line matches the specified regular expression.
 pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> {
     regex.find(line).map(|mat| mat.as_str())
 }
 
+/// Spawns a sub-process with the specified command and arguments.
+/// 
+/// Returns the attached sub-process on success. If an error occur, a [`JouleProfilerError::CommandNotFound`]
+/// error is returned if the specified program cannot be found, or a [`JouleProfilerError::CommandExecutionFailed`] otherwise.
+/// 
+/// The standard output is piped to be analyzed for phases detection.
 fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
     let mut command = process::Command::new(&config.cmd[0]);
 
@@ -349,11 +368,18 @@ fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
         })
 }
 
+/// Waits for the sub-process termination, returns the status code of the child.
+/// 
+/// If the child cannot be terminated, its associated error will be forwarded, also if the
+/// exit status code cannot be retrieved, 1 is returned, signifying that an error occured.
 fn wait_for_child_exit(child: &mut process::Child) -> Result<i32> {
     let status = child.wait()?;
     Ok(status.code().unwrap_or(1))
 }
 
+/// Creates a sink to be able to write the program output into either the process output file, either the standard output of the profiler.
+/// 
+/// A buffered writer is used to limit the system calls made, thus reducing the overhead introduced by the profiler.
 fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
     if let Some(path) = path {
         let file = create_file_with_user_permissions(path).map_err(|err| {
@@ -380,7 +406,7 @@ fn create_output_sink(path: &Option<String>) -> Result<Box<dyn Write>> {
 ///
 /// The target process may terminate between 'spawn()' and the
 /// 'SIGSTOP' call. In that case, the system call will fail and
-/// an error is returned.
+/// an error will be returned.
 ///
 /// Errors
 ///
@@ -408,7 +434,6 @@ fn pause_prosess(pid: i32) -> Result<()> {
 /// - The process must still exist when the signal is sent.
 /// - `libc::kill` is unsafe because it invokes a raw syscall.
 ///
-/// Errors
 ///
 /// Returns [`JouleProfilerError::ProcessControlFailed`] if the
 /// signal delivery fails.

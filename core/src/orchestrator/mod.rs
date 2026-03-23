@@ -1,3 +1,7 @@
+//! Core orchestration module for JouleProfiler.
+//!
+//! This module defines the core logic for metric sources orchestration through [`SourceOrchestrator`] structure.
+
 use std::sync::Arc;
 use std::sync::atomic::AtomicI32;
 
@@ -11,21 +15,25 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 pub mod error;
 
-/// The handle describing the return type of a source worker
+/// The handle describing the return type of a source worker.
 type Handle = JoinHandle<Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError>>;
 
-/// Orchestrates metrics sources and manages their worker threads
+/// Orchestrates the metric sources and send them the profiler's messages through asynchronous channels.
+/// It is a proxy between the profiler and the sources and is responsible of their lifecycle.
 #[derive(Default)]
 pub struct SourceOrchestrator {
-    /// The event channels sender
+    /// The event channels sender used to manage the metric sources.
     senders: Vec<Sender<SourceEvent>>,
 
-    /// The handles of the worker tasks
+    /// The handles of the worker tasks, used for joining sources gracefully.
     handles: Vec<Handle>,
 }
 
 impl SourceOrchestrator {
-    /// Start the metrics sources worker threads
+    /// Starts all the metric sources.
+    /// 
+    /// The function shares the atomic integer representing the profiled program's pid, used by some sources for per-process profiling (e.g. perf_event).
+    /// Stores the sources handles and the channels senders to be able to gracefully join the sources and send events.
     #[inline]
     pub async fn run(&mut self, sources: Vec<Box<dyn MetricSource>>, shared_pid: Arc<AtomicI32>) {
         let nb_sources = sources.len();
@@ -42,37 +50,45 @@ impl SourceOrchestrator {
         self.senders = senders;
     }
 
-    /// Measure the metrics of each metrics source
+    /// Measures the metrics of each metric source.
     #[inline]
     pub async fn measure(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Measure).await
     }
 
-    /// Reset the counters of each metrics source
+    /// Resets the counters of each metric source
     #[inline]
     pub async fn reset(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Reset).await
     }
 
-    /// Initialize each metrics source
+    /// Initializes each metric source.
+    /// Called when the program execution is stopped to inizialize sources requiring pid filtering (e.g. perf_event).
     #[inline]
     pub async fn init(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::Init).await
     }
 
-    /// Initialize a new phase for each metrics source
+    /// Initializes a new phase for each metric source.
     #[inline]
     pub async fn new_phase(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewPhase).await
     }
 
-    /// Initialize a new iteration for each metrics source
+    /// Initializes a new iteration for each metric source.
     #[inline]
     pub async fn new_iteration(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewIteration).await
     }
 
-    /// Retrieve and merge results from all sources
+    /// Retrieves and merge results from all sources.
+    /// 
+    /// Returns a tuple containing the aggregated results and the list of the metric sources in order to reuse them.
+    /// 
+    /// # Errors
+    /// 
+    /// If not enough snapshots have been made, a [NotEnoughSnapshots](`OrchestratorError::NotEnoughSnapshots`) error is returned.
+    /// Also if an error has occured in one of the sources, it will be returned. 
     pub async fn finalize(
         &mut self,
     ) -> Result<(SensorResult, Vec<Box<dyn MetricSource>>), OrchestratorError> {
@@ -87,9 +103,9 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::JoinWorker).await
     }
 
-    /// Send an event to all metrics sources
+    /// Sends the provided event to all the metrics sources.
     ///
-    /// If an error is encountered in a source, then the worker is aborted and the error is returned
+    /// If an error is encountered in a source, then the worker is aborted and the error is returned.
     async fn send_event(&mut self, event: SourceEvent) -> Result<(), OrchestratorError> {
         let futures: Vec<_> = self
             .senders
@@ -105,7 +121,7 @@ impl SourceOrchestrator {
         }
     }
 
-    /// Handle the error from a disconnected source (failed) and return it
+    /// Handles the error from a disconnected source (failed) and return it.
     async fn handle_event_error(
         &mut self,
         failed_index: usize,
@@ -122,7 +138,9 @@ impl SourceOrchestrator {
         }
     }
 
-    /// Join all workers and collect results
+    /// Joins all workers and collect results.
+    /// Waits until workers termination.
+    /// If an error has occured in one of the sources, it will be returned.
     async fn join_all(
         &mut self,
     ) -> Result<(Vec<SensorResult>, Vec<Box<dyn MetricSource>>), OrchestratorError> {

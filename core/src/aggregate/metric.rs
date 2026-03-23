@@ -4,17 +4,6 @@ use crate::unit::MetricUnit;
 
 /// Represents a single measurable metric collected from a source.
 ///
-/// A metric consists of a name, a numeric value, a unit of measurement,
-/// and the source from which it was obtained.
-///
-/// # Fields
-///
-/// - `name` (`String`): The name of the metric, e.g., `"energy_pkg"`.
-/// - `value` (`u64`): The numeric value of the metric.
-/// - `unit` (`String`): The unit of measurement, e.g., `"µJ"` or `"W"`.
-/// - `source` (`String`): The name of the source providing this metric,
-///   e.g., `"rapl"` or `"powercap"`.
-///
 /// # Examples
 ///
 /// ```
@@ -26,16 +15,19 @@ use crate::unit::MetricUnit;
 ///     unit: MetricUnit { unit: Unit::Joule, prefix: UnitPrefix::Micro },
 ///     source: "rapl".to_string(),
 /// };
-/// println!("Metric {}: {} {}", energy.name, energy.value, energy.unit);
 /// ```
 #[derive(Debug, Serialize, Clone)]
 pub struct Metric {
+    /// The metric name, (e.g. energy_pkg).
     pub name: String,
 
+    /// The numeric value of the metric.
     pub value: u64,
 
+    /// The unit of measurement.
     pub unit: MetricUnit,
 
+    /// The source providing this metric (e.g. rapl).
     pub source: String,
 }
 

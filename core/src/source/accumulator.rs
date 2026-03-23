@@ -2,24 +2,24 @@ use crate::source::types::{RawIteration, RawPhase};
 use crate::source::{MetricReader, MetricSourceError};
 use log::{debug, error, trace};
 
-/// Accumulates metrics from a reader and tracks iterations
+/// Accumulates metrics from a reader and tracks iterations.
 #[derive(Debug)]
 pub struct MetricAccumulator<R: MetricReader> {
-    /// Completed iterations
+    /// Already completed iterations.
     iterations: Vec<RawIteration<R::Type>>,
 
-    /// Current ongoing iteration
+    /// Current ongoing iteration.
     current_iteration: RawIteration<R::Type>,
 }
 
 impl<R: MetricReader> MetricAccumulator<R> {
-    /// Create a new accumulator for the given reader
+    /// Create a new accumulator for the given reader.
     pub fn new() -> Self {
         debug!("Creating MetricAccumulator for reader: {}", R::get_name());
         Self::default()
     }
 
-    /// Initialize a new measure phase
+    /// Initialize a new measure phase.
     pub fn new_phase(&mut self, snapshot: R::Type) {
         debug!(
             "Starting new phase (current phases: {})",
@@ -32,7 +32,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
             .push(RawPhase { metrics: snapshot });
     }
 
-    /// Initialize a new iteration
+    /// Initialize a new iteration.
     pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
         if !self.current_iteration.phases.is_empty() {
             self.iterations
@@ -44,7 +44,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
         }
     }
 
-    /// Retrieve all sensors measures
+    /// Retrieve all sensors measures.
     pub fn retrieve(&mut self) -> Vec<RawIteration<R::Type>> {
         debug!("Retrieving results (iterations={})", self.iterations.len());
         std::mem::take(&mut self.iterations)

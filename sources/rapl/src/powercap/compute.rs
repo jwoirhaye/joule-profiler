@@ -88,7 +88,6 @@ fn energy_diff(start: u64, end: u64, max: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-
     use crate::domain_type::RaplDomainType;
 
     use super::*;

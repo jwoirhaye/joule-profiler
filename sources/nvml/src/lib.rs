@@ -28,29 +28,25 @@ const MILLI_JOULE_UNIT: MetricUnit = MetricUnit {
     unit: Unit::Joule,
 };
 
-/// Custom result type for NVML
+/// Custom result type for NVML.
 type Result<T> = std::result::Result<T, NvmlError>;
 
 /// NVML-based energy profiler for NVIDIA GPUs.
 ///
 /// This struct provides an interface to monitor energy consumption of NVIDIA GPUs using
 /// the NVML library.
-///
-/// # Fields
-///
-/// * `nvml` - The NVML wrapper instance for interacting with the NVIDIA driver.
-/// * `device_names` - Names of all detected GPU devices.
-/// * `devices_max_index` - The total number of GPU devices detected.
-/// * `current_counters` - Accumulated energy consumption since last retrieval.
-/// * `last_snapshot` - The most recent snapshot taken, used to compute deltas.
 #[derive(Debug)]
 pub struct Nvml {
+    /// The NVML wrapper instance for interacting with the NVIDIA driver.
     nvml: nvml_wrapper::Nvml,
 
+    /// The total number of GPU devices detected.
     devices_max_index: u32,
 
+    /// Accumulated energy consumption since last retrieval.
     begin_snapshot: Option<NvmlSnapshot>,
 
+    /// The most recent snapshot taken, used to compute deltas.
     last_snapshot: Option<NvmlSnapshot>,
 }
 
@@ -58,19 +54,14 @@ impl Nvml {
     /// Creates a new NVML profiler instance.
     ///
     /// This initializes the NVML library and queries all available GPU devices.
-    /// The device names are cached for use in metric reporting.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Self)` - A new NVML profiler instance with all devices initialized.
-    /// * `Err(NvmlError)` - If NVML initialization fails or device information cannot be retrieved.
     ///
     /// # Errors
     ///
     /// This function will return an error if:
-    /// * The NVML library cannot be initialized (driver not installed, incompatible version, etc.)
-    /// * Device information cannot be queried
-    /// * No GPU devices are detected
+    /// - The NVML library cannot be initialized (driver not installed, incompatible version, etc.)
+    /// - Device information cannot be queried.
+    /// - No GPU devices are detected.
+    /// - The permissions are insufficient to be able to query the NVML driver.
     pub fn new() -> Result<Self> {
         debug!("Attempting to initialize NVML reader");
         let nvml = nvml_wrapper::Nvml::init().map_err(|err| match err {
@@ -137,7 +128,6 @@ impl MetricReader for Nvml {
 
     type Error = NvmlError;
 
-    /// Make a measure and accumulate current counters.
     async fn measure(&mut self) -> Result<()> {
         let new_snapshot = self.read_snapshot()?;
         if self.begin_snapshot.is_none() {
@@ -148,7 +138,6 @@ impl MetricReader for Nvml {
         Ok(())
     }
 
-    /// Retrieve current counter and reset it
     async fn retrieve(&mut self) -> Result<Self::Type> {
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.last_snapshot.take()
@@ -160,7 +149,6 @@ impl MetricReader for Nvml {
         }
     }
 
-    /// Get the sensors by iterating over the detected devices.
     fn get_sensors(&self) -> Result<Sensors> {
         (0..self.devices_max_index)
             .map(|i| {
@@ -173,12 +161,10 @@ impl MetricReader for Nvml {
             .collect::<Result<_>>()
     }
 
-    /// Get the NVML metric source name.
     fn get_name() -> &'static str {
         NVML_SOURCE_NAME
     }
 
-    /// Convert an NvmlSnapshot into Metrics.
     fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
         let diff = Self::compute_energy_diff(&result.end, &result.begin)?;
         Ok(diff
@@ -193,7 +179,6 @@ impl MetricReader for Nvml {
             .collect())
     }
 
-    /// Reset the current counters.
     async fn reset(&mut self) -> Result<()> {
         self.begin_snapshot = None;
         self.last_snapshot = None;

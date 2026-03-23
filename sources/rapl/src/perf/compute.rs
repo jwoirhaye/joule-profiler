@@ -76,6 +76,7 @@ pub fn compute_measurement_from_snapshots(
     Ok(per_domain_energy)
 }
 
+/// Compute difference between two u64, wrapping them if there is an overflow.
 fn energy_diff(start: u64, end: u64) -> u64 {
     if end >= start {
         end - start
