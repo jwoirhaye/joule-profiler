@@ -9,19 +9,19 @@ use std::fmt::Display;
 /// SI prefixes used to scale metric units.
 #[derive(Debug, Serialize, Clone, Copy)]
 pub enum UnitPrefix {
-    /// Nano prefix (`n`, 10^-9).
+    /// Nano prefix (10^-9).
     Nano,
-    /// Micro prefix (`µ`, 10^-6).
+    /// Micro prefix (10^-6).
     Micro,
-    /// Milli prefix (`m`, 10^-3).
+    /// Milli prefix (10^-3).
     Milli,
     /// No prefix (base unit).
     None,
-    /// Kilo prefix (`k`, 10^3).
+    /// Kilo prefix (10^3).
     Kilo,
-    /// Mega prefix (`M`, 10^6).
+    /// Mega prefix (10^6).
     Mega,
-    /// Giga prefix (`G`, 10^9).
+    /// Giga prefix (10^9).
     Giga,
 }
 
@@ -42,17 +42,17 @@ impl Display for UnitPrefix {
 /// Base measurement units.
 #[derive(Debug, Serialize, Clone, Copy)]
 pub enum Unit {
-    /// Energy unit (joule).
+    /// Energy unit.
     Joule,
-    /// Power unit (watt).
+    /// Power unit.
     Watt,
-    /// Time unit (second).
+    /// Time unit.
     Second,
-    /// Count (unitless event counts).
+    /// Count.
     Count,
-    /// Memory or data size (byte).
+    /// Memory or data size.
     Byte,
-    /// Percentage, ratio (0-100%).
+    /// Percentage.
     Percent,
 }
 

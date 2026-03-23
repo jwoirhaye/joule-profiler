@@ -156,8 +156,8 @@ impl Rapl {
         })
     }
 
-    /// Initializes a Rapl source with default configuration.
-    pub fn from_default() -> Result<Self> {
+    /// Initializes an Rapl source with default configuration.
+    pub fn default() -> Result<Self> {
         Rapl::new(None, None, None)
     }
 

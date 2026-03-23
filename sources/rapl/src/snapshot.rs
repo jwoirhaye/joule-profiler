@@ -23,6 +23,7 @@ pub struct Phase {
 }
 
 impl Phase {
+    /// Computes the difference between to snapshots.
     pub fn diff(&self) -> Snapshot {
         Snapshot {
             metrics: self

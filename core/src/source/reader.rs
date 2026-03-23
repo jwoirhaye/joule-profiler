@@ -43,7 +43,7 @@ pub trait MetricReader: Send + 'static {
         async { Ok(()) }
     }
 
-    /// Join the source if it implements custom logic underneath
+    /// Join the source if it implements custom logic underneath.
     fn join(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async { Ok(()) }
     }

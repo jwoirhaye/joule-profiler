@@ -5,24 +5,7 @@ use thiserror::Error;
 /// Top-level error type for JouleProfiler.
 ///
 /// This enum represents all possible errors that can occur during the
-/// execution of the profiler, from CLI parsing to command execution,
-/// metric collection, and result display.
-///
-/// # Variants
-///
-/// - `InvalidIterations` (`usize`): Provided iterations value is invalid (must be >= 1).
-/// - `CommandExecutionFailed` (`String`): Failed to execute the target command.
-/// - `CommandNotFound` (`String`): The command was not found in the system.
-/// - `CommandKilled` (`i32`): The command was killed by a signal (code provided).
-/// - `TokenNotFound` (`String`): Expected token not found in program output.
-/// - `InvalidTokenOrder` { start, end } (`String`): End token found before start token.
-/// - `MultipleTokens` (`String`): Multiple occurrences of a token were found (expected exactly one).
-/// - `OutputFileCreationFailed` (`String`): Could not create the specified output file.
-/// - `InvalidPattern` (`String`): Provided regex pattern is invalid.
-/// - `StdOutCaptureFail`: Failed to capture standard output from the command.
-/// - `IoError` ([`std::io::Error`]): Any I/O error encountered during execution.
-/// - `MetricSourceError` ([`MetricSourceError`]): Error from a metrics source.
-/// - `OrchestratorError` (`OrchestratorError`): Error from the orchestrator.
+/// execution of the profiler from initialization, orchestration, sources errors, aggregation and etc. 
 #[derive(Debug, Error)]
 pub enum JouleProfilerError {
     #[error("Invalid iterations value: {0}. Must be >= 1")]

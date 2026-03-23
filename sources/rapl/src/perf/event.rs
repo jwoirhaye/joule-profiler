@@ -22,18 +22,18 @@ impl RaplEvent {
     ///
     /// # Arguments
     ///
-    /// * `domain_type` - Type of RAPL domain (package, dram, etc.)
-    /// * `socket_info` - Socket information, including its associated CPUs
-    /// * `group` - Mutable reference to the perf `Group` to attach the counter
+    /// * `domain_type` - Type of RAPL domain (package, dram, etc.).
+    /// * `socket_info` - Socket information, including its associated CPUs.
+    /// * `group` - The perf group to attach the counter to.
     ///
     /// # Returns
     ///
-    /// * `Ok(RaplEvent)` if a counter is successfully created
-    /// * `Err(RaplError::FailToOpenDomainCounter)` if no CPU allows building the counter
+    /// * `Ok(RaplEvent)` if a counter is successfully created.
+    /// * `Err(RaplError::FailToOpenDomainCounter)` if no CPU allows building the counter.
     ///
     /// # Notes
     ///
-    /// Some PMUs, like RAPL counters, may only be accessible through specific CPUs
+    /// Some PMUs, like RAPL counters, may only be accessible through specific CPUs.
     /// in the socket. This function ensures portability by trying all CPUs in the socket.
     pub fn new(
         domain_type: RaplDomainType,
@@ -152,10 +152,12 @@ static PER_SOCKET_DOMAIN_TYPES: &[RaplDomainType] = &[
 /// adds Psys only for socket 0.
 ///
 /// # Arguments
+/// 
 /// * `socket_info` - Info about the target CPU socket.
 /// * `group` - Group to which counters will be added.
 ///
 /// # Returns
+/// 
 /// A vector of initialized `PerfRaplDomain` counters, or an error.
 pub fn open_counters_for_socket(
     socket_info: &SocketInfo,
@@ -182,10 +184,12 @@ pub fn open_counters_for_socket(
 /// not tied to any specific socket. It should only be opened once.
 ///
 /// # Arguments
+/// 
 /// * `socket_info` - Info about the target CPU socket.
 /// * `group` - Group to attach the counter to (can use any CPU's group)
 ///
 /// # Returns
+/// 
 /// * `Ok(Some(PerfRaplDomain))` if PSYS is available
 /// * `Ok(None)` if PSYS is not supported on this system
 /// * `Err(RaplError)` for other errors
