@@ -20,7 +20,6 @@ pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
 }
 
 /// Generates a default filename for iteration data.
-#[must_use]
 pub fn default_iterations_filename(ext: &str) -> String {
     format!("data{}.{}", get_timestamp_millis(), ext)
 }
