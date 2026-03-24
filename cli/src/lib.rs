@@ -85,7 +85,6 @@ pub struct CliArgs {
 }
 
 impl CliArgs {
-    #[must_use]
     pub fn from_args() -> Self {
         Self::parse()
     }
@@ -134,7 +133,6 @@ pub fn init_logging(verbose: u8) {
     logging::init_logging(verbose);
 }
 
-#[must_use]
 pub fn parse_sockets_spec(sockets_spec: Option<&str>) -> Option<HashSet<u32>> {
     sockets_spec.map(|s| {
         s.split(',')
