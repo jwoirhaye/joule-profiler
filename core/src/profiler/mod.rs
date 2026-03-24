@@ -69,7 +69,6 @@ pub struct JouleProfiler {
 }
 
 impl JouleProfiler {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

@@ -39,7 +39,6 @@ pub struct Phase {
 }
 
 impl Phase {
-    #[must_use]
     pub fn get_name(&self) -> String {
         format!("{} -> {}", self.start_token, self.end_token)
     }

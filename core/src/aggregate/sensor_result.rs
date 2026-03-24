@@ -10,7 +10,6 @@ pub struct SensorResult {
 
 impl SensorResult {
     /// Merge multiple sensor results into one, returns None if empty.
-    #[must_use]
     pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
         results.into_iter().reduce(|acc, result| acc + result)
     }
