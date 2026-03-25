@@ -1,8 +1,8 @@
 use std::{
     env,
-    fs::{File, OpenOptions, Permissions},
-    os::unix::fs::{PermissionsExt, chown},
-    path::PathBuf,
+    fs::{self, File, OpenOptions, Permissions},
+    os::unix::fs::{MetadataExt, PermissionsExt, chown},
+    path::{Path, PathBuf},
 };
 
 use crate::util::time::get_timestamp_millis;
@@ -24,29 +24,28 @@ pub fn default_iterations_filename(ext: &str) -> String {
     format!("data{}.{}", get_timestamp_millis(), ext)
 }
 
-const ROOT_UID_ENV_VAR: &str = "SUDO_UID";
-const ROOT_GID_ENV_VAR: &str = "SUDO_GID";
 const URW_GRW_OR_PERMS: u32 = 0o664;
 
-/// Creates a file with user permissions even if the current user is root.
+/// Creates a file at `path`, ensuring it is owned by the parent directory's owner.
+///
+/// When running as root, the file ownership is set to match the parent directory
+/// (via `chown`) so the file isn't accidentally left owned by root.
+/// The `getuid()` call is safe, it has no preconditions and always succeeds.
 pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
     let file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(path)?;
-
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
-    let uid = env::var(ROOT_UID_ENV_VAR)
-        .ok()
-        .and_then(|v| v.parse::<u32>().ok());
-
-    let gid = env::var(ROOT_GID_ENV_VAR)
-        .ok()
-        .and_then(|v| v.parse::<u32>().ok());
-
-    chown(path, uid, gid)?;
+    if unsafe { libc::getuid() } == 0 {
+        let parent = Path::new(path)
+            .parent()
+            .unwrap_or_else(|| Path::new("."));
+        let meta = fs::metadata(parent)?;
+        chown(path, Some(meta.uid()), Some(meta.gid()))?;
+    }
 
     Ok(file)
 }
