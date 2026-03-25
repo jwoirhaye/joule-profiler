@@ -40,9 +40,7 @@ pub fn create_file_with_user_permissions(path: &str) -> std::io::Result<File> {
     file.set_permissions(Permissions::from_mode(URW_GRW_OR_PERMS))?;
 
     if unsafe { libc::getuid() } == 0 {
-        let parent = Path::new(path)
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let parent = Path::new(path).parent().unwrap_or_else(|| Path::new("."));
         let meta = fs::metadata(parent)?;
         chown(path, Some(meta.uid()), Some(meta.gid()))?;
     }
