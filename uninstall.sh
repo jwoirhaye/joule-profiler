@@ -66,7 +66,7 @@ main() {
 
     # Confirm uninstallation
     echo -n "Do you want to uninstall $BINARY_NAME? [y/N] " >&2
-    read -r reply
+    read -r reply </dev/tty
     if [[ ! $reply =~ ^[Yy]$ ]]; then
         log_info "Uninstallation cancelled"
         exit 0
