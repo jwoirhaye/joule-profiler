@@ -86,7 +86,7 @@ pub struct Rapl {
 
     /// Current energy counters.
     current_counters: Arc<Mutex<Snapshot>>,
-    
+
     /// Latest energy counters collected by this reader.
     last_snapshot: Arc<Mutex<Option<Snapshot>>>,
 
