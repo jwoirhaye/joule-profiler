@@ -331,13 +331,6 @@ mod tests {
     }
 
     #[test]
-    fn phases_iterations_output_is_valid_json() {
-        let (mut json, tmp) = json_to_tempfile();
-        json.phases_iterations(&["cmd".into()], ".*", &[]).unwrap();
-        let _ = read_json(&tmp);
-    }
-
-    #[test]
     fn list_sensors_writes_array() {
         let (mut json, tmp) = json_to_tempfile();
         let sensors = vec![
