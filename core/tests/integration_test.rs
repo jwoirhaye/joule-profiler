@@ -33,7 +33,6 @@ async fn profile_single_phase_token() {
     let mut profiler = JouleProfiler::new();
     profiler.add_source(MockMetricReader::new());
 
-    // prints: __PHASE_1__
     let config = config(
         vec!["echo".into(), "__PHASE_1__".into()],
         "__PHASE_[0-9]+__",
@@ -59,7 +58,6 @@ async fn profile_multiple_phase_tokens() {
     let mut profiler = JouleProfiler::new();
     profiler.add_source(MockMetricReader::new());
 
-    // printf preserves newlines between tokens
     let config = config(
         vec![
             "sh".into(),
@@ -71,7 +69,6 @@ async fn profile_multiple_phase_tokens() {
     let result = profiler.profile(&config).await.unwrap();
 
     let phases = &result[0].phases;
-    // 3 tokens → 4 windows
     assert_eq!(phases.len(), 4);
     assert_eq!(phases[0].start_token, PhaseToken::Start);
     assert_eq!(phases[0].end_token, PhaseToken::Token("__PHASE_1__".into()));
