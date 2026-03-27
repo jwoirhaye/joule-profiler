@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Intel RAPL energy measurement source for joule-profiler"
+description = "perf_event counters source for joule-profiler"
 keywords = ["energy", "perf_event", "performance_counters"]
 
 [dependencies]
