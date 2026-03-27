@@ -10,6 +10,7 @@ pub enum OrchestratorError {
     #[error("Not enough snapshots to retrieve")]
     NotEnoughSnapshots,
 
+    /// Happens when an error occur while joining sources.
     #[error("Join error")]
     JoinError(
         #[from]
@@ -17,6 +18,7 @@ pub enum OrchestratorError {
         JoinError,
     ),
 
+    /// Returned when an error occur when sending an event to the sources channel.
     #[error("Send error")]
     SendError(
         #[from]
@@ -24,6 +26,7 @@ pub enum OrchestratorError {
         SendError<SourceEvent>,
     ),
 
+    /// An error thrown by a source.
     #[error(transparent)]
     MetricSourceError(#[from] MetricSourceError),
 }
