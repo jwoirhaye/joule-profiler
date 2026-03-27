@@ -75,39 +75,31 @@ const POWERCAP_SOURCE_NAME: &str = "RAPL (Powercap)";
 /// Custom result type for Rapl
 type Result<T> = std::result::Result<T, RaplError>;
 
-/// RAPL metric source
-///
-/// Implements [`MetricReader`] and provides energy metrics from Intel RAPL.
-///
-/// # Fields
-///
-/// - `domains`: Managed RAPL domains discovered under the base path. Each domain corresponds
-///   to a CPU socket and an energy domain.
-/// - `current_counters`: Latest energy counters collected by this reader. Updated by
-///   [`Self::measure`] and returned by [`Self::retrieve`].
-/// - `last_snapshot`: Last snapshot read from RAPL domains, used to compute the energy delta
-///   between measurements.
-/// - `handle`: The handle to the polling task for joining if polling is active.
+/// RAPL metric source providing energy metrics from Intel RAPL.
 pub struct Rapl {
     rapl_path: String,
 
+    /// Managed RAPL domains discovered under the base path. Each domain corresponds.
     domains: Vec<RaplDomain>,
 
     poll_interval: Option<Duration>,
 
+    /// Current energy counters.
     current_counters: Arc<Mutex<Snapshot>>,
-
+    
+    /// Latest energy counters collected by this reader.
     last_snapshot: Arc<Mutex<Option<Snapshot>>>,
 
+    /// The handle to the polling task for joining if polling is active.
     handle: Option<JoinHandle<Result<()>>>,
 }
 
 impl Rapl {
     /// Creates a new RAPL reader for the given path and sockets.
     ///
-    /// `rapl_path` — base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)\
-    /// `sockets` — optional set of CPU sockets to monitor\
-    /// `polling_rate_s` — optional interval in seconds for periodic measurement
+    /// `rapl_path` - base path to RAPL domains (e.g., `/sys/devices/virtual/powercap/intel-rapl`)
+    /// `sockets` - optional set of CPU sockets to monitor
+    /// `polling_rate_s` - optional interval in seconds for periodic measurement
     ///
     /// # Errors
     ///
