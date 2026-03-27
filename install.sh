@@ -168,16 +168,15 @@ check_dependencies() {
     log_debug "All dependencies found"
 }
 
-# Detect architecture
+# Detect CPU architecture
 detect_arch() {
     local arch
     arch=$(uname -m)
-
     log_debug "Detected architecture: $arch"
 
     case "$arch" in
         x86_64|amd64)
-            echo "x86_64-unknown-linux-gnu"
+            echo "x86_64"
             ;;
         *)
             log_error "Unsupported architecture: $arch"
@@ -185,6 +184,125 @@ detect_arch() {
             exit 1
             ;;
     esac
+}
+
+# Detect system GLIBC version
+detect_system_glibc() {
+    local version
+
+    # try with ldd --version (always present on GLIBC systems)
+    version=$(ldd --version 2>&1 | awk 'NR==1 { print $NF }')
+    if [ -n "$version" ]; then
+        echo "$version"; return
+    fi
+
+    # fallback to libc.so.6 direct execution
+    local libc_path
+    libc_path=$(find /lib /lib64 /usr/lib 2>/dev/null -name "libc.so.6" | head -1)
+    if [ -n "$libc_path" ]; then
+        version=$("$libc_path" --version 2>&1 | awk 'NR==1 { print $NF }')
+        [ -n "$version" ] && echo "$version" && return
+    fi
+
+    echo ""  # not a GLIBC system
+}
+
+# Get minimum GLIBC version required by a binary via ELF inspection.
+# Returns empty string if objdump/readelf are unavailable.
+get_required_glibc() {
+    local binary="$1"
+
+    if command_exists objdump; then
+        objdump -p "$binary" \
+            | grep -oP 'GLIBC_\K[0-9]+\.[0-9]+(\.[0-9]+)?' \
+            | sort -V | tail -1
+        return
+    fi
+
+    if command_exists readelf; then
+        readelf -V "$binary" \
+            | grep -oP 'GLIBC_\K[0-9]+\.[0-9]+(\.[0-9]+)?' \
+            | sort -V | tail -1
+        return
+    fi
+
+    # No ELF tools available
+    echo ""
+}
+
+# Returns 0 (true) if $1 >= $2
+version_gte() {
+    printf '%s\n%s\n' "$2" "$1" | sort -V -C
+}
+
+# Tracks whether the GNU binary was already fetched during select_target()
+_GNU_PREDOWNLOADED=false
+
+# Determine the best joule-profiler target (GNU or musl) 
+select_target() {
+    local arch="$1"
+    local version="$2"
+    local tmp_dir="$3"
+
+    # No ELF tools, using musl
+    if ! command_exists objdump && ! command_exists readelf; then
+        log_info "No ELF inspection tools found (objdump/readelf) — using musl build"
+        echo "${arch}-unknown-linux-musl"
+        return
+    fi
+
+    # Download GNU binary for inspection
+    local gnu_target="${arch}-unknown-linux-gnu"
+    local tarball="${BINARY_NAME}-${version}-${gnu_target}.tar.gz"
+    local download_url="https://github.com/$REPO/releases/download/${version}/${tarball}"
+
+    log_info "Fetching GNU binary to inspect GLIBC requirements..."
+    log_debug "URL: $download_url"
+
+    if ! curl -fsSL -o "$tmp_dir/$tarball" "$download_url" 2>/dev/null; then
+        log_warning "Could not fetch GNU binary for inspection — using musl build"
+        echo "${arch}-unknown-linux-musl"
+        return
+    fi
+
+    if ! tar xzf "$tmp_dir/$tarball" -C "$tmp_dir" 2>/dev/null; then
+        log_warning "Could not extract GNU binary for inspection — using musl build"
+        echo "${arch}-unknown-linux-musl"
+        return
+    fi
+
+    # Read required GLIBC from ELF
+    local required_glibc
+    required_glibc=$(get_required_glibc "$tmp_dir/$BINARY_NAME")
+    log_debug "Binary requires GLIBC: ${required_GLIBC:-unknown}"
+
+    if [ -z "$required_glibc" ]; then
+        log_warning "Could not read GLIBC requirements from binary — using musl build"
+        rm -f "$tmp_dir/$BINARY_NAME"
+        echo "${arch}-unknown-linux-musl"
+        return
+    fi
+
+    # Compare with system GLIBC
+    local system_glibc
+    system_glibc=$(detect_system_glibc)
+    log_debug "System GLIBC: ${system_glibc:-not found}"
+
+    if [ -n "$system_glibc" ] && version_gte "$system_glibc" "$required_glibc"; then
+        log_success "Compatible GLIBC ($system_glibc >= $required_glibc) — using GNU build"
+        _GNU_PREDOWNLOADED=true # binary already in tmp_dir, skip re-download
+        echo "$gnu_target"
+    else
+        if [ -z "$system_glibc" ]; then
+            log_info "No GLIBC detected — using musl build"
+        else
+            log_info "GLIBC too old ($system_glibc < $required_glibc) — using musl build"
+        fi
+
+        # discard unusable gnu binary
+        rm -f "$tmp_dir/$BINARY_NAME"
+        echo "${arch}-unknown-linux-musl"
+    fi
 }
 
 # Check if running on Linux
@@ -219,7 +337,6 @@ check_cpu() {
     if [ -d "/sys/class/powercap/intel-rapl" ]; then
         log_success "Intel RAPL detected"
 
-        # Count RAPL domains
         local domain_count
         domain_count=$(find /sys/class/powercap/intel-rapl -name "intel-rapl:*" -type d 2>/dev/null | wc -l)
         log_debug "Found $domain_count RAPL domain(s)"
@@ -286,50 +403,52 @@ verify_version_exists() {
 # Download and verify binary
 download_binary() {
     local version=$1
-    local arch=$2
+    local target=$2 # either x86_64-unknown-linux-gnu or x86_64-unknown-linux-musl
     local tmp_dir=$3
 
-    local tarball="joule-profiler-${version}-${arch}.tar.gz"
+    local tarball="${BINARY_NAME}-${version}-${target}.tar.gz"
     local checksum_file="${tarball}.sha256"
     local download_url="https://github.com/$REPO/releases/download/${version}/${tarball}"
     local checksum_url="https://github.com/$REPO/releases/download/${version}/${checksum_file}"
 
+    log_debug "Target:  $target"
     log_debug "Tarball: $tarball"
-    log_debug "Download URL: $download_url"
 
-    log_info "Downloading joule-profiler ${version}..."
+    # GNU binary already fetched during select_target()
+    if [ "$_GNU_PREDOWNLOADED" = true ] && [ -f "$tmp_dir/$BINARY_NAME" ]; then
+        log_debug "Reusing pre-downloaded GNU binary"
+    else
+        log_info "Downloading joule-profiler ${version} (${target})..."
 
-    # Download with progress bar and capture HTTP code
-    local http_code
-    http_code=$(curl -fL --progress-bar -w "%{http_code}" -o "$tmp_dir/$tarball" "$download_url" 2>&1 | tail -n1)
+        local http_code
+        http_code=$(curl -fL --progress-bar -w "%{http_code}" -o "$tmp_dir/$tarball" "$download_url" 2>&1 | tail -n1)
 
-    if [ "$http_code" != "200" ]; then
-        log_error "Failed to download binary (HTTP $http_code)"
+        if [ "$http_code" != "200" ]; then
+            log_error "Failed to download binary (HTTP $http_code)"
 
-        if [ "$http_code" = "404" ]; then
-            log_error "Release $version not found"
-            log_info "Available releases: https://github.com/$REPO/releases"
-            log_info ""
-            log_info "To see available versions, visit:"
-            log_info "  https://github.com/$REPO/releases"
-            log_info ""
-            log_info "Or use 'latest' to install the most recent version:"
-            log_info "  ./install.sh"
-        else
-            log_debug "URL: $download_url"
+            if [ "$http_code" = "404" ]; then
+                log_error "Release $version not found for target $target"
+                log_info "Available releases: https://github.com/$REPO/releases"
+            else
+                log_debug "URL: $download_url"
+            fi
+            exit 1
         fi
-        exit 1
+
+        log_info "Extracting archive..."
+        if ! tar xzf "$tmp_dir/$tarball" -C "$tmp_dir" 2>/dev/null; then
+            log_error "Failed to extract archive"
+            exit 1
+        fi
+
+        log_debug "Extraction complete"
     fi
 
+    # Verify checksum
     log_info "Downloading checksum..."
     if ! curl -fsSL -o "$tmp_dir/$checksum_file" "$checksum_url" 2>/dev/null; then
         log_error "Failed to download checksum"
         log_debug "URL: $checksum_url"
-
-        if [ "$http_code" = "404" ]; then
-            log_error "Checksum file not found for release $version"
-            log_info "This release may be incomplete or corrupted"
-        fi
         exit 1
     fi
 
@@ -344,14 +463,6 @@ download_binary() {
     cd - > /dev/null
 
     log_success "Checksum verified"
-
-    log_info "Extracting archive..."
-    if ! tar xzf "$tmp_dir/$tarball" -C "$tmp_dir" 2>/dev/null; then
-        log_error "Failed to extract archive"
-        exit 1
-    fi
-
-    log_debug "Extraction complete"
 }
 
 # Install binary
@@ -436,7 +547,6 @@ check_path() {
         log_warning "$INSTALL_DIR is not in your PATH"
         log_info "Add it to your PATH by adding this line to your shell profile:"
 
-        # Detect shell
         local shell_profile=""
         if [ -n "$BASH_VERSION" ]; then
             shell_profile="~/.bashrc"
@@ -513,8 +623,6 @@ main() {
         version="$TARGET_VERSION"
         validate_version "$version"
         log_info "Installing specific version: $version"
-
-        # Verify version exists before proceeding
         if ! verify_version_exists "$version"; then
             exit 1
         fi
@@ -527,8 +635,13 @@ main() {
     trap 'rm -rf "$tmp_dir"' EXIT
     log_debug "Temporary directory: $tmp_dir"
 
-    # Download and install
-    download_binary "$version" "$arch" "$tmp_dir"
+    # Select the best target for this machine
+    local target
+    target=$(select_target "$arch" "$version" "$tmp_dir")
+    log_success "Selected target: $target"
+
+    # Download, verify checksum, and install
+    download_binary "$version" "$target" "$tmp_dir"
     install_binary "$tmp_dir"
 
     # Verify installation
