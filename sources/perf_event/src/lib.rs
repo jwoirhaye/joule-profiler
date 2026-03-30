@@ -1,13 +1,3 @@
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::module_name_repetitions,
-    clippy::must_use_candidate,
-    clippy::struct_field_names
-)]
-
 //! `perf_event` source for hardware performance counters.
 //!
 //! Measures CPU cycles, instructions, cache misses, and branch misses
