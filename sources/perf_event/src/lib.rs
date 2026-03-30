@@ -22,6 +22,7 @@ use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
     types::{Metric, Metrics},
+    unit::{MetricUnit, Unit, UnitPrefix},
 };
 use log::{debug, info, trace};
 use perf_event::{Builder, Counter, events::Hardware};
@@ -38,6 +39,11 @@ mod snapshot;
 
 type Result<T> = std::result::Result<T, PerfEventError>;
 
+const PERF_EVENT_METRIC_UNIT: MetricUnit = MetricUnit {
+    prefix: UnitPrefix::None,
+    unit: Unit::Count,
+};
+
 /// Hardware performance counter source using `perf_event`.
 ///
 /// Tracks CPU performance metrics (cycles, instructions, cache/branch misses)
@@ -45,9 +51,9 @@ type Result<T> = std::result::Result<T, PerfEventError>;
 pub struct PerfEvent {
     /// Active performance counters by event type
     perf_counters: HashMap<Event, Counter>,
-    /// Begin phase snapshot
+
     begin_snapshot: Option<Snapshot>,
-    /// Last measurement snapshot for delta calculation
+
     last_snapshot: Option<Snapshot>,
 }
 
@@ -146,7 +152,7 @@ impl MetricReader for PerfEvent {
                 Sensor {
                     name: event.to_string(),
                     source: Self::get_name().to_string(),
-                    unit: Event::unit(),
+                    unit: PERF_EVENT_METRIC_UNIT,
                 }
             })
             .collect();
@@ -189,7 +195,7 @@ impl MetricReader for PerfEvent {
                 name: event.to_string(),
                 source: Self::get_name().to_string(),
                 value: counter,
-                unit: Event::unit(),
+                unit: PERF_EVENT_METRIC_UNIT,
             })
             .collect())
     }

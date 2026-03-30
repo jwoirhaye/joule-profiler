@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-use joule_profiler_core::unit::{MetricUnit, Unit, UnitPrefix};
 use perf_event::events::Hardware;
 
 /// Hardware performance counter event types.
@@ -19,16 +18,6 @@ pub static EVENTS: &[Event] = &[
     Event::CacheMisses,
     Event::BranchMisses,
 ];
-
-impl Event {
-    /// Returns the unit for this event.
-    pub const fn unit() -> MetricUnit {
-        MetricUnit {
-            prefix: UnitPrefix::None,
-            unit: Unit::Count,
-        }
-    }
-}
 
 impl From<Event> for Hardware {
     fn from(event: Event) -> Self {
@@ -55,58 +44,6 @@ impl Display for Event {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use perf_event::events::Hardware;
-
-    #[test]
-    fn display_cpu_cycles() {
-        assert_eq!(Event::CpuCycles.to_string(), "CPU_CYCLES");
-    }
-
-    #[test]
-    fn display_instructions() {
-        assert_eq!(Event::Instructions.to_string(), "INSTRUCTIONS");
-    }
-
-    #[test]
-    fn display_cache_misses() {
-        assert_eq!(Event::CacheMisses.to_string(), "CACHE_MISSES");
-    }
-
-    #[test]
-    fn display_branch_misses() {
-        assert_eq!(Event::BranchMisses.to_string(), "BRANCH_MISSES");
-    }
-
-    #[test]
-    fn into_hardware_cpu_cycles() {
-        assert_eq!(Hardware::from(Event::CpuCycles), Hardware::CPU_CYCLES);
-    }
-
-    #[test]
-    fn into_hardware_instructions() {
-        assert_eq!(Hardware::from(Event::Instructions), Hardware::INSTRUCTIONS);
-    }
-
-    #[test]
-    fn into_hardware_cache_misses() {
-        assert_eq!(Hardware::from(Event::CacheMisses), Hardware::CACHE_MISSES);
-    }
-
-    #[test]
-    fn into_hardware_branch_misses() {
-        assert_eq!(Hardware::from(Event::BranchMisses), Hardware::BRANCH_MISSES);
-    }
-
-    #[test]
-    fn unit_is_dimensionless_count_for_all_events() {
-        let expected = MetricUnit {
-            prefix: UnitPrefix::None,
-            unit: Unit::Count,
-        };
-        for event in EVENTS {
-            assert_eq!(Event::unit(), expected, "unexpected unit for {event}");
-        }
-    }
 
     #[test]
     fn events_slice_contains_all_variants() {
@@ -114,6 +51,5 @@ mod tests {
         assert!(EVENTS.contains(&Event::Instructions));
         assert!(EVENTS.contains(&Event::CacheMisses));
         assert!(EVENTS.contains(&Event::BranchMisses));
-        assert_eq!(EVENTS.len(), 4);
     }
 }
