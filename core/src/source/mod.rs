@@ -16,9 +16,6 @@ pub mod reader;
 pub(crate) mod runtime;
 pub(crate) mod types;
 
-#[cfg(any(test, feature = "test-utils"))]
-pub mod mock;
-
 use crate::sensor::Sensors;
 use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};

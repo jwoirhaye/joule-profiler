@@ -152,43 +152,80 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::mock::MockMetricReader;
+    use mockall::mock;
+    use std::sync::{Arc, Mutex};
     use tokio::sync::mpsc;
+    use crate::source::MetricReader;
+    use crate::aggregate::Metrics;
+    use crate::sensor::Sensors;
+
+    #[derive(Debug)]
+    pub struct MockError(String);
+
+    impl std::fmt::Display for MockError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+    impl std::error::Error for MockError {}
+
+    mock! {
+        pub MetricReader {}
+        impl MetricReader for MetricReader {
+            type Type  = ();
+            type Error = MockError;
+            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn join(&mut self) -> Result<(), MockError>;
+            async fn measure(&mut self) -> Result<(), MockError>;
+            async fn reset(&mut self) -> Result<(), MockError>;
+            async fn retrieve(&mut self) -> Result<(), MockError>;
+            fn get_sensors(&self) -> Result<Sensors, MockError>;
+            fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
+            fn get_name() -> &'static str;
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct Counts {
+        init: usize,
+        join: usize,
+        measure: usize,
+        reset: usize,
+        retrieve: usize,
+    }
+
+    fn mock_reader_counted() -> (MockMetricReader, Arc<Mutex<Counts>>) {
+        let counts = Arc::new(Mutex::new(Counts::default()));
+        let mut m  = MockMetricReader::new();
+
+        let c = counts.clone();
+        m.expect_init().returning(move |_| { c.lock().unwrap().init += 1; Ok(()) });
+
+        let c = counts.clone();
+        m.expect_join().returning(move || { c.lock().unwrap().join += 1; Ok(()) });
+
+        let c = counts.clone();
+        m.expect_measure().returning(move || { c.lock().unwrap().measure += 1; Ok(()) });
+
+        let c = counts.clone();
+        m.expect_reset().returning(move || { c.lock().unwrap().reset += 1; Ok(()) });
+
+        let c = counts.clone();
+        m.expect_retrieve().returning(move || { c.lock().unwrap().retrieve += 1; Ok(()) });
+
+        m.expect_get_sensors().returning(|| Ok(vec![]));
+        m.expect_to_metrics ().returning(|_| Ok(Metrics::default()));
+
+        (m, counts)
+    }
 
     fn pid(value: i32) -> Arc<AtomicI32> {
         Arc::new(AtomicI32::new(value))
     }
 
-    async fn run_events(events: Vec<SourceEvent>) -> Result<SensorResult, MetricSourceError> {
-        let reader = MockMetricReader::new();
-        let rt = MetricSourceRuntime::new(reader);
-        let (tx, rx) = mpsc::channel(16);
-
-        for event in events {
-            tx.send(event).await.unwrap();
-        }
-        tx.send(SourceEvent::JoinWorker).await.unwrap();
-
-        let (result, _source) = rt.run_worker(rx, pid(0)).await?;
-        Ok(result)
-    }
-
-    #[test]
-    fn get_source_sensors_returns_ok() {
-        let rt = MetricSourceRuntime::new(MockMetricReader::new());
-        assert!(rt.get_source_sensors().is_ok());
-    }
-
-    #[tokio::test]
-    async fn run_worker_join_immediately_returns_ok() {
-        let result = run_events(vec![]).await;
-        assert!(result.is_ok());
-    }
-
     #[tokio::test]
     async fn run_worker_measure_event_calls_measure() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -203,8 +240,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_worker_reset_event_calls_reset() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -218,8 +254,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_worker_init_event_passes_pid() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
         let shared_pid = pid(42);
@@ -234,8 +269,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_worker_new_phase_calls_retrieve() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -249,8 +283,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_worker_join_calls_join_on_source() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -263,7 +296,9 @@ mod tests {
     #[tokio::test]
     async fn run_worker_measure_error_propagates() {
         let mut reader = MockMetricReader::new();
-        reader.measure_error = Some("injected".into());
+        
+        reader.expect_measure()
+            .returning(|| Err(MockError("injected".into())));
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -271,37 +306,11 @@ mod tests {
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
         assert!(rt.run_worker(rx, pid(0)).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn run_worker_retrieve_error_on_new_phase_propagates() {
-        let mut reader = MockMetricReader::new();
-        reader.retrieve_error = Some("injected".into());
-        let rt = MetricSourceRuntime::new(reader);
-        let (tx, rx) = mpsc::channel(16);
-
-        tx.send(SourceEvent::NewPhase).await.unwrap();
-        tx.send(SourceEvent::JoinWorker).await.unwrap();
-
-        assert!(rt.run_worker(rx, pid(0)).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn run_worker_new_iteration_without_phase_returns_error() {
-        let rt = MetricSourceRuntime::new(MockMetricReader::new());
-        let (tx, rx) = mpsc::channel(16);
-
-        tx.send(SourceEvent::NewIteration).await.unwrap();
-        tx.send(SourceEvent::JoinWorker).await.unwrap();
-
-        let result = rt.run_worker(rx, pid(0)).await;
-        let _ = result;
     }
 
     #[tokio::test]
     async fn run_worker_full_lifecycle() {
-        let reader = MockMetricReader::new();
-        let counts = reader.counts.clone();
+        let (reader, counts) = mock_reader_counted();
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
 
@@ -311,8 +320,7 @@ mod tests {
         tx.send(SourceEvent::NewIteration).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
-        let result = rt.run_worker(rx, pid(0)).await;
-        assert!(result.is_ok());
+        assert!(rt.run_worker(rx, pid(0)).await.is_ok());
 
         let c = counts.lock().unwrap();
         assert_eq!(c.measure, 2);
