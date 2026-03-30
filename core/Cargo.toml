@@ -26,3 +26,6 @@ joule-profiler-core = { path = ".", features = ["test-utils"] }
 
 [features]
 test-utils = []
+
+[lints]
+workspace = true
