@@ -1,5 +1,9 @@
 use joule_profiler_core::{
-    JouleProfiler, config::ProfileConfig, sensor::Sensors, source::MetricReader, types::{Metrics, PhaseToken}
+    JouleProfiler,
+    config::ProfileConfig,
+    sensor::Sensors,
+    source::MetricReader,
+    types::{Metrics, PhaseToken},
 };
 use mockall::mock;
 
@@ -34,12 +38,14 @@ mock! {
 fn mock_reader() -> MockMetricReader {
     let mut mock = MockMetricReader::new();
     mock.expect_init().returning(|_| Ok(()));
-    mock.expect_join().returning(||  Ok(()));
-    mock.expect_measure().returning(||  Ok(()));
-    mock.expect_reset().returning(||  Ok(()));
-    mock.expect_retrieve().returning(||  Ok(()));
-    mock.expect_get_sensors().returning(||  Ok(Sensors::default()));
-    mock.expect_to_metrics().returning(|_| Ok(Metrics::default()));
+    mock.expect_join().returning(|| Ok(()));
+    mock.expect_measure().returning(|| Ok(()));
+    mock.expect_reset().returning(|| Ok(()));
+    mock.expect_retrieve().returning(|| Ok(()));
+    mock.expect_get_sensors()
+        .returning(|| Ok(Sensors::default()));
+    mock.expect_to_metrics()
+        .returning(|_| Ok(Metrics::default()));
     mock
 }
 
@@ -78,9 +84,15 @@ async fn profile_single_phase_token() {
     let iteration = &result[0];
     assert_eq!(iteration.exit_code, 0);
     assert_eq!(iteration.phases.len(), 2);
-    assert_eq!(iteration.phases[0].end_token,   PhaseToken::Token("__PHASE_1__".into()));
-    assert_eq!(iteration.phases[1].start_token, PhaseToken::Token("__PHASE_1__".into()));
-    assert_eq!(iteration.phases[1].end_token,   PhaseToken::End);
+    assert_eq!(
+        iteration.phases[0].end_token,
+        PhaseToken::Token("__PHASE_1__".into())
+    );
+    assert_eq!(
+        iteration.phases[1].start_token,
+        PhaseToken::Token("__PHASE_1__".into())
+    );
+    assert_eq!(iteration.phases[1].end_token, PhaseToken::End);
 }
 
 #[tokio::test]
@@ -99,12 +111,18 @@ async fn profile_multiple_phase_tokens() {
     let phases = &result[0].phases;
     assert_eq!(phases.len(), 4);
     assert_eq!(phases[0].start_token, PhaseToken::Start);
-    assert_eq!(phases[0].end_token,   PhaseToken::Token("__PHASE_1__".into()));
-    assert_eq!(phases[1].start_token, PhaseToken::Token("__PHASE_1__".into()));
-    assert_eq!(phases[1].end_token,   PhaseToken::Token("__PHASE_2__".into()));
-    assert_eq!(phases[2].end_token,   PhaseToken::Token("__PHASE_3__".into()));
-    assert_eq!(phases[3].start_token, PhaseToken::Token("__PHASE_3__".into()));
-    assert_eq!(phases[3].end_token,   PhaseToken::End);
+    assert_eq!(phases[0].end_token, PhaseToken::Token("__PHASE_1__".into()));
+    assert_eq!(
+        phases[1].start_token,
+        PhaseToken::Token("__PHASE_1__".into())
+    );
+    assert_eq!(phases[1].end_token, PhaseToken::Token("__PHASE_2__".into()));
+    assert_eq!(phases[2].end_token, PhaseToken::Token("__PHASE_3__".into()));
+    assert_eq!(
+        phases[3].start_token,
+        PhaseToken::Token("__PHASE_3__".into())
+    );
+    assert_eq!(phases[3].end_token, PhaseToken::End);
 }
 
 #[tokio::test]
