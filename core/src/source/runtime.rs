@@ -152,12 +152,12 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::aggregate::Metrics;
+    use crate::sensor::Sensors;
+    use crate::source::MetricReader;
     use mockall::mock;
     use std::sync::{Arc, Mutex};
     use tokio::sync::mpsc;
-    use crate::source::MetricReader;
-    use crate::aggregate::Metrics;
-    use crate::sensor::Sensors;
 
     #[derive(Debug)]
     pub struct MockError(String);
@@ -196,25 +196,40 @@ mod tests {
 
     fn mock_reader_counted() -> (MockMetricReader, Arc<Mutex<Counts>>) {
         let counts = Arc::new(Mutex::new(Counts::default()));
-        let mut m  = MockMetricReader::new();
+        let mut m = MockMetricReader::new();
 
         let c = counts.clone();
-        m.expect_init().returning(move |_| { c.lock().unwrap().init += 1; Ok(()) });
+        m.expect_init().returning(move |_| {
+            c.lock().unwrap().init += 1;
+            Ok(())
+        });
 
         let c = counts.clone();
-        m.expect_join().returning(move || { c.lock().unwrap().join += 1; Ok(()) });
+        m.expect_join().returning(move || {
+            c.lock().unwrap().join += 1;
+            Ok(())
+        });
 
         let c = counts.clone();
-        m.expect_measure().returning(move || { c.lock().unwrap().measure += 1; Ok(()) });
+        m.expect_measure().returning(move || {
+            c.lock().unwrap().measure += 1;
+            Ok(())
+        });
 
         let c = counts.clone();
-        m.expect_reset().returning(move || { c.lock().unwrap().reset += 1; Ok(()) });
+        m.expect_reset().returning(move || {
+            c.lock().unwrap().reset += 1;
+            Ok(())
+        });
 
         let c = counts.clone();
-        m.expect_retrieve().returning(move || { c.lock().unwrap().retrieve += 1; Ok(()) });
+        m.expect_retrieve().returning(move || {
+            c.lock().unwrap().retrieve += 1;
+            Ok(())
+        });
 
         m.expect_get_sensors().returning(|| Ok(vec![]));
-        m.expect_to_metrics ().returning(|_| Ok(Metrics::default()));
+        m.expect_to_metrics().returning(|_| Ok(Metrics::default()));
 
         (m, counts)
     }
@@ -296,8 +311,9 @@ mod tests {
     #[tokio::test]
     async fn run_worker_measure_error_propagates() {
         let mut reader = MockMetricReader::new();
-        
-        reader.expect_measure()
+
+        reader
+            .expect_measure()
             .returning(|| Err(MockError("injected".into())));
         let rt = MetricSourceRuntime::new(reader);
         let (tx, rx) = mpsc::channel(16);
