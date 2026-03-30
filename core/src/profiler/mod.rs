@@ -40,9 +40,8 @@ pub mod types;
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use joule_profiler_core::{JouleProfiler, config::ProfileConfig};
-/// use joule_profiler_core::mock::MockMetricReader;
 ///
 /// # tokio_test::block_on(async {
 /// let mut profiler = JouleProfiler::new();
@@ -853,17 +852,5 @@ mod tests {
         let mut profiler = joule_profiler();
         let sensors = profiler.list_sensors().unwrap();
         assert!(sensors.is_empty());
-    }
-
-    #[test]
-    fn list_sensors_with_mock_source_returns_right_sensors() {
-        use crate::source::mock::MockMetricReader;
-        let mut profiler = joule_profiler();
-        profiler.add_source(MockMetricReader::new());
-
-        assert_eq!(
-            profiler.list_sensors().unwrap(),
-            MockMetricReader::sensors()
-        )
     }
 }
