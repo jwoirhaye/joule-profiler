@@ -5,7 +5,6 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-readme.workspace = true
 description = "CLI tool to measure program energy consumption"
 keywords = ["energy", "profiling", "rapl", "nvml", "cli"]
 
@@ -28,3 +27,6 @@ tokio = { version = "1.25", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints]
+workspace = true
