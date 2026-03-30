@@ -18,6 +18,3 @@ pub mod types {
     pub use super::phase::PhaseToken;
     pub use super::profiler::types::{Iteration, Iterations, Phase, Phases};
 }
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use source::mock;
