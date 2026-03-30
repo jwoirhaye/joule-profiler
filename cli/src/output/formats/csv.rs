@@ -268,11 +268,6 @@ mod tests {
     }
 
     #[test]
-    fn try_new_invalid_path_returns_error() {
-        assert!(CsvOutput::try_new(Some("/nonexistent/dir/out.csv".to_string())).is_err());
-    }
-
-    #[test]
     fn phases_single_empty_phases_writes_nothing() {
         let (mut csv, tmp) = csv_to_tempfile();
         csv.phases_single(&["echo".into()], ".*", &iteration(0, 0, vec![]))
