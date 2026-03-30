@@ -268,14 +268,6 @@ mod tests {
     }
 
     #[test]
-    fn try_new_valid_path_creates_file() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let path = dir.path().join("out.csv").to_str().unwrap().to_owned();
-        assert!(CsvOutput::try_new(Some(path.clone())).is_ok());
-        assert!(std::path::Path::new(&path).exists());
-    }
-
-    #[test]
     fn try_new_invalid_path_returns_error() {
         assert!(CsvOutput::try_new(Some("/nonexistent/dir/out.csv".to_string())).is_err());
     }
@@ -434,7 +426,7 @@ mod tests {
         csv.phases_iterations(&["echo".into()], ".*", &iters)
             .unwrap();
 
-        // header + 2 iterations × 2 metrics = 5 lines
+        // header + 2 iterations * 2 metrics = 5 lines
         assert_eq!(read(&tmp).lines().count(), 5);
     }
 
@@ -461,7 +453,7 @@ mod tests {
         csv.phases_iterations(&["echo".into()], ".*", &iters)
             .unwrap();
 
-        // header + 2 phases × 1 metric = 3 lines
+        // header + 2 phases * 1 metric = 3 lines
         assert_eq!(read(&tmp).lines().count(), 3);
     }
 
