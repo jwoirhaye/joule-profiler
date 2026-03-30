@@ -10,15 +10,16 @@ keywords = ["energy", "rapl", "intel", "hardware", "powercap"]
 
 [dependencies]
 joule-profiler-core.workspace = true
-tokio-timerfd = "0.2.0"
 log.workspace = true
 thiserror.workspace = true
-futures = "0.3.31"
-tokio = { version = "1.25", features = ["time"] }
+tokio.workspace = true
+futures.workspace = true
+
+tokio-timerfd = "0.2.0"
 perf-event2 = "0.7.4"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true
 
 [lints]
 workspace = true
