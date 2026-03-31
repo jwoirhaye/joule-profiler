@@ -29,7 +29,7 @@ pub enum OrchestratorError {
         SendError<SourceEvent>,
     ),
 
-    /// An error thrown by a source.
+    /// An error thrown by a metric source.
     #[error(transparent)]
     MetricSourceError(#[from] MetricSourceError),
 }
