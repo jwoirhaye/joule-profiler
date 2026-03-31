@@ -6,8 +6,6 @@
 //! Note: Counters are created individually (not grouped) because
 //! `inherit(true)` is incompatible with `perf_event` groups on Linux.
 
-use std::collections::HashMap;
-
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
@@ -15,16 +13,17 @@ use joule_profiler_core::{
     unit::{MetricUnit, Unit, UnitPrefix},
 };
 use log::{debug, info, trace};
-use perf_event::{Builder, Counter, events::Hardware};
 
 use crate::{
     error::PerfEventError,
-    event::{EVENTS, Event},
+    event::EVENTS,
+    hardware::{PerfEventCounters, PerfEventHardware},
     snapshot::{Phase, Snapshot},
 };
 
 mod error;
 mod event;
+mod hardware;
 mod snapshot;
 
 type Result<T> = std::result::Result<T, PerfEventError>;
@@ -38,85 +37,46 @@ const PERF_EVENT_METRIC_UNIT: MetricUnit = MetricUnit {
 ///
 /// Tracks CPU performance metrics (cycles, instructions, cache/branch misses)
 /// for a specific process.
-pub struct PerfEvent {
-    /// Active performance counters by event type
-    perf_counters: HashMap<Event, Counter>,
-
+///
+/// The hardware generic type is used for testing purposes, it allows to change the implementation
+/// used to interact with `perf_event`. The default adapter use the `perf_event2` library.
+pub struct PerfEvent<H: PerfEventHardware = PerfEventCounters> {
+    hardware: H,
     begin_snapshot: Option<Snapshot>,
-
     last_snapshot: Option<Snapshot>,
 }
 
 impl PerfEvent {
-    /// Creates a new uninitialized `perf_event` source.
-    ///
-    /// Call `init()` with a PID before measuring.
+    /// Creates a new uninitialized `perf_event` source with the `perf_event2` backend.
     pub fn new() -> Result<Self> {
         debug!("Creating new perf_event source");
         Ok(Self {
-            perf_counters: HashMap::default(),
+            hardware: PerfEventCounters::new(),
             begin_snapshot: None,
             last_snapshot: None,
         })
     }
-
-    /// Create individual counters for all configured events.
-    ///
-    /// Each counter is built separately with `inherit(true)` and `observe_pid`,
-    /// since grouped counters do not support inheritance.
-    fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()> {
-        debug!("Adding {} individual performance counters", events.len());
-        for event in events {
-            trace!("Building counter: {event:?}");
-            let counter = Builder::new(Hardware::from(*event))
-                .inherit(true)
-                .observe_pid(pid)
-                .build()?;
-            self.perf_counters.insert(*event, counter);
-        }
-        info!("Initialized {} hardware performance counters", events.len());
-        Ok(())
-    }
-
-    /// Enable all counters.
-    fn enable_all(&mut self) -> Result<()> {
-        for (event, counter) in &mut self.perf_counters {
-            trace!("Enabling counter: {event:?}");
-            counter.enable()?;
-        }
-        debug!("All perf_event counters enabled");
-        Ok(())
-    }
 }
 
-impl MetricReader for PerfEvent {
+impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     type Type = Phase;
-
     type Error = PerfEventError;
+
+    /// Initialize counters for a specific process and start monitoring.
+    async fn init(&mut self, pid: i32) -> Result<()> {
+        info!("Initializing perf_event source for PID {pid}");
+        self.hardware.init_counters(pid)
+    }
 
     /// Read current counter values and compute delta since last measurement.
     async fn measure(&mut self) -> Result<()> {
         trace!("Reading perf_event counters");
-
-        let new_snapshot = Snapshot {
-            metrics: self
-                .perf_counters
-                .iter_mut()
-                .map(|(event, counter)| {
-                    let value = counter
-                        .read()
-                        .map_err(|_| PerfEventError::ErrorReadingCounter(*event))?;
-                    Ok((*event, value))
-                })
-                .collect::<Result<HashMap<_, _>>>()?,
-        };
-
+        let new_snapshot = self.hardware.read_snapshot()?;
         if self.begin_snapshot.is_none() {
             self.begin_snapshot = Some(new_snapshot);
         } else {
             self.last_snapshot = Some(new_snapshot);
         }
-
         Ok(())
     }
 
@@ -130,6 +90,13 @@ impl MetricReader for PerfEvent {
         } else {
             Err(PerfEventError::NotEnoughSamples)
         }
+    }
+
+    /// Reset the current counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.begin_snapshot = None;
+        self.last_snapshot = None;
+        Ok(())
     }
 
     /// Returns available hardware performance counter sensors.
@@ -155,22 +122,6 @@ impl MetricReader for PerfEvent {
         "perf_event"
     }
 
-    /// Initialize counters for a specific process and start monitoring.
-    async fn init(&mut self, pid: i32) -> Result<()> {
-        info!("Initializing perf_event source for PID {pid}");
-        self.init_counters(EVENTS, pid)?;
-        self.enable_all()?;
-        Ok(())
-    }
-
-    /// Reset the current counters.
-    async fn reset(&mut self) -> Result<()> {
-        self.perf_counters = HashMap::new();
-        self.last_snapshot = None;
-        self.begin_snapshot = Option::default();
-        Ok(())
-    }
-
     /// Convert raw counter values to metrics with metadata.
     fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
         trace!(
@@ -188,5 +139,165 @@ impl MetricReader for PerfEvent {
                 unit: PERF_EVENT_METRIC_UNIT,
             })
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{event::Event, hardware::MockPerfEventHardware, snapshot::Snapshot};
+
+    fn snapshot(entries: Vec<(Event, u64)>) -> Snapshot {
+        Snapshot {
+            metrics: entries.into_iter().collect(),
+        }
+    }
+
+    fn nvml_with_hardware(hardware: MockPerfEventHardware) -> PerfEvent<MockPerfEventHardware> {
+        PerfEvent {
+            hardware,
+            begin_snapshot: None,
+            last_snapshot: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn measure_stores_begin_snapshot() {
+        let mut hardware = MockPerfEventHardware::new();
+        hardware
+            .expect_read_snapshot()
+            .returning(|| Ok(snapshot(vec![(Event::CpuCycles, 100)])));
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+
+        assert!(source.begin_snapshot.is_some());
+        assert!(source.last_snapshot.is_none());
+    }
+
+    #[tokio::test]
+    async fn measure_twice_stores_last_snapshot() {
+        let mut hardware = MockPerfEventHardware::new();
+        let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(
+                Event::CpuCycles,
+                read_snapshot_call_count * 100,
+            )]))
+        });
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+        source.measure().await.unwrap();
+
+        assert!(source.begin_snapshot.is_some());
+        assert!(source.last_snapshot.is_some());
+    }
+
+    #[tokio::test]
+    async fn retrieve_without_enough_snapshots_returns_error() {
+        let mut hardware = MockPerfEventHardware::new();
+        hardware
+            .expect_read_snapshot()
+            .returning(|| Ok(snapshot(vec![(Event::CpuCycles, 100)])));
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+
+        assert!(matches!(
+            source.retrieve().await,
+            Err(PerfEventError::NotEnoughSamples)
+        ));
+    }
+
+    #[tokio::test]
+    async fn retrieve_returns_correct_phase() {
+        let mut hardware = MockPerfEventHardware::new();
+        let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(
+                Event::CpuCycles,
+                read_snapshot_call_count * 100,
+            )]))
+        });
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+        source.measure().await.unwrap();
+        let phase = source.retrieve().await.unwrap();
+
+        assert_eq!(phase.begin.metrics[&Event::CpuCycles], 100);
+        assert_eq!(phase.end.metrics[&Event::CpuCycles], 200);
+    }
+
+    #[tokio::test]
+    async fn retrieve_rolls_begin_snapshot_to_end() {
+        let mut hardware = MockPerfEventHardware::new();
+        let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(
+                Event::CpuCycles,
+                read_snapshot_call_count * 100,
+            )]))
+        });
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+        source.measure().await.unwrap();
+        source.retrieve().await.unwrap();
+        assert_eq!(
+            source.begin_snapshot.as_ref().unwrap().metrics[&Event::CpuCycles],
+            200
+        );
+        assert!(source.last_snapshot.is_none());
+    }
+
+    #[tokio::test]
+    async fn reset_clears_snapshots() {
+        let mut hardware = MockPerfEventHardware::new();
+        let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(
+                Event::CpuCycles,
+                read_snapshot_call_count * 100,
+            )]))
+        });
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+        source.measure().await.unwrap();
+        source.reset().await.unwrap();
+        assert!(source.begin_snapshot.is_none());
+        assert!(source.last_snapshot.is_none());
+    }
+
+    #[tokio::test]
+    async fn to_metrics_returns_correct_values() {
+        let mut hardware = MockPerfEventHardware::new();
+        let mut read_snapshot_call_count = 0;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(match read_snapshot_call_count {
+                1 => snapshot(vec![(Event::CpuCycles, 0)]),
+                _ => snapshot(vec![(Event::CpuCycles, 500)]),
+            })
+        });
+
+        let mut source = nvml_with_hardware(hardware);
+        source.measure().await.unwrap();
+        source.measure().await.unwrap();
+        let phase = source.retrieve().await.unwrap();
+        let metrics = source.to_metrics(phase).unwrap();
+        let cycles = metrics
+            .iter()
+            .find(|m| m.name == Event::CpuCycles.to_string())
+            .unwrap();
+
+        assert_eq!(cycles.value, 500);
+        assert_eq!(cycles.unit, PERF_EVENT_METRIC_UNIT);
     }
 }
