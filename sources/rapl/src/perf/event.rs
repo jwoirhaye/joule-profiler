@@ -48,8 +48,8 @@ impl RaplEvent {
             )
             .one_cpu(*cpu as usize)
             .any_pid()
-            .exclude_hv(false)
-            .exclude_kernel(false)
+            .include_hv()
+            .include_kernel()
             .build_with_group(&mut *group);
 
             match counter_result {
