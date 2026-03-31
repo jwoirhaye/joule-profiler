@@ -7,8 +7,11 @@ use tokio::{sync::mpsc::error::SendError, task::JoinError};
 #[derive(Debug, Error)]
 pub enum OrchestratorError {
     /// Returned when the snapshot buffer contains fewer entries than required to create results.
-    #[error("Not enough snapshots to retrieve")]
+    #[error("Not enough snapshots to retrieve.")]
     NotEnoughSnapshots,
+
+    #[error("No metric sources configured.")]
+    NoSourceConfigured,
 
     /// Happens when an error occur while joining sources.
     #[error("Join error")]
