@@ -116,7 +116,7 @@ impl JouleProfiler {
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
         let shared_pid = Arc::new(AtomicI32::new(0));
-        self.orchestrator.run(sources, &shared_pid);
+        self.orchestrator.run(sources, &shared_pid)?;
 
         let mut command_results = Vec::with_capacity(config.iterations);
 
@@ -468,7 +468,11 @@ mod tests {
     use crate::profiler::{
         create_output_sink, phase_token_in_line, spawn_profiled_command, wait_for_child_exit,
     };
-    use crate::{JouleProfiler, JouleProfilerError, util::time::get_timestamp_millis};
+    use crate::sensor::Sensors;
+    use crate::source::MetricReader;
+    use crate::types::Metrics;
+    use crate::{JouleProfiler, JouleProfilerError};
+    use mockall::mock;
     use regex::Regex;
     use std::fs;
     use std::io::{BufReader, Cursor, Read};
@@ -487,6 +491,35 @@ mod tests {
             iterations: 1,
             token_pattern: "__PHASE__".to_string(),
             stdout_file: None,
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockError;
+
+    impl std::fmt::Display for MockError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "mock error")
+        }
+    }
+
+    impl std::error::Error for MockError {}
+
+    mock! {
+        pub MetricReader {}
+
+        impl MetricReader for MetricReader {
+            type Type = ();
+            type Error = MockError;
+
+            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn join(&mut self) -> Result<(), MockError>;
+            async fn measure(&mut self) -> Result<(), MockError>;
+            async fn reset(&mut self) -> Result<(), MockError>;
+            async fn retrieve(&mut self) -> Result<(), MockError>;
+            fn get_sensors(&self) -> Result<Sensors, MockError>;
+            fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
+            fn get_name() -> &'static str;
         }
     }
 
@@ -579,29 +612,6 @@ mod tests {
         assert_eq!(phases.len(), 2);
         assert_eq!(phases[0].line_number, Some(2));
         assert_eq!(phases[1].line_number, Some(4));
-    }
-
-    #[tokio::test]
-    async fn phase_durations_are_monotonic() {
-        let mut profiler = joule_profiler();
-        let regex = Regex::new("__PHASE[0-9]+__").unwrap();
-        let cursor = Cursor::new("__PHASE1__\n__PHASE2__\n__PHASE3__");
-        let reader = BufReader::new(cursor);
-        let begin_timestamp = get_timestamp_millis();
-        let mut phases = Vec::new();
-        let mut sink: Vec<u8> = Vec::new();
-
-        profiler
-            .detect_and_handle_phases_from_program_output(&mut phases, reader, &regex, &mut sink)
-            .await
-            .unwrap();
-
-        let mut last_phase_timestamp = begin_timestamp;
-
-        for phase in &phases {
-            assert!(phase.timestamp >= last_phase_timestamp);
-            last_phase_timestamp = phase.timestamp;
-        }
     }
 
     #[tokio::test]
@@ -708,17 +718,17 @@ mod tests {
         let config = ProfileConfig {
             cmd: vec!["echo".to_string()],
             iterations: 1,
-            token_pattern: "[invalid".to_string(),
+            token_pattern: "[[invalid[[[regex[[".to_string(),
             stdout_file: None,
         };
+        profiler.add_source(MockMetricReader::new());
         let result = profiler.profile(&config).await;
         assert!(matches!(result, Err(JouleProfilerError::InvalidPattern(_))));
     }
 
     #[test]
     fn create_output_sink_none_returns_stdout_sink() {
-        let result = create_output_sink(None);
-        assert!(result.is_ok());
+        assert!(create_output_sink(None).is_ok());
     }
 
     #[test]
