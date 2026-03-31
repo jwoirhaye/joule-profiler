@@ -5,12 +5,13 @@ use joule_profiler_core::sensor::{Sensor, Sensors};
 use crate::{MILLI_JOULE_UNIT, NVML_SOURCE_NAME, Result, snapshot::NvmlSnapshot};
 
 /// Trait abstracting NVML hardware access for testability.
+#[cfg_attr(test, mockall::automock)]
 pub trait NvmlHardware: Send {
     fn read_snapshot(&self) -> Result<NvmlSnapshot>;
     fn get_sensors(&self) -> Result<Sensors>;
 }
 
-/// Hardware adapter for NVML library.  
+/// Hardware adapter for NVML library.
 pub struct NvmlWrapperHardware {
     /// The NVML wrapper instance for interacting with the NVIDIA driver.
     pub nvml: nvml_wrapper::Nvml,
