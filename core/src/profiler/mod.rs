@@ -40,12 +40,13 @@ pub mod types;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use joule_profiler_core::{JouleProfiler, config::ProfileConfig};
 ///
 /// # tokio_test::block_on(async {
 /// let mut profiler = JouleProfiler::new();
-/// profiler.add_source(MockMetricReader::new());
+///
+/// // Add sources using profiler.add_source(source)
 ///
 /// let config = ProfileConfig {
 ///     cmd: vec!["echo".to_string(), "hello".to_string()],
@@ -54,8 +55,7 @@ pub mod types;
 ///     stdout_file: None,
 /// };
 ///
-/// let iterations = profiler.profile(&config).await.unwrap();
-/// assert_eq!(iterations.len(), 1);
+/// let results = profiler.profile(&config).await.unwrap();
 /// # });
 /// ```
 #[derive(Default)]

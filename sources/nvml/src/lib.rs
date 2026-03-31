@@ -102,6 +102,12 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
         Ok(())
     }
 
+    async fn reset(&mut self) -> Result<()> {
+        self.begin_snapshot = None;
+        self.last_snapshot = None;
+        Ok(())
+    }
+
     async fn retrieve(&mut self) -> Result<Self::Type> {
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.last_snapshot.take()
@@ -115,10 +121,6 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
 
     fn get_sensors(&self) -> Result<Sensors> {
         self.hardware.get_sensors()
-    }
-
-    fn get_name() -> &'static str {
-        NVML_SOURCE_NAME
     }
 
     fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
@@ -135,10 +137,8 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
             .collect())
     }
 
-    async fn reset(&mut self) -> Result<()> {
-        self.begin_snapshot = None;
-        self.last_snapshot = None;
-        Ok(())
+    fn get_name() -> &'static str {
+        NVML_SOURCE_NAME
     }
 }
 

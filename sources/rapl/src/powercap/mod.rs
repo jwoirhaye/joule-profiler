@@ -183,63 +183,6 @@ impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
 
-    async fn measure(&mut self) -> Result<()> {
-        let new_snapshot = self.read_snapshot()?;
-
-        let mut last = self.last_snapshot.lock().await;
-
-        if let Some(prev) = last.as_ref() {
-            let metrics = compute_measurement_from_snapshots(&self.domains, prev, &new_snapshot)?;
-
-            let mut counters = self.current_counters.lock().await;
-            *counters += metrics;
-        }
-
-        *last = Some(new_snapshot);
-        Ok(())
-    }
-
-    fn get_sensors(&self) -> Result<Sensors> {
-        trace!("Building RAPL sensor list");
-
-        let sensors = self
-            .domains
-            .iter()
-            .map(|domain| {
-                trace!("Registering sensor: {}", domain.get_name());
-                Sensor {
-                    name: domain.get_name(),
-                    unit: MICRO_JOULE_UNIT,
-                    source: Self::get_name().to_string(),
-                }
-            })
-            .collect();
-
-        Ok(sensors)
-    }
-
-    async fn retrieve(&mut self) -> Result<Snapshot> {
-        let mut lock = self.current_counters.lock().await;
-        Ok(std::mem::take(&mut *lock))
-    }
-
-    fn get_name() -> &'static str {
-        POWERCAP_SOURCE_NAME
-    }
-
-    fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
-        Ok(snapshot
-            .metrics
-            .into_iter()
-            .map(|((domain, socket), value)| Metric {
-                name: domain.to_string_socket(socket),
-                value,
-                unit: MICRO_JOULE_UNIT,
-                source: POWERCAP_SOURCE_NAME.to_string(),
-            })
-            .collect())
-    }
-
     async fn init(&mut self, _: i32) -> Result<()> {
         check_rapl_access(&self.rapl_path)?;
 
@@ -302,10 +245,67 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
+    async fn measure(&mut self) -> Result<()> {
+        let new_snapshot = self.read_snapshot()?;
+
+        let mut last = self.last_snapshot.lock().await;
+
+        if let Some(prev) = last.as_ref() {
+            let metrics = compute_measurement_from_snapshots(&self.domains, prev, &new_snapshot)?;
+
+            let mut counters = self.current_counters.lock().await;
+            *counters += metrics;
+        }
+
+        *last = Some(new_snapshot);
+        Ok(())
+    }
+
     async fn reset(&mut self) -> Result<()> {
         std::mem::take(&mut *self.current_counters.lock().await);
         self.last_snapshot.lock().await.take();
         Ok(())
+    }
+
+    async fn retrieve(&mut self) -> Result<Snapshot> {
+        let mut lock = self.current_counters.lock().await;
+        Ok(std::mem::take(&mut *lock))
+    }
+
+    fn get_sensors(&self) -> Result<Sensors> {
+        trace!("Building RAPL sensor list");
+
+        let sensors = self
+            .domains
+            .iter()
+            .map(|domain| {
+                trace!("Registering sensor: {}", domain.get_name());
+                Sensor {
+                    name: domain.get_name(),
+                    unit: MICRO_JOULE_UNIT,
+                    source: Self::get_name().to_string(),
+                }
+            })
+            .collect();
+
+        Ok(sensors)
+    }
+
+    fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
+        Ok(snapshot
+            .metrics
+            .into_iter()
+            .map(|((domain, socket), value)| Metric {
+                name: domain.to_string_socket(socket),
+                value,
+                unit: MICRO_JOULE_UNIT,
+                source: POWERCAP_SOURCE_NAME.to_string(),
+            })
+            .collect())
+    }
+
+    fn get_name() -> &'static str {
+        POWERCAP_SOURCE_NAME
     }
 }
 
