@@ -11,6 +11,10 @@ pub struct SensorResult {
 impl SensorResult {
     /// Merge multiple sensor results into one, returns None if empty.
     pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
+        if results.iter().any(|iteration| iteration.iterations.is_empty()) {
+            return None;
+        }
+        println!("res {:?}", results);
         results.into_iter().reduce(|acc, result| acc + result)
     }
 }
