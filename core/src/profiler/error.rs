@@ -4,40 +4,31 @@ use thiserror::Error;
 
 /// Top-level error type for `JouleProfiler`.
 ///
-/// This enum represents all possible errors that can occur during the
-/// execution of the profiler from initialization, orchestration, sources errors, aggregation and etc.
+/// Represents all possible errors that can occur during profiler execution,
+/// from initialization and orchestration to source errors and aggregation.
 #[derive(Debug, Error)]
 pub enum JouleProfilerError {
-    #[error("Invalid iterations value: {0}. Must be >= 1")]
-    InvalidIterations(usize),
-
+    /// The profiled command failed during execution.
     #[error("Failed to execute command: {0}")]
     CommandExecutionFailed(String),
 
+    /// The profiled command binary was not found on the system.
     #[error("Command not found: {0}")]
     CommandNotFound(String),
 
-    #[error("Command killed by signal: {0}")]
-    CommandKilled(i32),
-
-    #[error("Token '{0}' not found in program output")]
-    TokenNotFound(String),
-
-    #[error("End token '{end}' found before start token '{start}'")]
-    InvalidTokenOrder { start: String, end: String },
-
-    #[error("Multiple occurrences of token '{0}' found (expected exactly one)")]
-    MultipleTokens(String),
-
+    /// The output file could not be created at the given path.
     #[error("Failed to create output file: {0}")]
     OutputFileCreationFailed(String),
 
+    /// The provided token pattern is not a valid regular expression.
     #[error("Invalid regex pattern: {0}")]
     InvalidPattern(String),
 
+    /// Failed to capture the profiled command's stdout.
     #[error("Stdout capture failed")]
     StdOutCaptureFail,
 
+    /// Generic I/O error.
     #[error("I/O error")]
     IoError(
         #[from]
@@ -45,12 +36,15 @@ pub enum JouleProfilerError {
         std::io::Error,
     ),
 
+    /// A process control operation (e.g. kill, wait) failed.
     #[error("Process control failed: {0}")]
     ProcessControlFailed(String),
 
+    /// Error propagated from a metric source.
     #[error(transparent)]
     MetricSourceError(#[from] MetricSourceError),
 
+    /// Error propagated from the source orchestrator.
     #[error(transparent)]
     OrchestratorError(#[from] OrchestratorError),
 }
