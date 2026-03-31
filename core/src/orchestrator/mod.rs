@@ -35,7 +35,11 @@ impl SourceOrchestrator {
     /// The function shares the atomic integer representing the profiled program's pid, used by some sources for per-process profiling (e.g. `perf_event`).
     /// Stores the sources handles and the channels senders to be able to gracefully join the sources and send events.
     #[inline]
-    pub fn run(&mut self, sources: Vec<Box<dyn MetricSource>>, shared_pid: &Arc<AtomicI32>) -> Result<(), OrchestratorError> {
+    pub fn run(
+        &mut self,
+        sources: Vec<Box<dyn MetricSource>>,
+        shared_pid: &Arc<AtomicI32>,
+    ) -> Result<(), OrchestratorError> {
         if sources.is_empty() {
             return Err(OrchestratorError::NoSourceConfigured);
         }
@@ -52,7 +56,7 @@ impl SourceOrchestrator {
 
         self.handles = handles;
         self.senders = senders;
-        
+
         Ok(())
     }
 
@@ -176,7 +180,7 @@ mod tests {
     use super::*;
     use std::sync::{Mutex, atomic::Ordering};
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug)]
     pub struct MockError;
 
     impl std::fmt::Display for MockError {
@@ -245,7 +249,8 @@ mod tests {
         });
 
         mock.expect_get_sensors().returning(|| Ok(vec![]));
-        mock.expect_to_metrics().returning(|_| Ok(Metrics::default()));
+        mock.expect_to_metrics()
+            .returning(|_| Ok(Metrics::default()));
 
         (mock, state_arc)
     }
@@ -295,7 +300,7 @@ mod tests {
         tokio::task::yield_now().await;
 
         let lock = state.lock().unwrap();
-        
+
         assert_eq!(lock.measure, 1);
         assert_eq!(lock.init, 1);
         assert_eq!(lock.reset, 1);
@@ -305,7 +310,7 @@ mod tests {
     #[tokio::test]
     async fn init_initializes_source_with_right_pid() {
         let (source, state) = mock_source();
-        
+
         let pid_value = 42;
         let shared_pid = pid();
         shared_pid.store(pid_value, Ordering::SeqCst);
@@ -324,12 +329,15 @@ mod tests {
         reader.expect_measure().returning(|| Err(MockError));
         let source: Box<dyn MetricSource> = reader.into();
         let mut orchestrator = SourceOrchestrator::default();
-        
+
         orchestrator.run(vec![source], &pid()).unwrap();
         orchestrator.measure().await.unwrap();
         let result = orchestrator.finalize().await;
 
         assert!(result.is_err());
-        assert!(matches!(result, Err(OrchestratorError::MetricSourceError(_))));
+        assert!(matches!(
+            result,
+            Err(OrchestratorError::MetricSourceError(_))
+        ));
     }
 }
