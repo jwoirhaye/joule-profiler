@@ -122,6 +122,14 @@ impl MetricReader for Rapl {
     type Type = Phase;
     type Error = RaplError;
 
+    /// Enable the `perf_event` counters.
+    async fn init(&mut self, _: i32) -> Result<()> {
+        self.sockets
+            .iter_mut()
+            .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;
+        Ok(())
+    }
+
     /// Perform a measurement and accumulate metrics.
     ///
     /// Computes delta between last and current snapshot.
@@ -132,6 +140,13 @@ impl MetricReader for Rapl {
         } else {
             self.end_snapshot = Some(new_snapshot);
         }
+        Ok(())
+    }
+
+    /// Resets the counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.begin_snapshot = None;
+        self.end_snapshot = None;
         Ok(())
     }
 
@@ -172,10 +187,6 @@ impl MetricReader for Rapl {
         Ok(sensors)
     }
 
-    fn get_name() -> &'static str {
-        PERF_SOURCE_NAME
-    }
-
     fn to_metrics(&self, snapshot: Self::Type) -> Result<Metrics> {
         let diff =
             compute_measurement_from_snapshots(&self.sockets, &snapshot.begin, &snapshot.end)?;
@@ -203,19 +214,8 @@ impl MetricReader for Rapl {
         Ok(result)
     }
 
-    /// Enable the `perf_event` counters.
-    async fn init(&mut self, _: i32) -> Result<()> {
-        self.sockets
-            .iter_mut()
-            .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;
-        Ok(())
-    }
-
-    /// Resets the counters.
-    async fn reset(&mut self) -> Result<()> {
-        self.begin_snapshot = None;
-        self.end_snapshot = None;
-        Ok(())
+    fn get_name() -> &'static str {
+        PERF_SOURCE_NAME
     }
 }
 

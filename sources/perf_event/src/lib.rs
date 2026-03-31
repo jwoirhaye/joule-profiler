@@ -80,6 +80,13 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
         Ok(())
     }
 
+    /// Reset the current counters.
+    async fn reset(&mut self) -> Result<()> {
+        self.begin_snapshot = None;
+        self.last_snapshot = None;
+        Ok(())
+    }
+
     /// Retrieve and consume the last measurement snapshot.
     async fn retrieve(&mut self) -> Result<Self::Type> {
         if let Some(begin) = self.begin_snapshot.take()
@@ -90,13 +97,6 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
         } else {
             Err(PerfEventError::NotEnoughSamples)
         }
-    }
-
-    /// Reset the current counters.
-    async fn reset(&mut self) -> Result<()> {
-        self.begin_snapshot = None;
-        self.last_snapshot = None;
-        Ok(())
     }
 
     /// Returns available hardware performance counter sensors.
@@ -118,10 +118,6 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
         Ok(sensors)
     }
 
-    fn get_name() -> &'static str {
-        "perf_event"
-    }
-
     /// Convert raw counter values to metrics with metadata.
     fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
         trace!(
@@ -139,6 +135,10 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
                 unit: PERF_EVENT_METRIC_UNIT,
             })
             .collect())
+    }
+
+    fn get_name() -> &'static str {
+        "perf_event"
     }
 }
 
