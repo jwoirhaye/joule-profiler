@@ -15,5 +15,9 @@ thiserror.workspace = true
 
 perf-event2 = "0.7.4"
 
+[dev-dependencies]
+mockall.workspace = true
+tokio.workspace = true
+
 [lints]
 workspace = true
