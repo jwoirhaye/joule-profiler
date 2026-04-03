@@ -46,23 +46,18 @@ impl Phase {
 
 pub type Phases = Vec<Phase>;
 
-/// Represents a profiler iteration with its phases and metrics.
+/// Represents the results of a program's profiling.
 #[derive(Debug, Serialize)]
-pub struct Iteration {
-    /// Index of the iteration.
-    pub index: usize,
-
-    /// Start timestamp in milliseconds.
+pub struct ProfilerResults {
+    /// Timestamp of the first measure in milliseconds.
     pub timestamp: u128,
 
-    /// Duration of the iteration in milliseconds.
+    /// Duration of the program in milliseconds.
     pub duration_ms: u128,
 
     /// Exit code of the profiled command.
     pub exit_code: i32,
 
-    /// Phases detected in the iteration.
+    /// Phases detected in the program's standard output.
     pub phases: Phases,
 }
-
-pub type Iterations = Vec<Iteration>;

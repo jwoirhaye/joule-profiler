@@ -66,12 +66,6 @@ impl SourceOrchestrator {
         self.send_event(SourceEvent::Measure).await
     }
 
-    /// Resets the counters of each metric source
-    #[inline]
-    pub async fn reset(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::Reset).await
-    }
-
     /// Initializes each metric source.
     /// Called when the program execution is stopped to inizialize sources requiring pid filtering (e.g. `perf_event`).
     #[inline]
@@ -83,12 +77,6 @@ impl SourceOrchestrator {
     #[inline]
     pub async fn new_phase(&mut self) -> Result<(), OrchestratorError> {
         self.send_event(SourceEvent::NewPhase).await
-    }
-
-    /// Initializes a new iteration for each metric source.
-    #[inline]
-    pub async fn new_iteration(&mut self) -> Result<(), OrchestratorError> {
-        self.send_event(SourceEvent::NewIteration).await
     }
 
     /// Retrieves and merge results from all sources.
@@ -201,7 +189,6 @@ mod tests {
             async fn init(&mut self, pid: i32) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
-            async fn reset(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;
             fn get_sensors(&self) -> Result<Sensors, MockError>;
             fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
@@ -215,7 +202,6 @@ mod tests {
         init: usize,
         join: usize,
         measure: usize,
-        reset: usize,
     }
 
     fn mock_reader() -> (MockMetricReader, Arc<Mutex<State>>) {
@@ -239,12 +225,6 @@ mod tests {
         let state = state_arc.clone();
         mock.expect_measure().returning(move || {
             state.lock().unwrap().measure += 1;
-            Ok(())
-        });
-
-        let state = state_arc.clone();
-        mock.expect_reset().returning(move || {
-            state.lock().unwrap().reset += 1;
             Ok(())
         });
 
@@ -293,7 +273,6 @@ mod tests {
         orchestrator.run(vec![source], &pid()).unwrap();
 
         let _ = orchestrator.measure().await;
-        let _ = orchestrator.reset().await;
         let _ = orchestrator.init().await;
         let _ = orchestrator.join().await;
 
@@ -303,7 +282,6 @@ mod tests {
 
         assert_eq!(lock.measure, 1);
         assert_eq!(lock.init, 1);
-        assert_eq!(lock.reset, 1);
         assert_eq!(lock.join, 1);
     }
 

@@ -11,7 +11,7 @@
 
 pub mod error;
 pub use error::DisplayerError;
-use joule_profiler_core::{sensor::Sensor, types::Iteration};
+use joule_profiler_core::{sensor::Sensor, types::ProfilerResults};
 
 /// Result type for displayer operations.
 pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
@@ -30,57 +30,13 @@ pub trait Displayer {
     ///
     /// - `cmd` — Command and arguments that were profiled.
     /// - `token_pattern` — Regex used to detect phases in output.
-    /// - `results` — Metrics of the iterations to display.
-    fn profile(
+    /// - `results` — Results containing phases to display.
+    fn display_results(
         &mut self,
         cmd: &[String],
         token_pattern: &str,
-        results: &[Iteration],
-    ) -> Result<()> {
-        if results.len() > 1 {
-            self.phases_iterations(cmd, token_pattern, results)
-        } else if let Some(result) = results.first() {
-            self.phases_single(cmd, token_pattern, result)
-        } else {
-            Err(DisplayerError::NoIterationFound)
-        }
-    }
-
-    /// Display phases for a single iteration.
-    ///
-    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
-    ///
-    /// # Parameters
-    ///
-    /// - `_cmd` — Command and arguments that were profiled.
-    /// - `_token_pattern` — Regex used to detect phases in output.
-    /// - `_result` — Metrics of the iteration to display.
-    fn phases_single(
-        &mut self,
-        _cmd: &[String],
-        _token_pattern: &str,
-        _result: &Iteration,
-    ) -> Result<()> {
-        Err(DisplayerError::NotImplementedForFormat)
-    }
-
-    /// Display phases for multiple iterations.
-    ///
-    /// Default implementation returns [`DisplayerError::NotImplementedForFormat`].
-    ///
-    /// # Parameters
-    ///
-    /// - `_cmd` — Command and arguments that were profiled.
-    /// - `_token_pattern` — Regex used to detect phases in output.
-    /// - `_results` — Metrics of the iterations to display.
-    fn phases_iterations(
-        &mut self,
-        _cmd: &[String],
-        _token_pattern: &str,
-        _results: &[Iteration],
-    ) -> Result<()> {
-        Err(DisplayerError::NotImplementedForFormat)
-    }
+        results: &ProfilerResults,
+    ) -> Result<()>;
 
     /// List available sensors.
     ///

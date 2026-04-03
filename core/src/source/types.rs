@@ -34,14 +34,8 @@ pub enum SourceEvent {
     /// Triggers measurement of metrics.
     Measure,
 
-    /// Resets the current counters.
-    Reset,
-
     /// Starts a new measurement phase.
     NewPhase,
-
-    /// Starts a new iteration.
-    NewIteration,
 
     /// Inits a source.
     Init,
@@ -55,11 +49,4 @@ pub enum SourceEvent {
 pub(crate) struct RawPhase<V> {
     /// Metrics collected during the phase.
     pub metrics: V,
-}
-
-/// Represents a single iteration from a metric source.
-#[derive(Debug, Default, Clone)]
-pub(crate) struct RawIteration<V> {
-    /// Raw phases collected during the iteration.
-    pub phases: Vec<RawPhase<V>>,
 }

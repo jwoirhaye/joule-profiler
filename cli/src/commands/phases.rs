@@ -18,10 +18,6 @@ pub struct PhasesArgs {
     )]
     pub token_pattern: String,
 
-    /// Number of iterations (>=1).
-    #[arg(short = 'n', long = "iterations")]
-    pub iterations: Option<usize>,
-
     /// Redirect profiled program stdout to this file.
     #[arg(short = 'o', long = "stdout-file")]
     pub stdout_file: Option<String>,

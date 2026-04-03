@@ -7,7 +7,7 @@ use log::debug;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
-    aggregate::{iteration::SensorIteration, phase::SensorPhase, sensor_result::SensorResult},
+    aggregate::{phase::SensorPhase, sensor_result::SensorResult},
     sensor::Sensors,
     source::{
         MetricReader, MetricSource, MetricSourceError, accumulator::MetricAccumulator,
@@ -46,9 +46,7 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             if let Some(event) = rx.recv().await {
                 match event {
                     SourceEvent::Measure => self.measure_source().await?,
-                    SourceEvent::Reset => self.reset_source_counters().await?,
                     SourceEvent::NewPhase => self.init_new_phase().await?,
-                    SourceEvent::NewIteration => self.init_new_iteration()?,
                     SourceEvent::Init => {
                         let pid = pid_arc.load(Ordering::Relaxed);
                         self.init_source(pid).await?;
@@ -76,15 +74,6 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
 
-    /// Resets the source counters.
-    #[inline]
-    async fn reset_source_counters(&mut self) -> Result<(), MetricSourceError> {
-        self.source
-            .reset()
-            .await
-            .map_err(IntoMetricSourceError::into_metric_source_error)
-    }
-
     /// Init the source with the profiled program pid.
     #[inline]
     async fn init_source(&mut self, pid: i32) -> Result<(), MetricSourceError> {
@@ -106,38 +95,18 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
         Ok(())
     }
 
-    /// Initialize a new iteration.
-    #[inline]
-    fn init_new_iteration(&mut self) -> Result<(), MetricSourceError> {
-        self.accumulator.new_iteration()
-    }
-
     /// Retrieve the results from the accumulator and convert them into metrics.
     #[inline]
     fn retrieve(&mut self) -> Result<SensorResult, MetricSourceError> {
-        let result = self
-            .accumulator
-            .retrieve()
-            .into_iter()
-            .map(|iteration| {
-                let phases = iteration
-                    .phases
-                    .into_iter()
-                    .map(|phase| {
-                        Ok(SensorPhase {
-                            metrics: self
-                                .source
-                                .to_metrics(phase.metrics)
-                                .map_err(IntoMetricSourceError::into_metric_source_error)?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, MetricSourceError>>()?;
-
-                Ok(SensorIteration { phases })
+        let result = self.accumulator.retrieve().into_iter().map(|phase| {
+            Ok(SensorPhase {
+                metrics: self
+                    .source
+                    .to_metrics(phase.metrics)
+                    .map_err(IntoMetricSourceError::into_metric_source_error)?,
             })
-            .collect::<Result<Vec<_>, MetricSourceError>>()?;
-
-        Ok(SensorResult { iterations: result })
+        }).collect::<Result<Vec<_>, MetricSourceError>>()?;
+        Ok(SensorResult { phases: result })
     }
 
     /// Retrieve source sensors.
@@ -177,7 +146,6 @@ mod tests {
             async fn init(&mut self, pid: i32) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
-            async fn reset(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;
             fn get_sensors(&self) -> Result<Sensors, MockError>;
             fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
@@ -190,7 +158,6 @@ mod tests {
         init: usize,
         join: usize,
         measure: usize,
-        reset: usize,
         retrieve: usize,
     }
 
@@ -213,12 +180,6 @@ mod tests {
         let c = counts.clone();
         m.expect_measure().returning(move || {
             c.lock().unwrap().measure += 1;
-            Ok(())
-        });
-
-        let c = counts.clone();
-        m.expect_reset().returning(move || {
-            c.lock().unwrap().reset += 1;
             Ok(())
         });
 
@@ -251,20 +212,6 @@ mod tests {
         rt.run_worker(rx, pid(0)).await.unwrap();
 
         assert_eq!(counts.lock().unwrap().measure, 2);
-    }
-
-    #[tokio::test]
-    async fn run_worker_reset_event_calls_reset() {
-        let (reader, counts) = mock_reader_counted();
-        let rt = MetricSourceRuntime::new(reader);
-        let (tx, rx) = mpsc::channel(16);
-
-        tx.send(SourceEvent::Reset).await.unwrap();
-        tx.send(SourceEvent::JoinWorker).await.unwrap();
-
-        rt.run_worker(rx, pid(0)).await.unwrap();
-
-        assert_eq!(counts.lock().unwrap().reset, 1);
     }
 
     #[tokio::test]
@@ -333,7 +280,6 @@ mod tests {
         tx.send(SourceEvent::Measure).await.unwrap();
         tx.send(SourceEvent::Measure).await.unwrap();
         tx.send(SourceEvent::NewPhase).await.unwrap();
-        tx.send(SourceEvent::NewIteration).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
         assert!(rt.run_worker(rx, pid(0)).await.is_ok());

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use joule_profiler_core::{
     sensor::Sensor,
-    types::{Iteration, Metric, Phase},
+    types::{ProfilerResults, Metric, Phase},
 };
 
 use crate::output::displayer::{Displayer, DisplayerError};
@@ -89,34 +89,6 @@ impl TerminalOutput {
         }
     }
 
-    fn display_iteration(iteration: &Iteration, prefix: &str) {
-        println!(
-            "{}  {:<20}: {:>10} ms",
-            prefix, "Duration", iteration.duration_ms
-        );
-        println!(
-            "{}  {:<20}: {:>10}",
-            prefix, "Exit code", iteration.exit_code
-        );
-
-        for phase in &iteration.phases {
-            Self::display_phase_header(phase, prefix);
-            Self::display_phase(phase, prefix);
-        }
-    }
-
-    /// Display iteration header
-    fn display_iteration_header(idx: usize, total: usize) {
-        println!("\n╔{}╗", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
-        println!(
-            "║  Iteration {} / {:<width$} ║",
-            idx + 1,
-            total,
-            width = BOX_WIDTH - 19
-        );
-        println!("╚{}╝", BORDER_DOUBLE.repeat(BOX_WIDTH - 2));
-    }
-
     /// Display phase header with token information
     fn display_phase_header(phase: &Phase, prefix: &str) {
         let phase_name = phase.get_name();
@@ -154,31 +126,29 @@ impl TerminalOutput {
 }
 
 impl Displayer for TerminalOutput {
-    fn phases_single(
+    fn display_results(
         &mut self,
         cmd: &[String],
         _token_pattern: &str,
-        iteration: &Iteration,
+        results: &ProfilerResults,
     ) -> Result<()> {
         Self::display_command(cmd);
         println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
-        Self::display_iteration(iteration, "");
-        Ok(())
-    }
+        
+        let prefix = "";
 
-    fn phases_iterations(
-        &mut self,
-        cmd: &[String],
-        _token_pattern: &str,
-        iterations: &[Iteration],
-    ) -> Result<()> {
-        Self::display_command(cmd);
-        let nb_iterations = iterations.len();
+        println!(
+            "{}  {:<20}: {:>10} ms",
+            prefix, "Duration", results.duration_ms
+        );
+        println!(
+            "{}  {:<20}: {:>10}",
+            prefix, "Exit code", results.exit_code
+        );
 
-        for (idx, iteration) in iterations.iter().enumerate() {
-            Self::display_iteration_header(idx, nb_iterations);
-            Self::display_iteration(iteration, "");
-            println!();
+        for phase in &results.phases {
+            Self::display_phase_header(phase, prefix);
+            Self::display_phase(phase, prefix);
         }
 
         Ok(())
