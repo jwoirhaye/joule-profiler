@@ -5,7 +5,7 @@ use log::{debug, trace};
 /// Accumulates metrics from a reader and tracks phases.
 #[derive(Debug)]
 pub struct MetricAccumulator<R: MetricReader> {
-    /// Already completed iterations.
+    /// Already completed phases.
     phases: Vec<RawPhase<R::Type>>,
 }
 
@@ -26,7 +26,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
     /// Retrieve all sensors measures.
     pub fn retrieve(&mut self) -> Vec<RawPhase<R::Type>> {
-        debug!("Retrieving results (iterations={})", self.phases.len());
+        debug!("Retrieving results (phases={})", self.phases.len());
         std::mem::take(&mut self.phases)
     }
 }

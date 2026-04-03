@@ -37,9 +37,6 @@ pub enum SourceEvent {
     /// Starts a new measurement phase.
     NewPhase,
 
-    /// Inits a source.
-    Init,
-
     /// Signals the worker to finish and join.
     JoinWorker,
 }
