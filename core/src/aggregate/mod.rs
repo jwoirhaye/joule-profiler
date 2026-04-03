@@ -6,7 +6,6 @@
 //! Metrics are only instantiated *after* measurements finish to avoid runtime
 //! overhead during collection.
 
-pub(crate) mod iteration;
 mod metric;
 pub(crate) mod phase;
 pub(crate) mod sensor_result;

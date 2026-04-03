@@ -261,12 +261,6 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    async fn reset(&mut self) -> Result<()> {
-        std::mem::take(&mut *self.current_counters.lock().await);
-        self.last_snapshot.lock().await.take();
-        Ok(())
-    }
-
     async fn retrieve(&mut self) -> Result<Snapshot> {
         let mut lock = self.current_counters.lock().await;
         Ok(std::mem::take(&mut *lock))

@@ -48,10 +48,6 @@ pub enum Command {
 /// Configuration for program profiling.
 #[derive(Debug, Clone, Builder)]
 pub struct ProfileConfig {
-    /// Number of iterations (>= 1).
-    #[builder(default = 1)]
-    pub iterations: usize,
-
     /// Optional file to redirect the profiled program stdout.
     #[builder(default, setter(strip_option))]
     pub stdout_file: Option<String>,

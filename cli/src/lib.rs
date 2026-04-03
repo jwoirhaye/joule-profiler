@@ -84,7 +84,6 @@ impl From<CliArgs> for Config {
     fn from(cli_args: CliArgs) -> Self {
         let command = match cli_args.command {
             ProfilerCommand::Phases(phases) => Command::Profile(ProfileConfig {
-                iterations: phases.iterations.unwrap_or(1),
                 stdout_file: phases.stdout_file,
                 cmd: phases.cmd,
                 token_pattern: phases.token_pattern,

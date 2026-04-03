@@ -80,13 +80,6 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
         Ok(())
     }
 
-    /// Reset the current counters.
-    async fn reset(&mut self) -> Result<()> {
-        self.begin_snapshot = None;
-        self.last_snapshot = None;
-        Ok(())
-    }
-
     /// Retrieve and consume the last measurement snapshot.
     async fn retrieve(&mut self) -> Result<Self::Type> {
         if let Some(begin) = self.begin_snapshot.take()
@@ -252,26 +245,6 @@ mod tests {
             source.begin_snapshot.as_ref().unwrap().metrics[&Event::CpuCycles],
             200
         );
-        assert!(source.last_snapshot.is_none());
-    }
-
-    #[tokio::test]
-    async fn reset_clears_snapshots() {
-        let mut hardware = MockPerfEventHardware::new();
-        let mut read_snapshot_call_count = 0u64;
-        hardware.expect_read_snapshot().returning(move || {
-            read_snapshot_call_count += 1;
-            Ok(snapshot(vec![(
-                Event::CpuCycles,
-                read_snapshot_call_count * 100,
-            )]))
-        });
-
-        let mut source = nvml_with_hardware(hardware);
-        source.measure().await.unwrap();
-        source.measure().await.unwrap();
-        source.reset().await.unwrap();
-        assert!(source.begin_snapshot.is_none());
         assert!(source.last_snapshot.is_none());
     }
 

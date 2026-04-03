@@ -21,16 +21,12 @@ use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// - [`MetricReader::get_sensors`] — Return the list of sensors provided by this reader.
 /// - [`MetricReader::to_metrics`] — Convert a snapshot to metrics. Implementing From<Self::Type> for Metrics isn't enough,
 ///   sometimes you need to use some information of the source to efficiently convert snapshots into metrics.
-/// - [`MetricReader::reset`] — Reset the current counters of the source, used before measurements to remove the initialization overhead.
 /// - [`MetricReader::get_name`] — Return the static name of the source.
 ///
 /// # Optional Methods
 ///
 /// - [`MetricReader::init`] — Source initialization logic if there is one, called before the measurements.
 /// - [`MetricReader::join`] — Source destruction logic if there is one, called before the measurements (no Drop implementation because the source is reusable).
-///   Calling init and join several times should always behave the same, the source shall be reset when joining.
-/// - [`MetricReader::reset`] — Reset the source counters, called before the measurements, it is useful if a source implements polling and
-///   measures have already been made before measurements.
 pub trait MetricReader: Send + 'static {
     /// Type of metrics returned by the reader.
     type Type: MetricReaderTypeBound;
@@ -50,11 +46,6 @@ pub trait MetricReader: Send + 'static {
 
     /// Measure the sensors metrics and update internal state.
     fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
-
-    /// Reset the source counters if it implements custom logic underneath.
-    fn reset(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send {
-        async { Ok(()) }
-    }
 
     /// Retrieve the current metrics as the reader type.
     fn retrieve(&mut self) -> impl Future<Output = Result<Self::Type, Self::Error>> + Send;
