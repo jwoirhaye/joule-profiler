@@ -101,7 +101,7 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
         }
         Ok(())
     }
-    
+
     async fn retrieve(&mut self) -> Result<Self::Type> {
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.last_snapshot.take()
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(nvml.begin_snapshot.as_ref().unwrap().gpus_energy[&0], 200);
         assert!(nvml.last_snapshot.is_none());
     }
-    
+
     #[tokio::test]
     async fn to_metrics_returns_correct_values() {
         let mut hardware = MockNvmlHardware::new();

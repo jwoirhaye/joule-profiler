@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use joule_profiler_core::{
     sensor::Sensor,
-    types::{ProfilerResults, Metric, Phase},
+    types::{Metric, Phase, ProfilerResults},
 };
 
 use crate::output::displayer::{Displayer, DisplayerError};
@@ -134,17 +134,14 @@ impl Displayer for TerminalOutput {
     ) -> Result<()> {
         Self::display_command(cmd);
         println!(" {}", BORDER_SINGLE.repeat(BOX_WIDTH - 2));
-        
+
         let prefix = "";
 
         println!(
             "{}  {:<20}: {:>10} ms",
             prefix, "Duration", results.duration_ms
         );
-        println!(
-            "{}  {:<20}: {:>10}",
-            prefix, "Exit code", results.exit_code
-        );
+        println!("{}  {:<20}: {:>10}", prefix, "Exit code", results.exit_code);
 
         for phase in &results.phases {
             Self::display_phase_header(phase, prefix);

@@ -25,7 +25,6 @@ impl Add for SensorPhase {
     }
 }
 
-
 impl<V> From<RawPhase<V>> for SensorPhase
 where
     V: Into<Metrics>,

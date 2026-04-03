@@ -67,7 +67,11 @@ async fn main() -> Result<()> {
     match config.command {
         Command::Profile(profile_config) => {
             let results = profiler.profile(&profile_config).await?;
-            displayer.display_results(&profile_config.cmd, &profile_config.token_pattern, &results)?;
+            displayer.display_results(
+                &profile_config.cmd,
+                &profile_config.token_pattern,
+                &results,
+            )?;
         }
         Command::ListSensors => {
             let sensors = profiler.list_sensors()?;

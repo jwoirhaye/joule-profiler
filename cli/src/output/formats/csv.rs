@@ -5,7 +5,7 @@ use joule_profiler_core::fs::{
     create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
 };
 use joule_profiler_core::sensor::Sensor;
-use joule_profiler_core::types::{ProfilerResults, Phase};
+use joule_profiler_core::types::{Phase, ProfilerResults};
 
 use crate::output::displayer::{Displayer, DisplayerError};
 
@@ -152,7 +152,7 @@ impl Displayer for CsvOutput {
 mod tests {
     use super::*;
     use joule_profiler_core::{
-        types::{ProfilerResults, Metric, Phase, PhaseToken},
+        types::{Metric, Phase, PhaseToken, ProfilerResults},
         unit::{MetricUnit, Unit, UnitPrefix},
     };
     use std::fs;

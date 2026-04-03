@@ -19,7 +19,7 @@ pub mod error;
 use crate::config::ProfileConfig;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
-use crate::profiler::types::{ProfilerResults, MeasurePhasesReturnType, Phase, Result};
+use crate::profiler::types::{MeasurePhasesReturnType, Phase, ProfilerResults, Result};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::util::fs::create_file_with_user_permissions;
@@ -117,7 +117,8 @@ impl JouleProfiler {
         self.orchestrator.run(sources, &shared_pid)?;
 
         info!("Starting measurements");
-        let (duration_ms, timestamp, exit_code, detected_phases) = self.measure_phases(config, shared_pid.clone()).await?;
+        let (duration_ms, timestamp, exit_code, detected_phases) =
+            self.measure_phases(config, shared_pid.clone()).await?;
 
         let (sources_results, sources) = self.orchestrator.finalize().await?;
         self.sources = sources;
@@ -160,7 +161,12 @@ impl JouleProfiler {
         }
 
         debug!("Collected {} sensor phase(s)", phases.len());
-        Ok(ProfilerResults { timestamp, duration_ms, exit_code, phases })
+        Ok(ProfilerResults {
+            timestamp,
+            duration_ms,
+            exit_code,
+            phases,
+        })
     }
 
     /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
