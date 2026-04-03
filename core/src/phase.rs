@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-/// Represents a phase marker in an iteration
+/// Represents a phase marker, indicating the beginning or the end of a phase.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PhaseToken {
     /// Start phase.

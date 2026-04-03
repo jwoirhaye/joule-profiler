@@ -33,9 +33,6 @@ pub enum DisplayerError {
         #[source]
         Box<dyn std::error::Error + Send + Sync>,
     ),
-
-    #[error("No iteration results to print")]
-    NoIterationFound,
 }
 
 pub trait IntoDisplayerError {
