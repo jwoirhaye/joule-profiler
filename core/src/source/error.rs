@@ -15,6 +15,10 @@ pub enum MetricSourceError {
     #[error("Cannot build iteration without at least one phase")]
     NoPhaseInIterationError,
 
+    /// The initialization of the source lasted more than the authorized time.
+    #[error("Source initialization timeout.")]
+    InitTimeout,
+
     /// Error propagated from a custom metric source.
     #[error(transparent)]
     SourceError(#[from] Box<dyn std::error::Error + Send + Sync>),

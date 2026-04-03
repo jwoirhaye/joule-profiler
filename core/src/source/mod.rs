@@ -27,7 +27,13 @@ pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// convenient API for users while maintaining performance with monomorphization during hot paths.
 pub(crate) trait MetricSource: Send {
     /// Spawn the source worker and return its handle, control channel and initialization channel.
-    fn run(self: Box<Self>) -> (SourceWorkerHandle, mpsc::Sender<SourceEvent>, oneshot::Sender<i32>);
+    fn run(
+        self: Box<Self>,
+    ) -> (
+        SourceWorkerHandle,
+        mpsc::Sender<SourceEvent>,
+        oneshot::Sender<i32>,
+    );
 
     /// List sensors exposed by this source.
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
@@ -41,10 +47,17 @@ where
     ///
     /// The metric source is consumed and transformed into a [`MetricSourceRuntime`] with the metric source as a reader.
     /// This transformation allows to monomorphize the metric source and discover its type after its launch.
-    fn run(self: Box<Self>) -> (SourceWorkerHandle, mpsc::Sender<SourceEvent>, oneshot::Sender<i32>) {
+    fn run(
+        self: Box<Self>,
+    ) -> (
+        SourceWorkerHandle,
+        mpsc::Sender<SourceEvent>,
+        oneshot::Sender<i32>,
+    ) {
         let (control_sender, control_receiver) = mpsc::channel(4);
         let (init_sender, init_receiver) = oneshot::channel();
-        let handle = tokio::spawn(async move { self.run_worker(control_receiver, init_receiver).await });
+        let handle =
+            tokio::spawn(async move { self.run_worker(control_receiver, init_receiver).await });
         (handle, control_sender, init_sender)
     }
 

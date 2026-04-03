@@ -9,17 +9,13 @@ pub struct SensorResult {
 }
 
 impl SensorResult {
-    /// Merge multiple sensor results into one, returns None if empty.
+    /// Merge multiple sensor results into one.
     pub fn merge(results: Vec<Self>) -> Option<SensorResult> {
-        if results.is_empty() || results.iter().any(|r| !r.is_valid()) {
-            return None;
+        if results.is_empty() || results.iter().any(|result| result.phases.is_empty()) {
+            None
+        } else {
+            results.into_iter().reduce(|acc, result| acc + result)
         }
-        results.into_iter().reduce(|acc, result| acc + result)
-    }
-
-    /// Test if result is valid by checking if all phases contains metrics.
-    fn is_valid(&self) -> bool {
-        !self.phases.is_empty() && self.phases.iter().all(|p| !p.metrics.is_empty())
     }
 }
 
@@ -38,60 +34,54 @@ impl Add for SensorResult {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::aggregate::{iteration::SensorIteration, phase::SensorPhase};
-//     use crate::types::Metric;
-//     use crate::unit::{MetricUnit, Unit, UnitPrefix};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aggregate::phase::SensorPhase;
+    use crate::types::Metric;
+    use crate::unit::{MetricUnit, Unit, UnitPrefix};
 
-//     fn metric(value: u64) -> Metric {
-//         Metric {
-//             name: "energy_pkg".to_string(),
-//             value,
-//             unit: MetricUnit {
-//                 unit: Unit::Joule,
-//                 prefix: UnitPrefix::Micro,
-//             },
-//             source: "rapl".to_string(),
-//         }
-//     }
+    fn metric(value: u64) -> Metric {
+        Metric {
+            name: "energy_pkg".to_string(),
+            value,
+            unit: MetricUnit {
+                unit: Unit::Joule,
+                prefix: UnitPrefix::Micro,
+            },
+            source: "rapl".to_string(),
+        }
+    }
 
-//     fn phase(metrics: Vec<Metric>) -> SensorPhase {
-//         SensorPhase { metrics }
-//     }
+    fn phase(metrics: Vec<Metric>) -> SensorPhase {
+        SensorPhase { metrics }
+    }
 
-//     fn result(iterations: Vec<SensorIteration>) -> SensorResult {
-//         SensorResult { phases: iterations }
-//     }
+    fn result(phases: Vec<SensorPhase>) -> SensorResult {
+        SensorResult { phases }
+    }
 
-//     #[test]
-//     fn merge_empty_vec_returns_none() {
-//         assert!(SensorResult::merge(vec![]).is_none());
-//     }
+    #[test]
+    fn merge_empty_vec_returns_none() {
+        assert!(SensorResult::merge(vec![]).is_none());
+    }
 
-//     #[test]
-//     fn merge_with_empty_iteration_returns_none() {
-//         let r = result(vec![iteration(vec![])]);
-//         assert!(SensorResult::merge(vec![r]).is_none());
-//     }
+    #[test]
+    fn merge_single_result_returns_it() {
+        let r = result(vec![phase(vec![metric(100)])]);
+        let merged = SensorResult::merge(vec![r]).unwrap();
+        assert_eq!(merged.phases.len(), 1);
+        assert_eq!(merged.phases[0].metrics[0].value, 100);
+    }
 
-//     #[test]
-//     fn merge_single_result_returns_it() {
-//         let r = result(vec![iteration(vec![phase(vec![metric(100)])])]);
-//         let merged = SensorResult::merge(vec![r]).unwrap();
-//         assert_eq!(merged.phases.len(), 1);
-//         assert_eq!(merged.phases[0].phases[0].metrics[0].value, 100);
-//     }
+    #[test]
+    fn merge_multiple_results_accumulates_metrics() {
+        let r1 = result(vec![phase(vec![metric(100)])]);
+        let r2 = result(vec![phase(vec![metric(200)])]);
+        let merged = SensorResult::merge(vec![r1, r2]).unwrap();
 
-//     #[test]
-//     fn merge_multiple_results_accumulates_metrics() {
-//         let r1 = result(vec![iteration(vec![phase(vec![metric(100)])])]);
-//         let r2 = result(vec![iteration(vec![phase(vec![metric(200)])])]);
-//         let merged = SensorResult::merge(vec![r1, r2]).unwrap();
-
-//         assert_eq!(merged.phases[0].phases[0].metrics.len(), 2);
-//         assert_eq!(merged.phases[0].phases[0].metrics[0].value, 100);
-//         assert_eq!(merged.phases[0].phases[0].metrics[1].value, 200);
-//     }
-// }
+        assert_eq!(merged.phases[0].metrics.len(), 2);
+        assert_eq!(merged.phases[0].metrics[0].value, 100);
+        assert_eq!(merged.phases[0].metrics[1].value, 200);
+    }
+}
