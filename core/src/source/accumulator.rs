@@ -1,15 +1,12 @@
-use crate::source::types::{RawIteration, RawPhase};
-use crate::source::{MetricReader, MetricSourceError};
-use log::{debug, error, trace};
+use crate::source::types::{RawPhase};
+use crate::source::{MetricReader};
+use log::{debug, trace};
 
-/// Accumulates metrics from a reader and tracks iterations.
+/// Accumulates metrics from a reader and tracks phases.
 #[derive(Debug)]
 pub struct MetricAccumulator<R: MetricReader> {
     /// Already completed iterations.
-    iterations: Vec<RawIteration<R::Type>>,
-
-    /// Current ongoing iteration.
-    current_iteration: RawIteration<R::Type>,
+    phases: Vec<RawPhase<R::Type>>,
 }
 
 impl<R: MetricReader> MetricAccumulator<R> {
@@ -23,39 +20,24 @@ impl<R: MetricReader> MetricAccumulator<R> {
     pub fn new_phase(&mut self, snapshot: R::Type) {
         debug!(
             "Starting new phase (current phases: {})",
-            self.current_iteration.phases.len()
+            self.phases.len()
         );
 
         trace!("Phase counters retrieved");
-        self.current_iteration
-            .phases
-            .push(RawPhase { metrics: snapshot });
-    }
-
-    /// Initialize a new iteration.
-    pub fn new_iteration(&mut self) -> Result<(), MetricSourceError> {
-        if self.current_iteration.phases.is_empty() {
-            error!("Attempted to create iteration with no phases");
-            Err(MetricSourceError::NoPhaseInIterationError)
-        } else {
-            self.iterations
-                .push(std::mem::take(&mut self.current_iteration));
-            Ok(())
-        }
+        self.phases.push(RawPhase { metrics: snapshot });
     }
 
     /// Retrieve all sensors measures.
-    pub fn retrieve(&mut self) -> Vec<RawIteration<R::Type>> {
-        debug!("Retrieving results (iterations={})", self.iterations.len());
-        std::mem::take(&mut self.iterations)
+    pub fn retrieve(&mut self) -> Vec<RawPhase<R::Type>> {
+        debug!("Retrieving results (iterations={})", self.phases.len());
+        std::mem::take(&mut self.phases)
     }
 }
 
 impl<R: MetricReader> Default for MetricAccumulator<R> {
     fn default() -> Self {
         Self {
-            iterations: Vec::default(),
-            current_iteration: RawIteration::default(),
+            phases: Vec::default(),
         }
     }
 }

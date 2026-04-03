@@ -143,13 +143,6 @@ impl MetricReader for Rapl {
         Ok(())
     }
 
-    /// Resets the counters.
-    async fn reset(&mut self) -> Result<()> {
-        self.begin_snapshot = None;
-        self.end_snapshot = None;
-        Ok(())
-    }
-
     /// Retrieve accumulated metrics since the last reset.
     async fn retrieve(&mut self) -> Result<Self::Type> {
         trace!("Retrieving RAPL counters",);

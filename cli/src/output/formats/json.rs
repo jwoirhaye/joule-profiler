@@ -7,7 +7,7 @@ use joule_profiler_core::fs::{
     create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
 };
 use joule_profiler_core::sensor::Sensor;
-use joule_profiler_core::types::Iteration;
+use joule_profiler_core::types::ProfilerResults;
 use serde_json::json;
 
 type Result<T> = std::result::Result<T, DisplayerError>;
@@ -46,36 +46,18 @@ impl JsonOutput {
 }
 
 impl Displayer for JsonOutput {
-    fn phases_single(
+    fn display_results(
         &mut self,
         cmd: &[String],
         token_pattern: &str,
-        result: &Iteration,
+        results: &ProfilerResults,
     ) -> Result<()> {
-        let obj = json!({
+        self.write_json(&json!({
             "command": cmd.join(" "),
-            "mode": "phases",
             "token_pattern": token_pattern,
-            "exit_code": result.exit_code,
-            "phases": result.phases,
-        });
-        self.write_json(&obj)
-    }
-
-    fn phases_iterations(
-        &mut self,
-        cmd: &[String],
-        token_pattern: &str,
-        iterations: &[Iteration],
-    ) -> Result<()> {
-        let root = json!({
-            "command": cmd.join(" "),
-            "mode": "phases-iterations",
-            "token_pattern": token_pattern,
-            "nb_iterations": iterations.len(),
-            "iterations": iterations
-        });
-        self.write_json(&root)
+            "exit_code": results.exit_code,
+            "phases": results.phases,
+        }))
     }
 
     fn list_sensors(&mut self, sensors: &[Sensor]) -> Result<()> {

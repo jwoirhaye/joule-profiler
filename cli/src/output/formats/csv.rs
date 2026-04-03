@@ -5,7 +5,7 @@ use joule_profiler_core::fs::{
     create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
 };
 use joule_profiler_core::sensor::Sensor;
-use joule_profiler_core::types::{Iteration, Phase};
+use joule_profiler_core::types::{ProfilerResults, Phase};
 
 use crate::output::displayer::{Displayer, DisplayerError};
 
@@ -59,16 +59,11 @@ impl CsvOutput {
     fn write_phase(
         &mut self,
         phase: &Phase,
-        iteration: &Iteration,
+        results: &ProfilerResults,
         cmd: &str,
         token_pattern: &str,
-        with_iteration_index: bool,
     ) -> Result<()> {
         for metric in &phase.metrics {
-            if with_iteration_index {
-                write!(self.file, "{};", iteration.index)?;
-            }
-
             let start_token_line = phase
                 .start_token_line
                 .map(|l| l.to_string())
@@ -102,7 +97,7 @@ impl CsvOutput {
             write!(
                 self.file,
                 "\"{}\";{};\"{}\"",
-                cmd, iteration.exit_code, token_pattern
+                cmd, results.exit_code, token_pattern
             )?;
             writeln!(self.file)?;
         }
@@ -110,60 +105,27 @@ impl CsvOutput {
         Ok(())
     }
 
-    fn write_iteration(
-        &mut self,
-        iteration: &Iteration,
-        cmd: &str,
-        token_pattern: &str,
-        with_iteration_index: bool,
-    ) -> Result<()> {
-        for phase in &iteration.phases {
-            self.write_phase(phase, iteration, cmd, token_pattern, with_iteration_index)?;
-        }
-        Ok(())
-    }
-
     /// Print a message indicating the CSV file has been written.
     fn finalize(&self) {
-        println!("✔ CSV written to: {}", self.filename);
+        println!("CSV written to: {}", self.filename);
     }
 }
 
 impl Displayer for CsvOutput {
-    fn phases_single(
+    fn display_results(
         &mut self,
         cmd: &[String],
         token_pattern: &str,
-        result: &Iteration,
+        results: &ProfilerResults,
     ) -> Result<()> {
-        if result.phases.is_empty() {
+        if results.phases.is_empty() {
             return Ok(());
         }
-
         let command = cmd.join(" ");
 
         self.write_header(false)?;
-        self.write_iteration(result, command.as_str(), token_pattern, false)?;
-
-        self.finalize();
-        Ok(())
-    }
-
-    fn phases_iterations(
-        &mut self,
-        cmd: &[String],
-        token_pattern: &str,
-        iterations: &[Iteration],
-    ) -> Result<()> {
-        if iterations.is_empty() || iterations[0].phases.is_empty() {
-            return Ok(());
-        }
-
-        let command = cmd.join(" ");
-
-        self.write_header(true)?;
-        for iteration in iterations {
-            self.write_iteration(iteration, &command, token_pattern, true)?;
+        for phase in &results.phases {
+            self.write_phase(phase, results, command.as_str(), token_pattern)?;
         }
 
         self.finalize();
@@ -190,7 +152,7 @@ impl Displayer for CsvOutput {
 mod tests {
     use super::*;
     use joule_profiler_core::{
-        types::{Iteration, Metric, Phase, PhaseToken},
+        types::{ProfilerResults, Metric, Phase, PhaseToken},
         unit::{MetricUnit, Unit, UnitPrefix},
     };
     use std::fs;
@@ -247,9 +209,8 @@ mod tests {
         )
     }
 
-    fn iteration(index: usize, exit_code: i32, phases: Vec<Phase>) -> Iteration {
-        Iteration {
-            index,
+    fn results(exit_code: i32, phases: Vec<Phase>) -> ProfilerResults {
+        ProfilerResults {
             timestamp: 0,
             duration_ms: 0,
             exit_code,
@@ -270,7 +231,7 @@ mod tests {
     #[test]
     fn phases_single_empty_phases_writes_nothing() {
         let (mut csv, tmp) = csv_to_tempfile();
-        csv.phases_single(&["echo".into()], ".*", &iteration(0, 0, vec![]))
+        csv.display_results(&["echo".into()], ".*", &results(0, vec![]))
             .unwrap();
         assert!(read(&tmp).is_empty());
     }
@@ -278,8 +239,8 @@ mod tests {
     #[test]
     fn phases_single_writes_header_without_iteration_id() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(0, 0, vec![simple_phase(vec![metric("PKG", 10)])]);
-        csv.phases_single(&["echo".into()], ".*", &iter).unwrap();
+        let iter = results(0, vec![simple_phase(vec![metric("PKG", 10)])]);
+        csv.display_results(&["echo".into()], ".*", &iter).unwrap();
         let content = read(&tmp);
         assert!(content.contains("phase_id"));
         assert!(content.contains("phase_name"));
@@ -290,8 +251,8 @@ mod tests {
     #[test]
     fn phases_single_writes_metric_values() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(0, 0, vec![simple_phase(vec![metric("PKG", 42)])]);
-        csv.phases_single(&["echo".into()], ".*", &iter).unwrap();
+        let iter = results(0, vec![simple_phase(vec![metric("PKG", 42)])]);
+        csv.display_results(&["echo".into()], ".*", &iter).unwrap();
         let content = read(&tmp);
         assert!(content.contains("PKG"));
         assert!(content.contains("42"));
@@ -301,8 +262,8 @@ mod tests {
     #[test]
     fn phases_single_writes_phase_metadata() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(0, 3, vec![simple_phase(vec![metric("PKG", 1)])]);
-        csv.phases_single(&["my_cmd".into(), "--flag".into()], "MY_PATTERN", &iter)
+        let iter = results(3, vec![simple_phase(vec![metric("PKG", 1)])]);
+        csv.display_results(&["my_cmd".into(), "--flag".into()], "MY_PATTERN", &iter)
             .unwrap();
         let content = read(&tmp);
         assert!(content.contains("500")); // duration_ms
@@ -314,8 +275,7 @@ mod tests {
     #[test]
     fn phases_single_writes_token_info() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(
-            0,
+        let iter = results(
             0,
             vec![phase(
                 0,
@@ -328,7 +288,7 @@ mod tests {
                 vec![metric("PKG", 1)],
             )],
         );
-        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+        csv.display_results(&["cmd".into()], ".*", &iter).unwrap();
         let content = read(&tmp);
         assert!(content.contains("__A__"));
         assert!(content.contains("__B__"));
@@ -339,8 +299,7 @@ mod tests {
     #[test]
     fn phases_single_one_row_per_metric() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(
-            0,
+        let iter = results(
             0,
             vec![simple_phase(vec![
                 metric("PKG", 1),
@@ -348,7 +307,7 @@ mod tests {
                 metric("CORE", 3),
             ])],
         );
-        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+        csv.display_results(&["cmd".into()], ".*", &iter).unwrap();
         let content = read(&tmp);
 
         assert_eq!(content.lines().count(), 4);
@@ -357,8 +316,7 @@ mod tests {
     #[test]
     fn phases_single_right_phase_name() {
         let (mut csv, tmp) = csv_to_tempfile();
-        let iter = iteration(
-            0,
+        let iter = results(
             0,
             vec![phase(
                 0,
@@ -371,85 +329,9 @@ mod tests {
                 vec![metric("PKG", 1)],
             )],
         );
-        csv.phases_single(&["cmd".into()], ".*", &iter).unwrap();
+        csv.display_results(&["cmd".into()], ".*", &iter).unwrap();
 
         assert!(read(&tmp).contains("__START__ -> __END__"));
-    }
-
-    #[test]
-    fn phases_iterations_empty_writes_nothing() {
-        let (mut csv, tmp) = csv_to_tempfile();
-        csv.phases_iterations(&["echo".into()], ".*", &[]).unwrap();
-        assert!(read(&tmp).is_empty());
-    }
-
-    #[test]
-    fn phases_iterations_first_iteration_empty_phases_writes_nothing() {
-        let (mut csv, tmp) = csv_to_tempfile();
-        csv.phases_iterations(&["echo".into()], ".*", &[iteration(0, 0, vec![])])
-            .unwrap();
-        assert!(read(&tmp).is_empty());
-    }
-
-    #[test]
-    fn phases_iterations_writes_iteration_id_column() {
-        let (mut csv, tmp) = csv_to_tempfile();
-        let iters = vec![
-            iteration(0, 0, vec![simple_phase(vec![metric("PKG", 1)])]),
-            iteration(1, 0, vec![simple_phase(vec![metric("PKG", 2)])]),
-        ];
-        csv.phases_iterations(&["echo".into()], ".*", &iters)
-            .unwrap();
-        assert!(read(&tmp).contains("iteration_id"));
-    }
-
-    #[test]
-    fn phases_iterations_one_row_per_iteration_per_metric() {
-        let (mut csv, tmp) = csv_to_tempfile();
-        let iters = vec![
-            iteration(
-                0,
-                0,
-                vec![simple_phase(vec![metric("PKG", 1), metric("DRAM", 2)])],
-            ),
-            iteration(
-                1,
-                0,
-                vec![simple_phase(vec![metric("PKG", 3), metric("DRAM", 4)])],
-            ),
-        ];
-        csv.phases_iterations(&["echo".into()], ".*", &iters)
-            .unwrap();
-
-        // header + 2 iterations * 2 metrics = 5 lines
-        assert_eq!(read(&tmp).lines().count(), 5);
-    }
-
-    #[test]
-    fn phases_iterations_multiple_phases_per_iteration() {
-        let (mut csv, tmp) = csv_to_tempfile();
-        let iters = vec![iteration(
-            0,
-            0,
-            vec![
-                simple_phase(vec![metric("PKG", 1)]),
-                phase(
-                    1,
-                    PhaseToken::Token("__A__".into()),
-                    PhaseToken::End,
-                    100,
-                    0,
-                    None,
-                    None,
-                    vec![metric("PKG", 2)],
-                ),
-            ],
-        )];
-        csv.phases_iterations(&["echo".into()], ".*", &iters)
-            .unwrap();
-
-        // header + 2 phases * 1 metric = 3 lines
-        assert_eq!(read(&tmp).lines().count(), 3);
     }
 
     #[test]

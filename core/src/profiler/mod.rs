@@ -16,11 +16,10 @@ use std::{
 
 pub mod error;
 
-use crate::aggregate::iteration::SensorIteration;
 use crate::config::ProfileConfig;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
-use crate::profiler::types::{Iteration, Iterations, MeasurePhasesReturnType, Phase, Result};
+use crate::profiler::types::{ProfilerResults, MeasurePhasesReturnType, Phase, Result};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::util::fs::create_file_with_user_permissions;
@@ -33,7 +32,7 @@ pub mod types;
 ///
 /// `JouleProfiler` runs a command, collects energy metrics from registered
 /// sources (e.g. RAPL, `perf_event`, NVML), and aggregates them into a
-/// structured result organized by iterations and phases.
+/// structured result organized by phases.
 ///
 /// It is also responsible for the detection of phases (parts of a program execution)
 /// through the standard output.
@@ -108,9 +107,8 @@ impl JouleProfiler {
     /// Profiles a program spawned with the configured command and return the aggregated results.
     ///
     /// It starts the orchestrator with the metric sources and profile the program for the configured iterations count.
-    pub async fn profile(&mut self, config: &ProfileConfig) -> Result<Iterations> {
+    pub async fn profile(&mut self, config: &ProfileConfig) -> Result<ProfilerResults> {
         info!("Running phase-based profiling");
-        debug!("Iterations: {}", config.iterations);
         debug!("Phase regex: {}", config.token_pattern);
 
         let sources = std::mem::take(&mut self.sources);
@@ -118,76 +116,51 @@ impl JouleProfiler {
         let shared_pid = Arc::new(AtomicI32::new(0));
         self.orchestrator.run(sources, &shared_pid)?;
 
-        let mut command_results = Vec::with_capacity(config.iterations);
-
-        for i in 0..config.iterations {
-            info!("Starting iteration {i}");
-            let iteration = self.measure_phases(config, shared_pid.clone()).await?;
-            command_results.push(iteration);
-        }
+        info!("Starting measurements");
+        let (duration_ms, timestamp, exit_code, detected_phases) = self.measure_phases(config, shared_pid.clone()).await?;
 
         let (sources_results, sources) = self.orchestrator.finalize().await?;
         self.sources = sources;
 
-        let results: Iterations = command_results
-            .into_iter()
-            .zip(sources_results.iterations.into_iter().enumerate())
-            .map(
-                |(
-                    (duration_ms, begin_timestamp, exit_code, detected_phases),
-                    (index, iteration),
-                ): (MeasurePhasesReturnType, (usize, SensorIteration))| {
-                    let mut phases: Vec<_> = detected_phases
-                        .windows(2)
-                        .enumerate()
-                        .zip(&iteration.phases)
-                        .map(|((index, window), real_phase)| {
-                            let (d1, d2) = (&window[0], &window[1]);
-                            let mut phase_metrics = real_phase.metrics.clone();
-                            phase_metrics.sort_by(|a, b| a.name.cmp(&b.name));
-                            Phase {
-                                index,
-                                metrics: phase_metrics,
-                                start_token: d1.token.clone(),
-                                end_token: d2.token.clone(),
-                                timestamp: d1.timestamp,
-                                duration_ms: d2.timestamp - d1.timestamp,
-                                start_token_line: d1.line_number,
-                                end_token_line: d2.line_number,
-                            }
-                        })
-                        .collect();
-
-                    if phases.is_empty()
-                        && let Some(end_phase) = iteration.phases.into_iter().last()
-                    {
-                        let phase = Phase {
-                            index: 0,
-                            metrics: end_phase.metrics,
-                            start_token: PhaseToken::Start,
-                            end_token: PhaseToken::End,
-                            timestamp: begin_timestamp,
-                            duration_ms,
-                            start_token_line: None,
-                            end_token_line: None,
-                        };
-                        phases.push(phase);
-                    }
-
-                    Iteration {
-                        phases,
-                        index,
-                        timestamp: begin_timestamp,
-                        duration_ms,
-                        exit_code,
-                    }
-                },
-            )
+        let mut phases: Vec<_> = detected_phases
+            .windows(2)
+            .enumerate()
+            .zip(&sources_results.phases)
+            .map(|((index, window), real_phase)| {
+                let (d1, d2) = (&window[0], &window[1]);
+                let mut phase_metrics = real_phase.metrics.clone();
+                phase_metrics.sort_by(|a, b| a.name.cmp(&b.name));
+                Phase {
+                    index,
+                    metrics: phase_metrics,
+                    start_token: d1.token.clone(),
+                    end_token: d2.token.clone(),
+                    timestamp: d1.timestamp,
+                    duration_ms: d2.timestamp - d1.timestamp,
+                    start_token_line: d1.line_number,
+                    end_token_line: d2.line_number,
+                }
+            })
             .collect();
 
-        debug!("Collected {} sensor iteration(s)", results.len());
+        if phases.is_empty()
+            && let Some(end_phase) = sources_results.phases.into_iter().last()
+        {
+            let phase = Phase {
+                index: 0,
+                metrics: end_phase.metrics,
+                start_token: PhaseToken::Start,
+                end_token: PhaseToken::End,
+                timestamp,
+                duration_ms,
+                start_token_line: None,
+                end_token_line: None,
+            };
+            phases.push(phase);
+        }
 
-        Ok(results)
+        debug!("Collected {} sensor phase(s)", phases.len());
+        Ok(ProfilerResults { timestamp, duration_ms, exit_code, phases })
     }
 
     /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
@@ -217,8 +190,6 @@ impl JouleProfiler {
         })?;
 
         let mut sink = create_output_sink(config.stdout_file.as_ref())?;
-
-        self.orchestrator.reset().await?;
 
         debug!("Spawning command: {:?}", config.cmd);
         let mut child = spawn_profiled_command(config)?;
@@ -261,7 +232,6 @@ impl JouleProfiler {
 
         self.orchestrator.measure().await?;
         self.orchestrator.new_phase().await?;
-        self.orchestrator.new_iteration().await?;
 
         let duration_ms = end_timestamp - begin_timestamp;
 
@@ -488,7 +458,6 @@ mod tests {
     fn create_test_config(cmd: Vec<String>) -> ProfileConfig {
         ProfileConfig {
             cmd,
-            iterations: 1,
             token_pattern: "__PHASE__".to_string(),
             stdout_file: None,
         }
@@ -515,7 +484,6 @@ mod tests {
             async fn init(&mut self, pid: i32) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
-            async fn reset(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;
             fn get_sensors(&self) -> Result<Sensors, MockError>;
             fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
@@ -717,7 +685,6 @@ mod tests {
         let mut profiler = joule_profiler();
         let config = ProfileConfig {
             cmd: vec!["echo".to_string()],
-            iterations: 1,
             token_pattern: "[[invalid[[[regex[[".to_string(),
             stdout_file: None,
         };
