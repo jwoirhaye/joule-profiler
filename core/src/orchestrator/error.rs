@@ -29,6 +29,10 @@ pub enum OrchestratorError {
         SendError<SourceEvent>,
     ),
 
+    /// Returned when an error occured while sending the initialization event.
+    #[error("Cannot initialize {0} source.")]
+    InitializationError(String),
+
     /// An error thrown by a metric source.
     #[error(transparent)]
     MetricSourceError(#[from] MetricSourceError),

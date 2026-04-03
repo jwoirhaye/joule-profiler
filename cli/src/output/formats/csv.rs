@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use joule_profiler_core::fs::{
-    create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
+    create_file_with_user_permissions, default_results_filename, get_absolute_path,
 };
 use joule_profiler_core::sensor::Sensor;
 use joule_profiler_core::types::{Phase, ProfilerResults};
@@ -23,7 +23,7 @@ pub struct CsvOutput {
 impl CsvOutput {
     /// Create a CSV output writer to a file, optionally specifying the file path.
     pub fn try_new(output_file: Option<String>) -> Result<Self> {
-        let filename = output_file.unwrap_or(default_iterations_filename("csv"));
+        let filename = output_file.unwrap_or(default_results_filename("csv"));
 
         let absolute_path = get_absolute_path(&filename)?;
         let file = create_file_with_user_permissions(&absolute_path)?;
