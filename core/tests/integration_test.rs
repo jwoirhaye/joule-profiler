@@ -1,8 +1,5 @@
 use joule_profiler_core::{
-    config::ProfileConfig,
-    sensor::Sensors,
-    source::MetricReader,
-    types::{Metrics},
+    config::ProfileConfig, sensor::Sensors, source::MetricReader, types::Metrics,
 };
 use mockall::mock;
 

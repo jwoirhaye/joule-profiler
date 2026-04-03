@@ -1,4 +1,4 @@
-use crate::aggregate::{phase::SensorPhase};
+use crate::aggregate::phase::SensorPhase;
 use std::ops::Add;
 
 /// Aggregated result of multiple sensor iterations.

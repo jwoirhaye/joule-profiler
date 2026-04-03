@@ -1,5 +1,5 @@
-use crate::source::types::{RawPhase};
-use crate::source::{MetricReader};
+use crate::source::MetricReader;
+use crate::source::types::RawPhase;
 use log::{debug, trace};
 
 /// Accumulates metrics from a reader and tracks phases.
@@ -18,10 +18,7 @@ impl<R: MetricReader> MetricAccumulator<R> {
 
     /// Initialize a new measure phase.
     pub fn new_phase(&mut self, snapshot: R::Type) {
-        debug!(
-            "Starting new phase (current phases: {})",
-            self.phases.len()
-        );
+        debug!("Starting new phase (current phases: {})", self.phases.len());
 
         trace!("Phase counters retrieved");
         self.phases.push(RawPhase { metrics: snapshot });
