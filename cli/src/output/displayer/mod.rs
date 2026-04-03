@@ -6,7 +6,7 @@
 //!
 //! # Overview
 //!
-//! - [`Displayer`] — Trait defining methods for displaying iterations, phases, and sensors.
+//! - [`Displayer`] — Trait defining methods for displaying phases and sensors.
 //! - [`Terminal`][`super::formats::terminal::TerminalOutput`], [`JsonOutput`][`super::formats::json::JsonOutput`], [`CsvOutput`][`super::formats::csv::CsvOutput`] — Standard output formats.
 
 pub mod error;
@@ -19,7 +19,7 @@ pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
 /// Trait for displaying profiler results.
 ///
 /// This trait abstracts over different output formats (terminal, JSON, CSV, etc.).
-/// Implementors provide methods to display single or multiple iterations, phases,
+/// Implementors provide methods to display phases results,
 /// and the list of sensors. Default implementations return
 /// [`DisplayerError::NotImplementedForFormat`] if the method is not supported
 /// for a given format.

@@ -7,8 +7,6 @@
 use log::{debug, info, trace};
 use regex::Regex;
 use std::io::BufWriter;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::{
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
@@ -106,19 +104,18 @@ impl JouleProfiler {
 
     /// Profiles a program spawned with the configured command and return the aggregated results.
     ///
-    /// It starts the orchestrator with the metric sources and profile the program for the configured iterations count.
+    /// It starts the orchestrator with the metric sources and profile the program.
     pub async fn profile(&mut self, config: &ProfileConfig) -> Result<ProfilerResults> {
         info!("Running phase-based profiling");
         debug!("Phase regex: {}", config.token_pattern);
 
         let sources = std::mem::take(&mut self.sources);
         trace!("Starting orchestrator with {} source(s)", sources.len());
-        let shared_pid = Arc::new(AtomicI32::new(0));
-        self.orchestrator.run(sources, &shared_pid)?;
+        self.orchestrator.run(sources)?;
 
         info!("Starting measurements");
         let (duration_ms, timestamp, exit_code, detected_phases) =
-            self.measure_phases(config, shared_pid.clone()).await?;
+            self.measure_phases(config).await?;
 
         let (sources_results, sources) = self.orchestrator.finalize().await?;
         self.sources = sources;
@@ -176,8 +173,7 @@ impl JouleProfiler {
     ///
     /// The profiling is composed of several steps:
     ///
-    /// - Firstly, the orchestrator resets all the sources for the ones needing to be reset across iterations.
-    /// - Then, the program is spawned and its pid is retrieved.
+    /// - Firstly, the program is spawned and its pid is retrieved.
     /// - The process is immediately stopped using a SIGSTOP signal to configure the sources without introducing a significant overhead.
     /// - The first measure is made and the process is then resume.
     /// - The profiler listens for phase token in the standard output of the profiled process and make a measure for every token detected.
@@ -187,7 +183,6 @@ impl JouleProfiler {
     async fn measure_phases(
         &mut self,
         config: &ProfileConfig,
-        shared_pid: Arc<AtomicI32>,
     ) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 
@@ -202,9 +197,7 @@ impl JouleProfiler {
         let pid = child.id().cast_signed();
 
         pause_prosess(pid)?;
-        shared_pid.store(pid, Ordering::SeqCst);
-
-        self.orchestrator.init().await?;
+        self.orchestrator.init(pid).await?;
 
         let child_stdout = child
             .stdout

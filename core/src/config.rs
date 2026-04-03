@@ -1,7 +1,7 @@
 //! Configuration for Joule Profiler.
 //!
 //! This module defines the configuration structures used to run the profiler:
-//! which command to execute, how many iterations, output options, and RAPL settings.
+//! which command to execute, output options, and RAPL settings.
 //!
 //! # Example
 //!
@@ -9,7 +9,6 @@
 //! use joule_profiler_core::config::{Config, Command, ProfileConfig};
 //!
 //! let profile = ProfileConfig {
-//!     iterations: 1,
 //!     stdout_file: None,
 //!     cmd: vec!["sleep".into(), "1".into()],
 //!     token_pattern: "__[A-Z0-9_]+__".into(),

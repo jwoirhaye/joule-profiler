@@ -5,10 +5,7 @@
 //! Implementations are boxed for flexibility, while internally resolving
 //! concrete types to minimize the profiler overhead.
 
-use std::sync::Arc;
-use std::sync::atomic::AtomicI32;
-
-use tokio::sync::mpsc::{Sender, channel};
+use tokio::sync::{mpsc, oneshot};
 
 pub(crate) mod accumulator;
 pub mod error;
@@ -29,10 +26,8 @@ pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
 /// This trait is used to erase the type of the metric source, to be able to have a
 /// convenient API for users while maintaining performance with monomorphization during hot paths.
 pub(crate) trait MetricSource: Send {
-    /// Spawn the source worker and return its handle and control channel.
-    ///
-    /// The pid argument refers to the profiled program pid, shared via atomic operations, default is zero but it is updated on each iteration.
-    fn run(self: Box<Self>, pid: Arc<AtomicI32>) -> (SourceWorkerHandle, Sender<SourceEvent>);
+    /// Spawn the source worker and return its handle, control channel and initialization channel.
+    fn run(self: Box<Self>) -> (SourceWorkerHandle, mpsc::Sender<SourceEvent>, oneshot::Sender<i32>);
 
     /// List sensors exposed by this source.
     fn list_sensors(&self) -> Result<Sensors, MetricSourceError>;
@@ -46,10 +41,11 @@ where
     ///
     /// The metric source is consumed and transformed into a [`MetricSourceRuntime`] with the metric source as a reader.
     /// This transformation allows to monomorphize the metric source and discover its type after its launch.
-    fn run(self: Box<Self>, pid: Arc<AtomicI32>) -> (SourceWorkerHandle, Sender<SourceEvent>) {
-        let (tx, rx) = channel(4);
-        let handle = tokio::spawn(async move { self.run_worker(rx, pid).await });
-        (handle, tx)
+    fn run(self: Box<Self>) -> (SourceWorkerHandle, mpsc::Sender<SourceEvent>, oneshot::Sender<i32>) {
+        let (control_sender, control_receiver) = mpsc::channel(4);
+        let (init_sender, init_receiver) = oneshot::channel();
+        let handle = tokio::spawn(async move { self.run_worker(control_receiver, init_receiver).await });
+        (handle, control_sender, init_sender)
     }
 
     /// List the sensors of the metric source.

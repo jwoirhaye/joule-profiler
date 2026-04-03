@@ -1,10 +1,10 @@
 use crate::aggregate::phase::SensorPhase;
 use std::ops::Add;
 
-/// Aggregated result of multiple sensor iterations.
+/// Aggregated results of sensors.
 #[derive(Debug)]
 pub struct SensorResult {
-    /// Iterations collected from all metric sources.
+    /// Phases collected from all metric sources.
     pub phases: Vec<SensorPhase>,
 }
 
@@ -26,15 +26,15 @@ impl SensorResult {
 impl Add for SensorResult {
     type Output = SensorResult;
 
-    /// Combine two sensor results by adding corresponding iterations.
+    /// Combine two sensor results by adding corresponding phases.
     fn add(self, rhs: Self) -> Self::Output {
-        let iterations = self
+        let phases = self
             .phases
             .into_iter()
             .zip(rhs.phases)
             .map(|(self_iter, rhs_iter)| self_iter + rhs_iter)
             .collect();
-        Self::Output { phases: iterations }
+        Self::Output { phases }
     }
 }
 

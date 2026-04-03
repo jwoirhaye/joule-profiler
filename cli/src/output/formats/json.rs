@@ -4,7 +4,7 @@ use std::io::Write;
 use crate::output::displayer::error::IntoDisplayerError;
 use crate::output::displayer::{Displayer, DisplayerError};
 use joule_profiler_core::fs::{
-    create_file_with_user_permissions, default_iterations_filename, get_absolute_path,
+    create_file_with_user_permissions, default_results_filename, get_absolute_path,
 };
 use joule_profiler_core::sensor::Sensor;
 use joule_profiler_core::types::ProfilerResults;
@@ -24,7 +24,7 @@ pub struct JsonOutput {
 impl JsonOutput {
     /// Create a JSON output writer, optionally with a specific file.
     pub fn new(output_file: Option<String>) -> Result<Self> {
-        let filename = output_file.unwrap_or(default_iterations_filename("json"));
+        let filename = output_file.unwrap_or(default_results_filename("json"));
 
         let absolute_path = get_absolute_path(&filename)?;
         let file = create_file_with_user_permissions(&absolute_path)?;
