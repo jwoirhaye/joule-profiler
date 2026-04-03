@@ -47,7 +47,6 @@ pub mod types;
 ///
 /// let config = ProfileConfig {
 ///     cmd: vec!["echo".to_string(), "hello".to_string()],
-///     iterations: 1,
 ///     token_pattern: "__PHASE__".to_string(),
 ///     stdout_file: None,
 /// };
@@ -180,10 +179,7 @@ impl JouleProfiler {
     /// - When the program exited, the profiler makes a last measure to compute the last phase metrics.
     ///
     /// This methodology is repeated for every iteration. After all the profiling sessions, results are aggregated into a common structure.
-    async fn measure_phases(
-        &mut self,
-        config: &ProfileConfig,
-    ) -> Result<MeasurePhasesReturnType> {
+    async fn measure_phases(&mut self, config: &ProfileConfig) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 
         let regex = Regex::new(&config.token_pattern).map_err(|err| {
@@ -197,7 +193,7 @@ impl JouleProfiler {
         let pid = child.id().cast_signed();
 
         pause_prosess(pid)?;
-        self.orchestrator.init(pid).await?;
+        self.orchestrator.init(pid)?;
 
         let child_stdout = child
             .stdout

@@ -10,6 +10,7 @@ pub enum OrchestratorError {
     #[error("Not enough snapshots to retrieve.")]
     NotEnoughSnapshots,
 
+    /// Returned when there's no metric sources configured to profile the program with.
     #[error("No metric sources configured.")]
     NoSourceConfigured,
 
