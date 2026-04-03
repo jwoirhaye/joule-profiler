@@ -178,7 +178,7 @@ impl JouleProfiler {
     /// - The profiler listens for phase token in the standard output of the profiled process and make a measure for every token detected.
     /// - When the program exited, the profiler makes a last measure to compute the last phase metrics.
     ///
-    /// This methodology is repeated for every iteration. After all the profiling sessions, results are aggregated into a common structure.
+    /// After all the profiling sessions, results are aggregated into a common structure.
     async fn measure_phases(&mut self, config: &ProfileConfig) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 

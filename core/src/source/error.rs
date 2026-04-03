@@ -4,16 +4,12 @@ use thiserror::Error;
 /// Errors that can occur when reading or aggregating metrics from a source.
 ///
 /// This enum is used by all metric sources implementing [`MetricReader`](`super::MetricReader`)
-/// to signal failures during measurement or iteration building.
+/// to signal failures during measurements.
 #[derive(Debug, Error)]
 pub enum MetricSourceError {
     /// The source failed to retrieve its internal counters.
     #[error("Error retrieving source counters")]
     ErrorRetrievingCounters,
-
-    /// An iteration cannot be built because no phases were recorded.
-    #[error("Cannot build iteration without at least one phase")]
-    NoPhaseInIterationError,
 
     /// The initialization of the source lasted more than the authorized time.
     #[error("Source initialization timeout.")]

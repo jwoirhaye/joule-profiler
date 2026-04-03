@@ -24,7 +24,7 @@ pub(crate) type Result<T> = std::result::Result<T, DisplayerError>;
 /// [`DisplayerError::NotImplementedForFormat`] if the method is not supported
 /// for a given format.
 pub trait Displayer {
-    /// Display iteration(s) results
+    /// Display phase(s) results
     ///
     /// # Parameters
     ///
