@@ -12,6 +12,7 @@
 //!     stdout_file: None,
 //!     cmd: vec!["sleep".into(), "1".into()],
 //!     token_pattern: "__[A-Z0-9_]+__".into(),
+//!     with_root: false,
 //! };
 //!
 //! let config = Config {
@@ -57,4 +58,7 @@ pub struct ProfileConfig {
     /// Regex used to detect phase tokens in program output.
     #[builder(default = PHASE_TOKEN_DEFAULT_REGEX_PATTERN.to_string())]
     pub token_pattern: String,
+
+    /// Execute the profiled command with root privileges if true.
+    pub with_root: bool,
 }

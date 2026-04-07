@@ -87,6 +87,7 @@ impl From<CliArgs> for Config {
                 stdout_file: profile_args.stdout_file,
                 cmd: profile_args.cmd,
                 token_pattern: profile_args.token_pattern,
+                with_root: profile_args.with_root,
             }),
 
             ProfilerCommand::ListSensors => Command::ListSensors,
