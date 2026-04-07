@@ -30,7 +30,7 @@ pub struct ProfileArgs {
     #[arg(long = "rapl-polling")]
     pub rapl_polling: Option<f64>,
 
-    /// Executes the profiled command with root privileges.
+    /// Executes the profiled command with root privileges if true and Joule Profiler is launched as root.
     #[arg(long = "root")]
     pub with_root: bool,
 }
