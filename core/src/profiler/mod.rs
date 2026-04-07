@@ -7,6 +7,8 @@
 use log::{debug, info, trace};
 use regex::Regex;
 use std::io::BufWriter;
+use std::os::unix::process::CommandExt;
+use std::process::{Child, Command};
 use std::{
     io::{BufRead, BufReader, ErrorKind, Write},
     process::{self, Stdio},
@@ -21,6 +23,7 @@ use crate::profiler::types::{MeasurePhasesReturnType, Phase, ProfilerResults, Re
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::util::fs::create_file_with_user_permissions;
+use crate::util::sys::{get_uid_from_username, geteuid, signal};
 use crate::util::time::get_timestamp_micros;
 pub use error::JouleProfilerError;
 
@@ -49,6 +52,7 @@ pub mod types;
 ///     cmd: vec!["echo".to_string(), "hello".to_string()],
 ///     token_pattern: "__PHASE__".to_string(),
 ///     stdout_file: None,
+///     with_root: false,
 /// };
 ///
 /// let results = profiler.profile(&config).await.unwrap();
@@ -178,7 +182,7 @@ impl JouleProfiler {
     /// - The profiler listens for phase token in the standard output of the profiled process and make a measure for every token detected.
     /// - When the program exited, the profiler makes a last measure to compute the last phase metrics.
     ///
-    /// After all the profiling sessions, results are aggregated into a common structure.
+    /// After the profiling, results are aggregated into a common structure.
     async fn measure_phases(&mut self, config: &ProfileConfig) -> Result<MeasurePhasesReturnType> {
         debug!("Compiling phase regex");
 
@@ -320,24 +324,45 @@ pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> 
 /// error is returned if the specified program cannot be found, or a [`JouleProfilerError::CommandExecutionFailed`] otherwise.
 ///
 /// The standard output is piped to be analyzed for phases detection.
-fn spawn_profiled_command(config: &ProfileConfig) -> Result<process::Child> {
-    let mut command = process::Command::new(&config.cmd[0]);
+fn spawn_profiled_command(config: &ProfileConfig) -> Result<Child> {
+    let mut command = init_command(&config.cmd, config.with_root)?;
 
-    if config.cmd.len() > 1 {
-        command.args(&config.cmd[1..]);
+    command.spawn().map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            JouleProfilerError::CommandNotFound(config.cmd[0].clone())
+        } else {
+            JouleProfilerError::CommandExecutionFailed(err.to_string())
+        }
+    })
+}
+
+/// Initializes the command used to spawn the profiled process and handles it's privileges.
+///
+/// If the current user is root and the parameter `with_root` is true, then the command
+/// is spawned with root privileges, else the real user id is retrieved and the process
+/// runs with user privileges. If Joule Profiler is not launched with root privileges,
+/// then the program is spawned with default user privileges.
+///
+/// An error can occur if:
+/// - The `SUDO_USER` environment variable cannot be retrieved, even so the user is root.
+/// - The user uid cannot be retrieved with it's username provided by the environment variable.  
+pub fn init_command(cmd: &[String], with_root: bool) -> Result<Command> {
+    let mut command = process::Command::new(&cmd[0]);
+    if cmd.len() > 1 {
+        command.args(&cmd[1..]);
     }
 
-    command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|err| {
-            if err.kind() == ErrorKind::NotFound {
-                JouleProfilerError::CommandNotFound(config.cmd[0].clone())
-            } else {
-                JouleProfilerError::CommandExecutionFailed(err.to_string())
-            }
-        })
+    if geteuid() == 0 && !with_root {
+        let username =
+            std::env::var("SUDO_USER").map_err(|_| JouleProfilerError::CannotRetrieveSudoUser)?;
+        let uid = get_uid_from_username(&username)?;
+        command.uid(uid);
+    }
+
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::inherit());
+
+    Ok(command)
 }
 
 /// Waits for the sub-process termination, returns the status code of the child.
@@ -372,29 +397,11 @@ fn create_output_sink(path: Option<&String>) -> Result<Box<dyn Write>> {
 ///   '`std::process::Child::id()`' immediately after spawning.
 /// - The process must be owned by the current user (we only signal
 ///   child processes we created).
-/// - Calling '`libc::kill`' is unsafe because it performs a raw syscall.
-///
-/// Race Condition
-///
-/// The target process may terminate between '`spawn()`' and the
-/// 'SIGSTOP' call. In that case, the system call will fail and
-/// an error will be returned.
-///
-/// Errors
 ///
 /// Returns [`JouleProfilerError::ProcessControlFailed`] if the
-/// signal could not be delivered (e.g., invalid PID or already exited).
+/// signal delivery fails.
 fn pause_prosess(pid: i32) -> Result<()> {
-    let result = unsafe { libc::kill(pid, libc::SIGSTOP) };
-
-    if result != 0 {
-        let err = std::io::Error::last_os_error();
-        return Err(JouleProfilerError::ProcessControlFailed(format!(
-            "Failed to SIGSTOP pid {pid}: {err}"
-        )));
-    }
-
-    Ok(())
+    signal(pid, libc::SIGSTOP)
 }
 
 /// Sends `SIGCONT` to resume a previously paused process.
@@ -403,22 +410,11 @@ fn pause_prosess(pid: i32) -> Result<()> {
 ///
 /// - `pid` must refer to a valid, running or stopped child process.
 /// - The process must still exist when the signal is sent.
-/// - `libc::kill` is unsafe because it invokes a raw syscall.
-///
 ///
 /// Returns [`JouleProfilerError::ProcessControlFailed`] if the
 /// signal delivery fails.
 fn resume_process(pid: i32) -> Result<()> {
-    let result = unsafe { libc::kill(pid, libc::SIGCONT) };
-
-    if result != 0 {
-        let err = std::io::Error::last_os_error();
-        return Err(JouleProfilerError::ProcessControlFailed(format!(
-            "Failed to SIGCONT pid {pid}: {err}"
-        )));
-    }
-
-    Ok(())
+    signal(pid, libc::SIGCONT)
 }
 
 #[cfg(test)]
@@ -451,6 +447,7 @@ mod tests {
             cmd,
             token_pattern: "__PHASE__".to_string(),
             stdout_file: None,
+            with_root: false,
         }
     }
 
@@ -678,6 +675,7 @@ mod tests {
             cmd: vec!["echo".to_string()],
             token_pattern: "[[invalid[[[regex[[".to_string(),
             stdout_file: None,
+            with_root: false,
         };
         profiler.add_source(MockMetricReader::new());
         let result = profiler.profile(&config).await;

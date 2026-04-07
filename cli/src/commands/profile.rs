@@ -29,4 +29,8 @@ pub struct ProfileArgs {
     /// Rapl polling frequency in second.
     #[arg(long = "rapl-polling")]
     pub rapl_polling: Option<f64>,
+
+    /// Executes the profiled command with root privileges.
+    #[arg(long = "root")]
+    pub with_root: bool,
 }
