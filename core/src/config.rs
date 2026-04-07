@@ -59,6 +59,6 @@ pub struct ProfileConfig {
     #[builder(default = PHASE_TOKEN_DEFAULT_REGEX_PATTERN.to_string())]
     pub token_pattern: String,
 
-    /// Execute the profiled command with root privileges if true.
+    /// Executes the profiled command with root privileges if true and Joule Profiler is launched as root.
     pub with_root: bool,
 }
