@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     let rapl_path = cli.rapl_path.as_deref();
     let rapl_sockets_spec = parse_sockets_spec(cli.sockets.as_deref());
     let rapl_polling = match &cli.command {
-        ProfilerCommand::Phases(phases_args) => phases_args.rapl_polling,
+        ProfilerCommand::Profile(phases_args) => phases_args.rapl_polling,
         ProfilerCommand::ListSensors => None,
     };
 

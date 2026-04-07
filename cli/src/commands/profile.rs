@@ -1,8 +1,8 @@
 use clap::Parser;
 
-/// Arguments for Phase-based mode
+/// Arguments for profiling mode.
 #[derive(Parser, Debug)]
-pub struct PhasesArgs {
+pub struct ProfileArgs {
     /// Regex pattern to detect phase tokens in program output.
     ///
     /// Matches tokens in stdout; if the pattern has a capture group, the

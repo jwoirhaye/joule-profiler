@@ -1,13 +1,13 @@
-use crate::commands::phases::PhasesArgs;
+use crate::commands::profile::ProfileArgs;
 use clap::Subcommand;
 
-pub mod phases;
+pub mod profile;
 
-/// Subcommands of joule-profiler
+/// Subcommands of joule-profiler.
 #[derive(Subcommand, Debug)]
 pub enum ProfilerCommand {
-    /// Phase-based measurement mode (with start/end tokens).
-    Phases(PhasesArgs),
+    /// Profiling mode, executes a command and profiles it.
+    Profile(ProfileArgs),
 
     /// List available sensors.
     ListSensors,
