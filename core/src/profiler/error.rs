@@ -30,7 +30,7 @@ pub enum JouleProfilerError {
 
     /// Failed to retrieve `SUDO_USER` environment variable.
     #[error(
-        "Cannot retrieve SUDO_USER environment variable, please retry without root privileges or use \"--root\" CLI argument."
+        "Cannot retrieve SUDO_USER environment variable, please retry without root privileges or use \"--use-root\" CLI argument."
     )]
     CannotRetrieveSudoUser,
 

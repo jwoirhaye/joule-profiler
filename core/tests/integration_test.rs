@@ -52,7 +52,7 @@ fn config(cmd: Vec<String>, pattern: &str) -> ProfileConfig {
         cmd,
         token_pattern: pattern.to_string(),
         stdout_file: None,
-        with_root: false,
+        use_root: false,
     }
 }
 
