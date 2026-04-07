@@ -83,10 +83,10 @@ impl CliArgs {
 impl From<CliArgs> for Config {
     fn from(cli_args: CliArgs) -> Self {
         let command = match cli_args.command {
-            ProfilerCommand::Profile(phases) => Command::Profile(ProfileConfig {
-                stdout_file: phases.stdout_file,
-                cmd: phases.cmd,
-                token_pattern: phases.token_pattern,
+            ProfilerCommand::Profile(profile_args) => Command::Profile(ProfileConfig {
+                stdout_file: profile_args.stdout_file,
+                cmd: profile_args.cmd,
+                token_pattern: profile_args.token_pattern,
             }),
 
             ProfilerCommand::ListSensors => Command::ListSensors,
