@@ -28,6 +28,20 @@ pub enum JouleProfilerError {
     #[error("Stdout capture failed")]
     StdOutCaptureFail,
 
+    /// Failed to retrieve `SUDO_USER` environment variable.
+    #[error(
+        "Cannot retrieve SUDO_USER environment variable, please retry without root privileges or use \"--root\" CLI argument."
+    )]
+    CannotRetrieveSudoUser,
+
+    /// The environment variable exists but is not parsable into the wanted format.
+    #[error("Unable to parse {0} environment variable.")]
+    CannotParseEnvVariable(String),
+
+    /// Unable to retrieve the current effective user id by it's name with the `getpwnam` libc function.
+    #[error("Unable to retrieve current user id by it's name.")]
+    CannotRetrieveCurrentUserId,
+
     /// Generic I/O error.
     #[error("I/O error")]
     IoError(

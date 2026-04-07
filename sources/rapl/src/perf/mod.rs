@@ -146,7 +146,7 @@ impl MetricReader for Rapl {
 
     /// Retrieve accumulated metrics since the last reset.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        trace!("Retrieving RAPL counters",);
+        trace!("Retrieving RAPL counters");
 
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.end_snapshot.take()
