@@ -52,7 +52,7 @@ pub mod types;
 ///     cmd: vec!["echo".to_string(), "hello".to_string()],
 ///     token_pattern: "__PHASE__".to_string(),
 ///     stdout_file: None,
-///     with_root: false,
+///     use_root: false,
 /// };
 ///
 /// let results = profiler.profile(&config).await.unwrap();
@@ -325,7 +325,7 @@ pub fn phase_token_in_line<'a>(regex: &Regex, line: &'a str) -> Option<&'a str> 
 ///
 /// The standard output is piped to be analyzed for phases detection.
 fn spawn_profiled_command(config: &ProfileConfig) -> Result<Child> {
-    let mut command = init_command(&config.cmd, config.with_root)?;
+    let mut command = init_command(&config.cmd, config.use_root)?;
 
     command.spawn().map_err(|err| {
         if err.kind() == ErrorKind::NotFound {
@@ -338,7 +338,7 @@ fn spawn_profiled_command(config: &ProfileConfig) -> Result<Child> {
 
 /// Initializes the command used to spawn the profiled process and handles it's privileges.
 ///
-/// If the current user is root and the parameter `with_root` is true, then the command
+/// If the current user is root and the parameter `use_root` is true, then the command
 /// is spawned with root privileges, else the real user id is retrieved and the process
 /// runs with user privileges. If Joule Profiler is not launched with root privileges,
 /// then the program is spawned with default user privileges.
@@ -346,13 +346,13 @@ fn spawn_profiled_command(config: &ProfileConfig) -> Result<Child> {
 /// An error can occur if:
 /// - The `SUDO_USER` environment variable cannot be retrieved, even so the user is root.
 /// - The user uid cannot be retrieved with it's username provided by the environment variable.  
-pub fn init_command(cmd: &[String], with_root: bool) -> Result<Command> {
+pub fn init_command(cmd: &[String], use_root: bool) -> Result<Command> {
     let mut command = process::Command::new(&cmd[0]);
     if cmd.len() > 1 {
         command.args(&cmd[1..]);
     }
 
-    if geteuid() == 0 && !with_root {
+    if geteuid() == 0 && !use_root {
         let username =
             std::env::var("SUDO_USER").map_err(|_| JouleProfilerError::CannotRetrieveSudoUser)?;
         let uid = get_uid_from_username(&username)?;
@@ -447,7 +447,7 @@ mod tests {
             cmd,
             token_pattern: "__PHASE__".to_string(),
             stdout_file: None,
-            with_root: false,
+            use_root: false,
         }
     }
 
@@ -675,7 +675,7 @@ mod tests {
             cmd: vec!["echo".to_string()],
             token_pattern: "[[invalid[[[regex[[".to_string(),
             stdout_file: None,
-            with_root: false,
+            use_root: false,
         };
         profiler.add_source(MockMetricReader::new());
         let result = profiler.profile(&config).await;

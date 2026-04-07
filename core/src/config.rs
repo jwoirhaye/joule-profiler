@@ -12,7 +12,7 @@
 //!     stdout_file: None,
 //!     cmd: vec!["sleep".into(), "1".into()],
 //!     token_pattern: "__[A-Z0-9_]+__".into(),
-//!     with_root: false,
+//!     use_root: false,
 //! };
 //!
 //! let config = Config {
@@ -60,5 +60,5 @@ pub struct ProfileConfig {
     pub token_pattern: String,
 
     /// Executes the profiled command with root privileges if true and Joule Profiler is launched as root.
-    pub with_root: bool,
+    pub use_root: bool,
 }
