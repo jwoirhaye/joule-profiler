@@ -169,11 +169,7 @@ impl MetricReader for Rapl {
                 socket.domains.iter().map(|domain| {
                     let domain_name = domain.get_name(socket.id);
                     trace!("Registering sensor: {domain_name}");
-                    Sensor {
-                        name: domain_name,
-                        unit: MICRO_JOULE_UNIT,
-                        source: Self::get_name().to_string(),
-                    }
+                    Sensor::new(domain_name, MICRO_JOULE_UNIT, Self::get_name())
                 })
             })
             .collect();
@@ -197,7 +193,7 @@ impl MetricReader for Rapl {
                             domain.domain_type.to_string_socket(socket.id),
                             micro_joules,
                             MICRO_JOULE_UNIT,
-                            Self::get_name().to_string(),
+                            Self::get_name(),
                         ))
                     } else {
                         None

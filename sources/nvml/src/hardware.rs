@@ -38,11 +38,11 @@ impl NvmlHardware for NvmlWrapperHardware {
     fn get_sensors(&self) -> Result<Sensors> {
         (0..self.devices_max_index)
             .map(|i| {
-                Ok(Sensor {
-                    name: format!("GPU-{i}"),
-                    unit: MILLI_JOULE_UNIT,
-                    source: NVML_SOURCE_NAME.to_string(),
-                })
+                Ok(Sensor::new(
+                    format!("GPU-{i}"),
+                    MILLI_JOULE_UNIT,
+                    NVML_SOURCE_NAME,
+                ))
             })
             .collect::<Result<_>>()
     }

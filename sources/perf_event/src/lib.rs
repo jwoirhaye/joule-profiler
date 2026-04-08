@@ -99,11 +99,7 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
             .iter()
             .map(|event| {
                 trace!("Registering sensor: {event}");
-                Sensor {
-                    name: event.to_string(),
-                    source: Self::get_name().to_string(),
-                    unit: PERF_EVENT_METRIC_UNIT,
-                }
+                Sensor::new(*event, PERF_EVENT_METRIC_UNIT, Self::get_name())
             })
             .collect();
 
@@ -122,12 +118,7 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
             .metrics
             .into_iter()
             .map(|(event, counter)| {
-                Metric::new(
-                    event.to_string(),
-                    counter,
-                    PERF_EVENT_METRIC_UNIT,
-                    Self::get_name().to_string(),
-                )
+                Metric::new(event, counter, PERF_EVENT_METRIC_UNIT, Self::get_name())
             })
             .collect())
     }
