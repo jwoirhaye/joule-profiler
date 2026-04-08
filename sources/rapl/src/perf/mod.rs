@@ -193,12 +193,12 @@ impl MetricReader for Rapl {
                     if let Some(metric) = diff.get(&domain_index) {
                         let joules = domain.compute_scale(*metric);
                         let micro_joules = joules_to_micro_joules(joules);
-                        Some(Metric {
-                            name: domain.domain_type.to_string_socket(socket.id),
-                            value: micro_joules,
-                            unit: MICRO_JOULE_UNIT,
-                            source: PERF_SOURCE_NAME.to_string(),
-                        })
+                        Some(Metric::new(
+                            domain.domain_type.to_string_socket(socket.id),
+                            micro_joules,
+                            MICRO_JOULE_UNIT,
+                            Self::get_name().to_string(),
+                        ))
                     } else {
                         None
                     }

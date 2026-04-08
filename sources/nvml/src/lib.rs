@@ -122,11 +122,13 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
         Ok(diff
             .gpus_energy
             .into_iter()
-            .map(|(device_index, energy)| Metric {
-                name: format!("GPU-{device_index}"),
-                value: energy,
-                unit: MILLI_JOULE_UNIT,
-                source: NVML_SOURCE_NAME.to_string(),
+            .map(|(device_index, energy)| {
+                Metric::new(
+                    format!("GPU-{device_index}"),
+                    energy,
+                    MILLI_JOULE_UNIT,
+                    Self::get_name().to_string(),
+                )
             })
             .collect())
     }
@@ -164,7 +166,7 @@ impl<H: NvmlHardware + 'static> Nvml<H> {
 
 #[cfg(test)]
 mod tests {
-    use joule_profiler_core::sensor::Sensor;
+    use joule_profiler_core::{sensor::Sensor, types::MetricValue};
 
     use super::*;
     use crate::{hardware::MockNvmlHardware, snapshot::NvmlSnapshot};
@@ -324,10 +326,10 @@ mod tests {
 
         assert_eq!(metrics.len(), 2);
         assert_eq!(metrics[0].name, "GPU-0");
-        assert_eq!(metrics[0].value, 100);
+        assert_eq!(metrics[0].value, MetricValue::UnsignedInteger(100));
         assert_eq!(metrics[0].unit, MILLI_JOULE_UNIT);
         assert_eq!(metrics[1].name, "GPU-1");
-        assert_eq!(metrics[1].value, 200);
+        assert_eq!(metrics[1].value, MetricValue::UnsignedInteger(200));
         assert_eq!(metrics[1].unit, MILLI_JOULE_UNIT);
     }
 

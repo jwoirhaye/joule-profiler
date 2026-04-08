@@ -166,12 +166,7 @@ mod tests {
     }
 
     fn metric(name: &str, value: u64) -> Metric {
-        Metric {
-            name: name.to_string(),
-            value,
-            unit: unit(),
-            source: "rapl".to_string(),
-        }
+        Metric::new(name.to_string(), value, unit(), "rapl".to_string())
     }
 
     fn phase(
