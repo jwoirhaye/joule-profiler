@@ -25,11 +25,8 @@ use crate::unit::MetricUnit;
 ///     unit: Unit::Joule,
 /// };
 ///
-/// let sensor = Sensor {
-///     name: "CORE-0".to_string(),
-///     unit: micro_joule_unit,
-///     source: "powercap".to_string(),
-/// };
+/// let sensor = Sensor::new("CORE-0", micro_joule_unit, "powercap");
+///
 /// assert_eq!(sensor.name, "CORE-0");
 /// assert_eq!(sensor.unit.to_string(), "µJ");
 /// assert_eq!(sensor.source, "powercap");
@@ -44,6 +41,20 @@ pub struct Sensor {
 
     /// The metric source associated to the sensor.
     pub source: String,
+}
+
+impl Sensor {
+    pub fn new<N, S>(name: N, unit: MetricUnit, source: S) -> Self
+    where
+        N: Into<String>,
+        S: Into<String>,
+    {
+        Self {
+            name: name.into(),
+            unit,
+            source: source.into(),
+        }
+    }
 }
 
 /// A collection of sensors.
