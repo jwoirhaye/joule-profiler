@@ -289,11 +289,13 @@ impl MetricReader for Rapl {
         Ok(snapshot
             .metrics
             .into_iter()
-            .map(|((domain, socket), value)| Metric {
-                name: domain.to_string_socket(socket),
-                value,
-                unit: MICRO_JOULE_UNIT,
-                source: POWERCAP_SOURCE_NAME.to_string(),
+            .map(|((domain, socket), value)| {
+                Metric::new(
+                    domain.to_string_socket(socket),
+                    value,
+                    MICRO_JOULE_UNIT,
+                    Self::get_name().to_string(),
+                )
             })
             .collect())
     }
