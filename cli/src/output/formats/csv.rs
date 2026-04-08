@@ -166,7 +166,7 @@ mod tests {
     }
 
     fn metric(name: &str, value: u64) -> Metric {
-        Metric::new(name.to_string(), value, unit(), "rapl".to_string())
+        Metric::new(name, value, unit(), "rapl")
     }
 
     fn phase(
@@ -333,16 +333,8 @@ mod tests {
     fn list_sensors_writes_header_and_one_row_per_sensor() {
         let (mut csv, tmp) = csv_to_tempfile();
         let sensors = vec![
-            Sensor {
-                name: "PKG".into(),
-                unit: unit(),
-                source: "rapl".into(),
-            },
-            Sensor {
-                name: "DRAM".into(),
-                unit: unit(),
-                source: "rapl".into(),
-            },
+            Sensor::new("PKG", unit(), "rapl"),
+            Sensor::new("DRAM", unit(), "rapl"),
         ];
         csv.list_sensors(&sensors).unwrap();
         let content = read(&tmp);
