@@ -127,7 +127,7 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
                     format!("GPU-{device_index}"),
                     energy,
                     MILLI_JOULE_UNIT,
-                    Self::get_name().to_string(),
+                    Self::get_name(),
                 )
             })
             .collect())
@@ -179,11 +179,7 @@ mod tests {
 
     fn sensors(count: u32) -> Sensors {
         (0..count)
-            .map(|i| Sensor {
-                name: format!("GPU-{i}"),
-                unit: MILLI_JOULE_UNIT,
-                source: NVML_SOURCE_NAME.to_string(),
-            })
+            .map(|i| Sensor::new(format!("GPU-{i}"), MILLI_JOULE_UNIT, NVML_SOURCE_NAME))
             .collect()
     }
 

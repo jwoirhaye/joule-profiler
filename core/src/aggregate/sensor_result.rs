@@ -46,7 +46,7 @@ mod tests {
             unit: Unit::Joule,
             prefix: UnitPrefix::Micro,
         };
-        Metric::new("energy_pkg".to_string(), value, unit, "rapl".to_string())
+        Metric::new("energy_pkg", value, unit, "rapl")
     }
 
     fn phase(metrics: Vec<Metric>) -> SensorPhase {

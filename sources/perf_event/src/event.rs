@@ -41,6 +41,17 @@ impl Display for Event {
     }
 }
 
+impl From<Event> for String {
+    fn from(event: Event) -> Self {
+        match event {
+            Event::CpuCycles => "CPU_CYCLES".into(),
+            Event::Instructions => "INSTRUCTIONS".into(),
+            Event::CacheMisses => "CACHE_MISSES".into(),
+            Event::BranchMisses => "BRANCH_MISSES".into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

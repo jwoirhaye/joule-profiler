@@ -11,12 +11,8 @@ use crate::unit::MetricUnit;
 /// ```
 /// use joule_profiler_core::{types::Metric, unit::{MetricUnit, Unit, UnitPrefix}};
 ///
-/// let energy = Metric {
-///     name: "energy_pkg".to_string(),
-///     value: 123456,
-///     unit: MetricUnit { unit: Unit::Joule, prefix: UnitPrefix::Micro },
-///     source: "rapl".to_string(),
-/// };
+/// let unit = MetricUnit { unit: Unit::Joule, prefix: UnitPrefix::Micro };
+/// let energy = Metric::new("energy_pkg", 123456u64, unit, "rapl");
 /// ```
 #[derive(Debug, Serialize, Clone)]
 pub struct Metric {
@@ -34,15 +30,17 @@ pub struct Metric {
 }
 
 impl Metric {
-    pub fn new<T>(name: String, value: T, unit: MetricUnit, source: String) -> Self
+    pub fn new<N, V, S>(name: N, value: V, unit: MetricUnit, source: S) -> Self
     where
-        T: Into<MetricValue>,
+        N: Into<String>,
+        V: Into<MetricValue>,
+        S: Into<String>,
     {
-        Metric {
-            name,
+        Self {
+            name: name.into(),
             value: value.into(),
             unit,
-            source,
+            source: source.into(),
         }
     }
 }
