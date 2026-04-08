@@ -10,4 +10,4 @@ mod metric;
 pub(crate) mod phase;
 pub(crate) mod sensor_result;
 
-pub use metric::{Metric, Metrics};
+pub use metric::{Metric, MetricValue, Metrics};

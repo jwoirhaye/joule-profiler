@@ -38,19 +38,15 @@ impl Add for SensorResult {
 mod tests {
     use super::*;
     use crate::aggregate::phase::SensorPhase;
-    use crate::types::Metric;
+    use crate::types::{Metric, MetricValue};
     use crate::unit::{MetricUnit, Unit, UnitPrefix};
 
     fn metric(value: u64) -> Metric {
-        Metric {
-            name: "energy_pkg".to_string(),
-            value,
-            unit: MetricUnit {
-                unit: Unit::Joule,
-                prefix: UnitPrefix::Micro,
-            },
-            source: "rapl".to_string(),
-        }
+        let unit = MetricUnit {
+            unit: Unit::Joule,
+            prefix: UnitPrefix::Micro,
+        };
+        Metric::new("energy_pkg".to_string(), value, unit, "rapl".to_string())
     }
 
     fn phase(metrics: Vec<Metric>) -> SensorPhase {
@@ -71,7 +67,10 @@ mod tests {
         let r = result(vec![phase(vec![metric(100)])]);
         let merged = SensorResult::merge(vec![r]).unwrap();
         assert_eq!(merged.phases.len(), 1);
-        assert_eq!(merged.phases[0].metrics[0].value, 100);
+        assert_eq!(
+            merged.phases[0].metrics[0].value,
+            MetricValue::UnsignedInteger(100)
+        );
     }
 
     #[test]
@@ -81,7 +80,13 @@ mod tests {
         let merged = SensorResult::merge(vec![r1, r2]).unwrap();
 
         assert_eq!(merged.phases[0].metrics.len(), 2);
-        assert_eq!(merged.phases[0].metrics[0].value, 100);
-        assert_eq!(merged.phases[0].metrics[1].value, 200);
+        assert_eq!(
+            merged.phases[0].metrics[0].value,
+            MetricValue::UnsignedInteger(100)
+        );
+        assert_eq!(
+            merged.phases[0].metrics[1].value,
+            MetricValue::UnsignedInteger(200)
+        );
     }
 }

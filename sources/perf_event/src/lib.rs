@@ -121,11 +121,13 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
         Ok(diff
             .metrics
             .into_iter()
-            .map(|(event, counter)| Metric {
-                name: event.to_string(),
-                source: Self::get_name().to_string(),
-                value: counter,
-                unit: PERF_EVENT_METRIC_UNIT,
+            .map(|(event, counter)| {
+                Metric::new(
+                    event.to_string(),
+                    counter,
+                    PERF_EVENT_METRIC_UNIT,
+                    Self::get_name().to_string(),
+                )
             })
             .collect())
     }
@@ -137,6 +139,8 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
 
 #[cfg(test)]
 mod tests {
+    use joule_profiler_core::types::MetricValue;
+
     use super::*;
     use crate::{event::Event, hardware::MockPerfEventHardware, snapshot::Snapshot};
 
@@ -270,7 +274,7 @@ mod tests {
             .find(|m| m.name == Event::CpuCycles.to_string())
             .unwrap();
 
-        assert_eq!(cycles.value, 500);
+        assert_eq!(cycles.value, MetricValue::UnsignedInteger(500));
         assert_eq!(cycles.unit, PERF_EVENT_METRIC_UNIT);
     }
 }
