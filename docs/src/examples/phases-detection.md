@@ -67,14 +67,10 @@ Common patterns:
 ## Run the Profiler
 
 ```bash
-sudo joule-profiler phases --token-pattern "__[A-Z_]+__" -- python my_script.py
+sudo joule-profiler profile --token-pattern "__[A-Z_]+__" -- python my_script.py
 ```
 
-The profiler will:
-1. Monitor your program's stdout
-2. Detect tokens matching the pattern
-3. Measure energy between each token
-4. Report energy per phase
+Joule Profiler will profile the program by detecting tokens matching the configured pattern in the standard output. It will make a measurement between each token to report energy and various metrics across phases.
 
 ## Complete Example
 
@@ -95,7 +91,7 @@ print("__DONE__", flush=True)
 
 **Command:**
 ```bash
-sudo joule-profiler phases --token-pattern "__[A-Z_]+__" -- python script.py
+sudo joule-profiler profile --token-pattern "__[A-Z_]+__" -- python script.py
 ```
 
 **Output:**
@@ -108,27 +104,5 @@ Phase 1: __COMPUTE__ → __DONE__
   Duration: 501 ms
   package-0: 1.5 J
 ```
-
-## Best Practices
-
-**Flushing:**
-```python
-# Good - flushed immediately
-print("__PHASE__", flush=True)
-
-# Bad - buffered, may be delayed
-print("__PHASE__")
-```
-
-**Regex Escaping:**
-```bash
-# Correct - brackets escaped
---token-pattern "\[WORK\]"
-
-# Wrong - brackets not escaped
---token-pattern "[WORK]"
-```
-
----
 
 If you encounter some issues with phases, see [troubleshooting](../troubleshooting/overview.md).

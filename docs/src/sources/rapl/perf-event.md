@@ -18,5 +18,6 @@ Thus, using perf_event, we do not need to implement polling strategies like with
 
 ## Limitations
 
-- Unlike most perf_event counters, per-process energy consumption cannot be inferred for RAPL domains. This is because RAPL is not designed to expose per-process energy measurements, and perf_event does not perform aggregation of RAPL counters to estimate per-process domain-level energy consumption.
-- RAPL counters exposed through perf do not support event grouping, which prevents managing all RAPL domains via a single ioctl and necessitates independent management of each domain.
+Unlike most perf_event counters, per-process energy consumption cannot be inferred for RAPL domains. This is because RAPL is not designed to expose per-process energy measurements, and perf_event does not perform aggregation of RAPL counters to estimate per-process domain-level energy consumption.
+
+RAPL counters exposed through perf do not support event grouping, which prevents managing all domains via a single ioctl and necessitates independent management of each domain.

@@ -2,7 +2,7 @@
 
 ## Measurement Scopes
 
-Events can be measured at different execution scopes:
+Events can be measured at different execution scopes but Joule Profiler only support per-process counters.
 
 | Scope | Description |
 |------|------------|
@@ -18,6 +18,4 @@ Events can be measured at different execution scopes:
 
 Hardware has limited performance counters (typically 4-8 per CPU core). When measuring more events than available counters, the kernel multiplexes them by rotating access, which can introduce overhead.
 
-**Impact on accuracy:**
-- Multiplexed counters produce scaled estimates: `scaled_value = value × (time_enabled / time_running)`
-- Check `time_running / time_enabled` ratio, the more the ratio is close to one, the more the counters are accurate.
+Multiplexed counters produce scaled estimates: `scaled_value = value * (time_enabled / time_running)`, introducing measurement error. The more the ratio is close to one, the more the counters are accurate.

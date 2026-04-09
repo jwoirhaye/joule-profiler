@@ -41,17 +41,14 @@ echo 1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 
 ## Security Implications
 
-Performance counters can expose sensitive information:
-- **Timing attacks**: Measure execution time to infer cryptographic keys or other secrets
-- **Side-channel leaks**: Observe cache behavior to extract data from other processes
-- **Process behavior**: Monitor system-wide activity including other users' processes
+Performance counters can expose sensitive information about other processes. An attacker could do a side-channel attack and measure execution time to infer cryptographic keys or other secrets, he could also observe cache behavior to extract data.
 
 ### Safe Practices
 
 1. **Use capabilities instead of paranoid level**:
    ```bash
    # Grant CAP_PERFMON to specific binaries
-   sudo setcap cap_perfmon=ep /path/to/the/profiler
+   sudo setcap cap_perfmon=ep /path/to/joule-profiler
    ```
 
 2. **Limit access to specific users**:
@@ -70,13 +67,10 @@ Performance counters can expose sensitive information:
 ### "Permission denied" errors
 
 ```
-Error: perf_event_paranoid level is 1, try setting it to 0 or launch profiler with root rights
+Error: perf_event_paranoid level is 1, try setting it to 0 or launch Joule Profiler with root rights
 ```
 
-**Solution**: Either:
-- Lower `perf_event_paranoid` level
-- Run with `sudo`
-- Grant `CAP_PERFMON` capability to your tool
+**Solution**: Either lower `perf_event_paranoid` level, grant Joule Profiler `CAP_PERFMON` capability or launch it with root privileges (sudo).
 
 > [!NOTE]
 > To access RAPL counters using perf_event, you need to set perf_event_paranoid level to 0, or launch the profiler with root privileges.

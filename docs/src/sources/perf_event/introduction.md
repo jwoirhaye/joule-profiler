@@ -12,10 +12,7 @@ The `perf_event` subsystem has been part of the Linux kernel since version **2.6
 
 The **perf_event** interface exposes a unified abstraction over multiple types of performance events. Events are collected by the kernel and accessed through the `perf_event_open` system call, which enables user-space tools to configure, start, stop, and read counters.
 
-Events are collected per execution context and can be attached to:
-- A specific **process**
-- A specific **CPU**
-- A **control group (cgroup)**
+Events can be attached to a specific context like process, CPU core or control group, but Joule Profiler only supports per-process counters at the moment.
 
 ### Event Types
 

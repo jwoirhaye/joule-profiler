@@ -2,12 +2,7 @@
 
 **Joule Profiler** is designed to minimize measurement overhead while maintaining high performance, modularity, extensibility, and a strong separation of concerns.
 
-This architecture enables:
-
-- Efficient asynchronous scheduling.
-- Low-overhead metric collection.
-- Easy integration of new metric sources.
-- User-defined metric source extensions without modifying the core.
+This architecture enables an efficient asynchronous scheduling and minimizes the overhead introduced into the results. It makes easy the integration of new metric sources and allows user to define their own metric sources extensions without modifying the core.
 
 ```mermaid
 flowchart LR
@@ -56,10 +51,8 @@ linkStyle 7 stroke:#27ae60, stroke-width:2px
 linkStyle 8 stroke:#27ae60, stroke-width:2px
 ```
 
-## High-Level Design
-
 At a high level, Joule Profiler is composed of three main layers:
 
-- [**Core Module**](core-module.md) – Contains all domain logic: orchestration, aggregation, and result modeling.
-- [**CLI Module**](cli-module.md) – Responsible for user input, command line arguments parsing, and startup wiring.
-- [**Sources Workspace**](sources-workspace.md) – Implementations of the different metric sources using the API traits.
+- [**Core Module**](core-module.md) - Contains all domain logic: orchestration, aggregation, and result modeling.
+- [**CLI Module**](cli-module.md) - Responsible for user input, command line arguments parsing, and startup wiring.
+- [**Sources Workspace**](sources-workspace.md) - Implementations of the different metric sources using the API traits.

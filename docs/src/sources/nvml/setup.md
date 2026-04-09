@@ -8,10 +8,7 @@ The **NVML** source is cross-platform and supported on **Linux** and **Windows**
 
 ## Driver Requirements
 
-Joule Profiler accesses NVML via the shared libraries installed alongside the NVIDIA drivers. You do not need to install the CUDA toolkit manually, but the base GPU drivers are required.
-
-- **Linux:** Requires `libnvidia-ml.so` (usually found in `/usr/lib/` or `/usr/lib64/`).
-- **Windows:** Requires `nvml.dll` (usually found in `C:\Program Files\NVIDIA Corporation\NVSMI\`).
+Joule Profiler accesses NVML via the shared library `libnvidia-ml.so` (usually in `/usr/lib/` or `/usr/lib64/` on Linux) installed alongside the NVIDIA drivers. You do not need to install the CUDA toolkit manually, but the base GPU drivers are required.
 
 > [!NOTE]
 > These libraries are installed automatically with standard NVIDIA Display Drivers.

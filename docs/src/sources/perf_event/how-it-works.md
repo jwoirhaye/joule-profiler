@@ -2,38 +2,17 @@
 
 ## Kernel Counter Management
 
-The Linux kernel manages performance counters through the `perf_event` subsystem. When you open a perf_event, the kernel:
-
-1. **Allocates a counter**: Reserves a hardware or software counter
-2. **Tracks timing**: Records when the counter is enabled and when it's actually running
-3. **Reads hardware**: Periodically reads the hardware Performance Monitoring Unit (PMU) registers
-4. **Updates state**: Maintains counter values across context switches and timer interrupts
-
-When you read a counter, the kernel returns:
-- **value**: The raw counter value
-- **time_enabled**: Total time the counter has been enabled
-- **time_running**: Actual time the counter was running (may be less due to multiplexing)
-
-The kernel updates these values at context switches, timer interrupts, and when explicitly read.
+The Linux kernel manages performance counters through the `perf_event` subsystem. When a perf_event counter is opened, the Linux kernel allocates a counter and periodically reads the hardware Performance Monitoring Unit (PMU) registers. It maintains counter values across context switches and timer interrupts.
 
 ## Counter Multiplexing
 
-Hardware PMUs have limited counters (typically 4-8 per CPU core). When more events are requested than available counters, the kernel multiplexes them:
-
-- Events are organized into groups
-- The kernel rotates groups every ~1ms
-- Only one group runs at a time
-- When a counter isn't running, the kernel tracks this in `time_running` vs `time_enabled`
-
-> [!NOTE]
-> - When counters are multiplexed, scaling is applied to estimate real values, which can introduce measurement error.
+Hardware PMUs have limited counters (typically 4-8 per CPU core). When more events are requested than available counters, the kernel multiplexes them.
+The kernel multiplexing organize counters into groups and rotates them around every millisecond, meaning that only one group of counters can run at a time.
+To solve this issue, perf_event keeps track of when the timer is enabled and when it's actually running, allowing to scale them when they are multiplexed. However, counter scaling can introduce an error because it is an estimation of the global value out of different local ones, thus weakening the detection of small variabilities.
 
 ## Memory-Mapped Access
 
-The standard `read()` system call requires a context switch (100-300ns overhead). The kernel offers an mmap interface for lower overhead:
-
-- The kernel maps a metadata page into user space
-- User space can read counter state directly from this shared memory via CPU instructions (e.g., `rdpmc`) without any system call (10-50ns)
+The standard `read()` system call requires a context switch (100-300ns overhead). The kernel offers an mmap interface for lower overhead. It maps a kernel memory page into user space, thus allowing to read counter state directly from this share memory via CPU instructions (e.g., `rdpmc`) without any system call taking 10 to 50 nanoseconds.
 
 This is useful for high-frequency monitoring where system call overhead would be significant.
 

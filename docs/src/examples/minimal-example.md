@@ -8,13 +8,13 @@ Measure any program's energy consumption:
 
 ```bash
 # Measure a simple command
-sudo joule-profiler phases -- sleep 1
+sudo joule-profiler profile -- sleep 1
 
 # Measure a Python script
-sudo joule-profiler phases -- python my_script.py
+sudo joule-profiler profile -- python my_script.py
 
 # Measure a compiled program with arguments
-sudo joule-profiler phases -- ./my-program arg1 arg2
+sudo joule-profiler profile -- ./my-program arg1 arg2
 ```
 
 ## Basic Phase Detection

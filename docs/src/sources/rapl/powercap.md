@@ -56,10 +56,10 @@ Theoretically, for a processor with a consumption of 200 W and a `max_energy_ran
 
 Here is a graphic of the theoretical overflow time depending on the CPU wattage:
 
-![Theoretical overflow time](../../figures/theoretical_rapl_overflow_time.svg)
+<div style="text-align:center"><img src="../../figures/theoretical_rapl_overflow_time.svg" /></div>
 
 | Power (W) | Overflow time (min,sec) |
-|-----------|------------------------|
+|:-----------:|:------------------------:|
 | 100 | 43,41 |
 | 200 | 21,50 |
 | 300 | 14,33 |

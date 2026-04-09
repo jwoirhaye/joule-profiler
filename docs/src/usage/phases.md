@@ -46,7 +46,7 @@ print("__END__", flush=True)
 ```
 
 ```bash
-sudo joule-profiler phases --token-pattern "__START__|__END__" -- python my_script.py
+sudo joule-profiler profile --token-pattern "__START__|__END__" -- python my_script.py
 ```
 
 Now you measure the `__START__` to `__END__` phase, excluding interpreter startup and library loading.
@@ -54,11 +54,6 @@ Now you measure the `__START__` to `__END__` phase, excluding interpreter startu
 ## Implementation Notes
 
 Phases are detected by monitoring the program's stdout for tokens matching a regular expression.
-
-The profiler:
-1. Spawns your program with stdout captured
-2. Scans each output line for the phase regex
-3. Triggers measurements when tokens are detected
-4. Associates energy deltas with the correct phase
+The profiler spawns the program and capture the standard output. Then, it scans each line and triggers measurements when tokens matching the configured regex pattern are detected. Finally, it associates metrics to each phase.
 
 Future versions may support lower-overhead mechanisms like inter-process communication with language-specific wrappers to minimize the overhead introduced by I/O operations.
