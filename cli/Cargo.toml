@@ -1,6 +1,6 @@
 [package]
 name = "joule-profiler-cli"
-version.workspace = true
+version = "1.0.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -13,9 +13,9 @@ name = "joule-profiler"
 path = "src/bin/main.rs"
 
 [dependencies]
-source-rapl = { path = "../sources/rapl" }
-source-nvml = { path = "../sources/nvml" }
-source-perf_event = { path = "../sources/perf_event" }
+joule-profiler-source-rapl = { path = "../sources/rapl", version = "1.0.1" }
+joule-profiler-source-nvml = { path = "../sources/nvml", version = "1.0.1" }
+joule-profiler-source-perf_event = { path = "../sources/perf_event", version = "1.0.1" }
 
 joule-profiler-core.workspace = true
 log.workspace = true
