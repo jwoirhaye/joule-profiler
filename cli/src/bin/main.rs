@@ -6,9 +6,9 @@ use joule_profiler_cli::{
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use log::{trace, warn};
-use source_nvml::Nvml;
-use source_perf_event::PerfEvent;
-use source_rapl::{perf, powercap};
+use joule_profiler_source_nvml::Nvml;
+use joule_profiler_source_perf_event::PerfEvent;
+use joule_profiler_source_rapl::{perf, powercap};
 
 #[tokio::main]
 async fn main() -> Result<()> {

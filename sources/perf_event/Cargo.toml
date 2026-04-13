@@ -1,6 +1,6 @@
 [package]
-name = "source-perf_event"
-version.workspace = true
+name = "joule-profiler-source-perf_event"
+version = "1.0.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
