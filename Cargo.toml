@@ -10,14 +10,13 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "1.0.0"
 authors = ["Jérémy Woirhaye <jerem.woirhaye@gmail.com>", "François Gibier <francoisgibier.contact@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/jwoirhaye/joule-profiler"
 readme = "README.md"
 
 [workspace.dependencies]
-joule-profiler-core = { path = "core" }
+joule-profiler-core = { path = "core", version = "1.0.1" }
 
 log = "0.4.28"
 tokio = { version = "1.25", features = ["time", "rt-multi-thread", "macros", "sync", "rt"] }
