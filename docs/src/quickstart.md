@@ -1,18 +1,152 @@
 # Quick Start
 
 Getting started with **Joule Profiler** is easy and straightforward.
-First, ensure you installed the profiler from [here](installation/quick-install.md).
+
+First, install the latest version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jwoirhaye/joule-profiler/main/install.sh | bash
+```
 
 ## Basic Measurement
 
 The simplest way to measure energy consumption is to run your program with the profiler:
 
 ```bash
-# Simple measurement (terminal output)
-sudo joule-profiler profile -- ./my-program arg1 arg2
+joule-profiler profile -- ./my-program arg1 arg2
 ```
 
-This will execute your program and display energy consumption metrics in the terminal once it completes.
+This will execute your program and display energy consumption metrics in the terminal once it completes:
+
+```
+╔════════════════════════════════════════════════╗
+║  Command                                       ║
+╚════════════════════════════════════════════════╝
+  python3 main.py
+ ────────────────────────────────────────────────
+  Duration            :       3013 ms
+  Exit code           :          0
+
+╔════════════════════════════════════════════════╗
+║  Phase: START -> END                           ║
+╚════════════════════════════════════════════════╝
+  Duration            :       3013 ms
+  Start token         :      START
+  End token           :        END
+
+┌────────────────────────────────────────────────┐
+│ RAPL (perf_event)                              │
+└────────────────────────────────────────────────┘
+  CORE-0              :    7299194 µJ
+  PACKAGE-0           :   15104492 µJ
+  PSYS                :   35101074 µJ
+  UNCORE-0            :     355224 µJ
+```
+
+## Phases
+
+Put some prints separating your program's parts:
+
+```py
+...
+
+print("__SETUP_PHASE__", flush=True)
+
+setup()
+
+print("__WORKLOAD_PHASE__", flush=True)
+
+workload()
+
+print("__CLEANUP_PHASE__", flush=True)
+
+cleanup()
+
+...
+```
+
+Don't forget to flush the standard output after each print, see [troubleshooting](troubleshooting/overview.md).
+
+Now, lauch Joule Profiler:
+
+```bash
+joule-profiler profile -- ./my-program arg1 arg2
+```
+
+You will get something like:
+
+```
+__SETUP__
+__WORKLOAD__
+__CLEANUP__
+╔════════════════════════════════════════════════╗
+║  Command                                       ║
+╚════════════════════════════════════════════════╝
+  python3 main.py
+ ────────────────────────────────────────────────
+  Duration            :       3013 ms
+  Exit code           :          0
+
+╔════════════════════════════════════════════════╗
+║  Phase: START -> __SETUP__                     ║
+╚════════════════════════════════════════════════╝
+  Duration            :         10 ms
+  Start token         :      START
+  End token           : __SETUP__ (line 0)
+
+┌────────────────────────────────────────────────┐
+│ RAPL (perf_event)                              │
+└────────────────────────────────────────────────┘
+  CORE-0              :     184997 µJ
+  PACKAGE-0           :     226806 µJ
+  PSYS                :     387084 µJ
+  UNCORE-0            :       4150 µJ
+
+╔════════════════════════════════════════════════╗
+║  Phase: __SETUP__ -> __WORKLOAD__              ║
+╚════════════════════════════════════════════════╝
+  Duration            :       1000 ms
+  Start token         : __SETUP__ (line 0)
+  End token           : __WORKLOAD__ (line 1)
+
+┌────────────────────────────────────────────────┐
+│ RAPL (perf_event)                              │
+└────────────────────────────────────────────────┘
+  CORE-0              :    1856750 µJ
+  PACKAGE-0           :    3949645 µJ
+  PSYS                :    8571228 µJ
+  UNCORE-0            :      85571 µJ
+
+╔════════════════════════════════════════════════╗
+║  Phase: __WORKLOAD__ -> __CLEANUP__            ║
+╚════════════════════════════════════════════════╝
+  Duration            :       1000 ms
+  Start token         : __WORKLOAD__ (line 1)
+  End token           : __CLEANUP__ (line 2)
+
+┌────────────────────────────────────────────────┐
+│ RAPL (perf_event)                              │
+└────────────────────────────────────────────────┘
+  CORE-0              :    1398742 µJ
+  PACKAGE-0           :    3311218 µJ
+  PSYS                :    7377380 µJ
+  UNCORE-0            :      58105 µJ
+
+╔════════════════════════════════════════════════╗
+║  Phase: __CLEANUP__ -> END                     ║
+╚════════════════════════════════════════════════╝
+  Duration            :       1003 ms
+  Start token         : __CLEANUP__ (line 2)
+  End token           :        END
+
+┌────────────────────────────────────────────────┐
+│ RAPL (perf_event)                              │
+└────────────────────────────────────────────────┘
+  CORE-0              :    1468383 µJ
+  PACKAGE-0           :    3395080 µJ
+  PSYS                :    7314697 µJ
+  UNCORE-0            :     137817 µJ
+```
 
 ## Custom Output Format
 
@@ -20,30 +154,14 @@ By default, the output is shown in the terminal with a human-readable format. Fo
 
 ```bash
 # Export results as JSON for programmatic analysis
-sudo joule-profiler --json profile -- ./my-program
+joule-profiler --json profile -- ./my-program
 
 # Export results as CSV for spreadsheet analysis
-sudo joule-profiler --csv profile -- ./my-program
+joule-profiler --csv profile -- ./my-program
 ```
 
+An output file will be generated at the end of the profiling.
 These formats make it easy to process results with scripts or import them into visualization tools.
-
-## With Logging
-
-To understand what the profiler is doing or troubleshoot issues, you can enable logging at different verbosity levels:
-
-```bash
-# Info-level logs (-v) for general information
-sudo joule-profiler -v profile -- ./my-program
-
-# Debug logs (-vv) for detailed diagnostic information
-sudo joule-profiler -vv profile -- ./benchmark
-
-# Trace logs (-vvv) for maximum verbosity
-sudo joule-profiler -vvv profile -- ./my-program
-```
-
-Higher verbosity levels are useful for debugging but may produce large amounts of output and may be used only for debugging purposes, due to the introduced overhead of the I/O operations.
 
 ## Additional Options
 
@@ -53,7 +171,7 @@ You can choose where to export your results:
 
 ```bash
 # Save results to a file (format determined by extension or --json/--csv flags)
-sudo joule-profiler -o results.json --json profile -- ./my-program
+joule-profiler -o results.json --json profile -- ./my-program
 ```
 
 This is particularly useful when running multiple benchmarks.
@@ -64,7 +182,7 @@ If your system has an Nvidia GPU and you want to measure GPU energy consumption 
 
 ```bash
 # Include GPU metrics in the measurement
-sudo joule-profiler --gpu profile -- ./my-program
+joule-profiler --gpu profile -- ./my-program
 ```
 
 ### Performance Counters
@@ -72,7 +190,7 @@ sudo joule-profiler --gpu profile -- ./my-program
 **Joule Profiler** supports [perf_event](sources/perf_event/introduction.md) performance counters on Linux systems, you can activate this feature with the `--perf` flag.
 
 ```bash
-sudo joule-profiler --perf profile -- ./my-program
+joule-profiler --perf profile -- ./my-program
 ```
 
 GPU profiling requires the NVML library (part of NVIDIA driver installation).
@@ -88,7 +206,7 @@ You can explicitly choose which backend to use:
 sudo joule-profiler --rapl-backend=powercap profile -- ./my-program
 
 # Use perf_event backend (lower overhead, may require kernel configuration)
-sudo joule-profiler --rapl-backend=perf profile -- ./my-program
+joule-profiler --rapl-backend=perf profile -- ./my-program
 ```
 
 The choice of backend can affect measurement granularity and permission requirements. See the [RAPL](sources/rapl/introduction.md) documentation for details on each backend.

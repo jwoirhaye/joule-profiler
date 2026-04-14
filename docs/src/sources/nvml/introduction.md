@@ -8,7 +8,7 @@ The **NVIDIA Management Library (NVML)** is a C-based programmatic interface for
 
 ## Architecture
 
-NVML is distributed as `libnvidia-ml.so` on Linux or `nvml.dll` on Windows (not supported) and communicates directly with the NVIDIA GPU driver to query device state.
+NVML is distributed as `libnvidia-ml.so` on Linux and communicates directly with the NVIDIA GPU driver to query device state.
 
 <div style="text-align:center"><img src="../../figures/nvml_architecture.png" /></div>
 

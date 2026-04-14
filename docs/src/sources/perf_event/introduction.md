@@ -27,11 +27,9 @@ Events can be attached to a specific context like process, CPU core or control g
 | **Raw** | Architecture-specific events accessed via raw event codes. |
 | **PMU-specific** | Events exposed by hardware-specific Performance Monitoring Unit (PMU) like RAPL counters |
 
+perf_event [event types](https://terenceli.github.io/%E6%8A%80%E6%9C%AF/2020/08/29/perf-arch):
 
-perf_event [event types](https://zhuanlan.zhihu.com/p/572533736):
-
-![perf_event events](../../figures/perf_event.jpg)
-
+![perf_event events](../../figures/perf_event.png)
 
 > [!NOTE]
 > - The availability and accuracy of events depend on the underlying hardware PMU and kernel configuration.

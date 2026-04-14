@@ -2,10 +2,6 @@
 
 To use the NVML source in **Joule Profiler**, your system must meet specific hardware and software requirements.
 
-## Operating System Support
-
-The **NVML** source is cross-platform and supported on **Linux** and **Windows**.
-
 ## Driver Requirements
 
 Joule Profiler accesses NVML via the shared library `libnvidia-ml.so` (usually in `/usr/lib/` or `/usr/lib64/` on Linux) installed alongside the NVIDIA drivers. You do not need to install the CUDA toolkit manually, but the base GPU drivers are required.

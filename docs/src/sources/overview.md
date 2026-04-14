@@ -12,15 +12,11 @@
 
 - **Intel RAPL:** Measures CPU and DRAM energy domains.  
   - Implemented using either **perf_event** or **Powercap** on Linux systems.  
-  - For details, see [RAPL Overview](rapl/introduction.md).  
+  - For details, see [RAPL](rapl/introduction.md).
 
-- **Nvidia GPUs (NVML):** Provides energy and performance metrics for Nvidia GPUs.  
-  - NVML is available on Linux and Windows, but we do not support Windows systems.  
-  - For details, see [NVML Overview](nvml/introduction.md).  
+- **Nvidia GPUs (NVML):** Provides energy and performance metrics for Nvidia GPUs, see [NVML](nvml/introduction.md).  
 
-- **perf_event:** Measures various performance counters like hardware, software, kernel probes, etc.
-  - Available only on Linux.
-  - For details, see [perf_event Overview](perf_event/introduction.md).
+- **perf_event:** Measures various performance counters like hardware or software on Linux systems, see [perf_event](perf_event/introduction.md).
 
 ### Extending Joule Profiler
 

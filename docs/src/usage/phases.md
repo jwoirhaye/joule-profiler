@@ -29,7 +29,7 @@ Interpreted languages (Python, JavaScript, Ruby) have significant startup overhe
 ```bash
 # Python interpreter initialization can be 50-100ms
 # Your actual work might be only 10ms
-sudo joule-profiler simple -- python my_script.py
+sudo joule-profiler profile -- python my_script.py
 # Result: 90% of energy is interpreter startup, not what you want to measure
 ```
 
