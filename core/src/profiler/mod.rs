@@ -203,10 +203,10 @@ impl JouleProfiler {
         let reader = BufReader::new(child_stdout);
         let mut detected_phases = Vec::with_capacity(2);
 
-        self.orchestrator.measure().await?;
-
         let begin_timestamp = get_timestamp_micros();
         trace!("Begin timestamp: {begin_timestamp}");
+
+        self.orchestrator.measure().await?;
 
         resume_process(pid)?;
 
@@ -235,9 +235,8 @@ impl JouleProfiler {
         let exit_code = wait_for_child_exit(&mut child)?;
 
         info!(
-            "Command finished: duration={} µs exit_code={}",
-            end_timestamp - begin_timestamp,
-            exit_code
+            "Command finished: duration={} ms exit_code={}",
+            duration_ms, exit_code
         );
 
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
