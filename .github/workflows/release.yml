@@ -65,7 +65,7 @@ jobs:
         id: parse
         if: steps.release.outputs.releases_created == 'true'
         run: |
-          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r '.[] | select(.package_name == "joule_profiler_cli") | .tag')
+          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r '.[] | select(.package_name == "joule-profiler-cli") | .tag')
           if [ -n "$TAG" ]; then
             echo "cli_released=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
