@@ -1,6 +1,6 @@
 # Source Implementation
 
-Implementing a new metric source in **Joule Profiler** is straightforward. By implementing the `MetricReader` trait, you only need to define the core measurement logic (`measure`, `retrieve`, `get_sensors`, `to_metrics`, `get_name`) and optionally override `init`, `join`, or `reset` if your source requires setup, polling logic, cleanup, or counter resets. This design makes it easy to add new sources without boilerplate.
+Implementing a new metric source in **Joule Profiler** is straightforward. By implementing the `MetricReader` trait, you only need to define the core measurement logic (`measure`, `retrieve`, `get_sensors`, `to_metrics`, `get_name`) and optionally override `init` or `join` if your source requires setup or polling logic. This design makes it easy to add new sources without boilerplate.
 
 ```rs
 use joule_profiler_core::{
@@ -43,25 +43,13 @@ impl MetricReader for MySource {
     }
 
     fn get_sensors(&self) -> Result<Sensors, Self::Error> {
-        let sensors = vec![Sensor {
-            name: "value".into(),
-            source: "my_source".into(),
-            unit: MY_SOURCE_UNIT,
-        }];
-        Ok(sensors)
+        let sensor = Sensor::new("value", MY_SOURCE_UNIT, "my_source")
+        Ok(vec![sensor])
     }
 
-    fn to_metrics(&self, count: u64) -> Metrics {
-        let metric = Metric {
-            name: "value".into(),
-            source: "my_source".into(),
-            unit: MetricUnit {
-                prefix: UnitPrefix::None,
-                unit: Unit::Count,
-            },
-            value: count,
-        };
-        vec![metric]
+    fn to_metrics(&self, count: u64) -> Result<Metrics, Self::Error> {
+        let metric = Metric::new("value", count, MY_SOURCE_UNIT, "my_source");
+        Ok(vec![metric])
     }
 
     fn get_name() -> &'static str {

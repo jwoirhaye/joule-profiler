@@ -64,7 +64,7 @@
 # Developer Guide
 
 - [Development Setup](developer-guide/setup.md)
-- [Adding a Custom Source](developer-guide/adding-source/overview.md)
+- [Adding a Custom Source](developer-guide/adding-source.md)
 - [Contributing](developer-guide/contributing.md)
 
 ---

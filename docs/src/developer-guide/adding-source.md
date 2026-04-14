@@ -18,36 +18,33 @@ pub trait MetricReader: Send + 'static {
     type Error: MetricReaderErrorBound;
 
     //
-    // Mandatory methods
-    //
-
-    /// Perform a measurement and update internal state
-    fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
-
-    /// Retrieve the current metrics snapshot
-    fn retrieve(&mut self) -> impl Future<Output = Result<Self::Type, Self::Error>> + Send;
-
-    /// Return all sensors provided by this source
-    fn get_sensors(&self) -> Result<Sensors, Self::Error>;
-
-    /// Convert a snapshot into Joule Profiler metrics
-    fn to_metrics(&self, result: Self::Type) -> Metrics;
-
-    /// Return the static name of the metric source
-    fn get_name() -> &'static str;
-
-    //
     // Optional methods
     //
 
-    /// Initialize the source before measurements
+    /// Initialize the source before measurements.
     fn init(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
-    /// Cleanup or join logic after measurements
+    /// Cleanup or join logic after measurements.
     fn join(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
-    /// Reset internal counters
-    fn reset(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    //
+    // Mandatory methods
+    //
+
+    /// Perform a measurement and update internal state.
+    fn measure(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+
+    /// Retrieve the current metrics snapshot.
+    fn retrieve(&mut self) -> impl Future<Output = Result<Self::Type, Self::Error>> + Send;
+
+    /// Return all sensors provided by this source.
+    fn get_sensors(&self) -> Result<Sensors, Self::Error>;
+
+    /// Convert a snapshot into Joule Profiler metrics.
+    fn to_metrics(&self, result: Self::Type) -> Result<Metrics, Self::Error>;
+
+    /// Return the static name of the metric source.
+    fn get_name() -> &'static str;
 }
 ```
 
@@ -57,7 +54,7 @@ When implementing a metric source, keep the `measure` method lightweight and fas
 
 ## How to Register a Source
 
-Once a source is implemented (see [Trait Implementation](trait-implementation.md)), adding it to the profiler is straightforward. You simply instantiate your source and register it with the `JouleProfiler` instance before starting to measure.
+Once a source is implemented, adding it to the profiler is straightforward. You simply instantiate your source and register it with the `JouleProfiler` instance before starting to measure.
 
 ```rs
 use joule_profiler::JouleProfiler;
