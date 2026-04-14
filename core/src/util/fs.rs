@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::time::get_timestamp_millis;
+use crate::util::time::get_timestamp_micros;
 
 /// Get the absolute path of a file.
 pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
@@ -21,7 +21,7 @@ pub fn get_absolute_path(filename: &str) -> Result<String, std::io::Error> {
 
 /// Generates a default filename for results data.
 pub fn default_results_filename(ext: &str) -> String {
-    format!("data{}.{}", get_timestamp_millis(), ext)
+    format!("data{}.{}", get_timestamp_micros(), ext)
 }
 
 const URW_GRW_OR_PERMS: u32 = 0o664;

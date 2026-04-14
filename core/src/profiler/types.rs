@@ -20,10 +20,10 @@ pub struct Phase {
     /// Token marking the end of the phase.
     pub end_token: PhaseToken,
 
-    /// Start timestamp in milliseconds.
+    /// Start timestamp in microsecond.
     pub timestamp: u128,
 
-    /// Duration of the phase in milliseconds.
+    /// Duration of the phase in millisecond.
     pub duration_ms: u128,
 
     /// Optional start line number associated with the phase.
@@ -49,10 +49,10 @@ pub type Phases = Vec<Phase>;
 /// Represents the results of a program's profiling.
 #[derive(Debug, Serialize)]
 pub struct ProfilerResults {
-    /// Timestamp of the first measure in milliseconds.
+    /// Timestamp of the first measure in microsecond.
     pub timestamp: u128,
 
-    /// Duration of the program in milliseconds.
+    /// Duration of the program in millisecond.
     pub duration_ms: u128,
 
     /// Exit code of the profiled command.
