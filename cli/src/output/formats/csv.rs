@@ -266,7 +266,7 @@ mod tests {
         csv.display_results(&["my_cmd".into(), "--flag".into()], "MY_PATTERN", &iter)
             .unwrap();
         let content = read(&tmp);
-        assert!(content.contains("500")); // duration_ms
+        assert!(content.contains("500")); // duration_us
         assert!(content.contains("MY_PATTERN"));
         assert!(content.contains("my_cmd --flag"));
         assert!(content.contains("3")); // exit_code
