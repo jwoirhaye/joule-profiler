@@ -113,7 +113,7 @@ impl JouleProfiler {
         self.orchestrator.run(sources)?;
 
         info!("Starting measurements");
-        let (duration_ms, timestamp, exit_code, detected_phases) =
+        let (command_duration_ms, timestamp, exit_code, detected_phases) =
             self.measure_phases(config).await?;
 
         let (sources_results, sources) = self.orchestrator.finalize().await?;
@@ -149,7 +149,7 @@ impl JouleProfiler {
                 start_token: PhaseToken::Start,
                 end_token: PhaseToken::End,
                 timestamp,
-                duration_ms,
+                duration_ms: command_duration_ms,
                 start_token_line: None,
                 end_token_line: None,
             };
@@ -159,7 +159,7 @@ impl JouleProfiler {
         debug!("Collected {} sensor phase(s)", phases.len());
         Ok(ProfilerResults {
             timestamp,
-            duration_ms,
+            duration_ms: command_duration_ms,
             exit_code,
             phases,
         })
@@ -234,10 +234,7 @@ impl JouleProfiler {
 
         let exit_code = wait_for_child_exit(&mut child)?;
 
-        info!(
-            "Command finished: duration={} ms exit_code={}",
-            duration_ms, exit_code
-        );
+        info!("Command finished: duration={duration_ms} ms exit_code={exit_code}");
 
         Ok((duration_ms, begin_timestamp, exit_code, detected_phases))
     }

@@ -65,9 +65,10 @@ impl Rapl {
         check_os()?;
 
         let paranoid_level = read_paranoid_level()?;
-        trace!("Perf paranoid level set to {paranoid_level}");
-
-        trace!("Attempting to initialize RAPL reader: sockets={sockets_spec:?}");
+        trace!(
+            "Perf paranoid level set to {paranoid_level}
+        Attempting to initialize RAPL reader: sockets={sockets_spec:?}"
+        );
 
         let sockets = discover_domains_and_open_counters(sockets_spec).map_err(|err| {
             if let RaplError::PerfParanoid(_) = err
