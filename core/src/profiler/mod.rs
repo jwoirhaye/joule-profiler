@@ -21,7 +21,7 @@ use crate::profiler::types::{MeasurePhasesReturnType, Phase, ProfilerResults, Re
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::util::fs::create_file_with_user_permissions;
-use crate::util::time::get_timestamp_millis;
+use crate::util::time::get_timestamp_micros;
 pub use error::JouleProfilerError;
 
 pub mod types;
@@ -133,7 +133,7 @@ impl JouleProfiler {
                     start_token: d1.token.clone(),
                     end_token: d2.token.clone(),
                     timestamp: d1.timestamp,
-                    duration_ms: d2.timestamp - d1.timestamp,
+                    duration_ms: (d2.timestamp - d1.timestamp) / 1000,
                     start_token_line: d1.line_number,
                     end_token_line: d2.line_number,
                 }
@@ -205,7 +205,7 @@ impl JouleProfiler {
 
         self.orchestrator.measure().await?;
 
-        let begin_timestamp = get_timestamp_millis();
+        let begin_timestamp = get_timestamp_micros();
         trace!("Begin timestamp: {begin_timestamp}");
 
         resume_process(pid)?;
@@ -222,13 +222,13 @@ impl JouleProfiler {
 
         sink.flush()?;
 
-        let end_timestamp = get_timestamp_millis();
+        let end_timestamp = get_timestamp_micros();
         trace!("End timestamp: {end_timestamp}");
 
         self.orchestrator.measure().await?;
         self.orchestrator.new_phase().await?;
 
-        let duration_ms = end_timestamp - begin_timestamp;
+        let duration_ms = (end_timestamp - begin_timestamp) / 1000;
 
         detected_phases.push(PhaseInfo::end(end_timestamp));
 
@@ -290,7 +290,7 @@ impl JouleProfiler {
             writeln!(sink, "{line}")?;
 
             if let Some(token) = phase_token_in_line(regex, &line) {
-                let phase_timestamp = get_timestamp_millis();
+                let phase_timestamp = get_timestamp_micros();
 
                 debug!("Detected phase at line {line_number}, token '{token}'");
 
