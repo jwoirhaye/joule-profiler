@@ -17,7 +17,7 @@
 //! # Usage
 //!
 //! ```no_run
-//! use source_rapl::powercap;
+//! use joule_profiler_source_rapl::powercap;
 //! use joule_profiler_core::source::MetricReader;
 //!
 //! #[tokio::main]
