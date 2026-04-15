@@ -30,17 +30,21 @@ impl<'a> ConfigTable<'a> {
     }
 
     pub fn get_config<R>(&mut self) -> Result<Option<R::Config>>
-    where
-        R: MetricReader,
-        R::Config: CliOverride + Default,
-    {
-        let (base_config, from_toml) = match self.inner.remove(R::get_id()) {
-            Some(value) => (value.try_into()?, true),
-            None => (R::Config::default(), false),
-        };
+where
+    R: MetricReader,
+    R::Config: CliOverride,
+{
+    let (config, has_toml) = match self.inner.remove(R::get_id()) {
+        Some(v) => (v.try_into()?, true),
+        None => (R::Config::default(), false),
+    };
 
-        Ok(base_config.override_config(self.cli, from_toml))
+    if !R::Config::is_enabled(self.cli, has_toml) {
+        return Ok(None);
     }
+
+    Ok(Some(config.apply_override(self.cli)))
+}
 }
 
 pub fn register_source<R>(profiler: &mut JouleProfiler, configs: &mut ConfigTable) -> Result<()>
@@ -58,51 +62,39 @@ where
 
 pub trait CliOverride: Sized {
     #[allow(unused_variables)]
-    fn override_config(self, cli: &CliArgs, from_toml: bool) -> Option<Self> {
-        if from_toml { Some(self) } else { None }
+    fn apply_override(self, cli: &CliArgs) -> Self {
+        self
     }
+
+    fn is_enabled(cli: &CliArgs, has_toml: bool) -> bool;
 }
 
 impl CliOverride for () {
-    fn override_config(self, _cli: &CliArgs, _from_toml: bool) -> Option<Self> {
-        None
+    fn is_enabled(_cli: &CliArgs, has_toml: bool) -> bool {
+        has_toml
     }
 }
 
 impl CliOverride for NvmlConfig {
-    fn override_config(self, cli: &CliArgs, from_toml: bool) -> Option<Self> {
-        if cli.gpu || from_toml {
-            Some(self)
-        } else {
-            None
-        }
+    fn is_enabled(cli: &CliArgs, has_toml: bool) -> bool {
+        cli.gpu || has_toml
     }
 }
 
 impl CliOverride for PerfConfig {
-    fn override_config(self, cli: &CliArgs, from_toml: bool) -> Option<Self> {
-        if cli.perf || from_toml {
-            Some(self)
-        } else {
-            None
-        }
+    fn is_enabled(cli: &CliArgs, has_toml: bool) -> bool {
+        cli.perf || has_toml
     }
 }
 
 impl CliOverride for RaplPowercapConfig {
-    fn override_config(self, cli: &CliArgs, _from_toml: bool) -> Option<Self> {
-        match cli.rapl_backend {
-            RaplBackend::Powercap => Some(self),
-            RaplBackend::Perf => None,
-        }
+    fn is_enabled(cli: &CliArgs, _has_toml: bool) -> bool {
+        matches!(cli.rapl_backend, RaplBackend::Powercap)
     }
 }
 
 impl CliOverride for RaplPerfConfig {
-    fn override_config(self, cli: &CliArgs, _from_toml: bool) -> Option<Self> {
-        match cli.rapl_backend {
-            RaplBackend::Powercap => Some(self),
-            RaplBackend::Perf => None,
-        }
+    fn is_enabled(cli: &CliArgs, _has_toml: bool) -> bool {
+        matches!(cli.rapl_backend, RaplBackend::Perf)
     }
 }

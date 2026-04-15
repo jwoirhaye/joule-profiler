@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     register_sources!(
         &mut profiler,
         &mut config_table,
-        [PerfEvent, Nvml, perf::Rapl, powercap::Rapl,]
+        [PerfEvent, Nvml, perf::Rapl, powercap::Rapl]
     );
 
     let mut displayer = output_format_to_displayer(&cli)?;
