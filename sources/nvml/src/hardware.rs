@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 
 use joule_profiler_core::sensor::{Sensor, Sensors};
+use log::trace;
 
-use crate::{MILLI_JOULE_UNIT, NVML_SOURCE_NAME, Result, snapshot::NvmlSnapshot};
+use crate::{MILLI_JOULE_UNIT, NVML_SOURCE_NAME, Result, error::NvmlError, snapshot::NvmlSnapshot};
 
 /// Trait abstracting NVML hardware access for testability.
 #[cfg_attr(test, mockall::automock)]
 pub trait NvmlHardware: Send {
+    fn new() -> Result<Self>
+    where
+        Self: Sized;
     fn read_snapshot(&self) -> Result<NvmlSnapshot>;
     fn get_sensors(&self) -> Result<Sensors>;
 }
@@ -21,6 +25,25 @@ pub struct NvmlWrapperHardware {
 }
 
 impl NvmlHardware for NvmlWrapperHardware {
+    fn new() -> Result<Self> {
+        let nvml = nvml_wrapper::Nvml::init().map_err(|err| match err {
+            nvml_wrapper::error::NvmlError::DriverNotLoaded => NvmlError::NoDriverLoaded,
+            nvml_wrapper::error::NvmlError::NoPermission => NvmlError::NoPermission,
+            _ => err.into(),
+        })?;
+
+        let devices_max_index = nvml.device_count()?;
+        for i in 0..devices_max_index {
+            let device = nvml.device_by_index(i)?;
+            trace!("Discovered NVIDIA device {}", device.name()?);
+        }
+
+        Ok(NvmlWrapperHardware {
+            nvml,
+            devices_max_index,
+        })
+    }
+
     /// Reads the current energy consumption snapshot for all GPU devices.
     ///
     /// This queries each GPU device and retrieves its total energy consumption counter

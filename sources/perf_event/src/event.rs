@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
 use perf_event::events::Hardware;
+use serde::Deserialize;
 
 /// Hardware performance counter event types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Event {
     CpuCycles,
     Instructions,

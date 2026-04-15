@@ -1,11 +1,9 @@
 use anyhow::Result;
-use joule_profiler_cli::{
-    CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer,
-    parse_sockets_spec,
-};
+use joule_profiler_cli::output_format_to_displayer;
+use joule_profiler_cli::plugin::ConfigTable;
+use joule_profiler_cli::{CliArgs, plugin::register_source, register_sources};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
-use log::{trace, warn};
 use source_nvml::Nvml;
 use source_perf_event::PerfEvent;
 use source_rapl::{perf, powercap};
@@ -13,55 +11,29 @@ use source_rapl::{perf, powercap};
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = CliArgs::from_args();
-    init_logging(cli.verbose);
 
-    let mut displayer = output_format_to_displayer(&cli)?;
     let mut profiler = JouleProfiler::new();
 
-    let rapl_path = cli.rapl_path.as_deref();
-    let rapl_sockets_spec = parse_sockets_spec(cli.sockets.as_deref());
-    let rapl_polling = match &cli.command {
-        ProfilerCommand::Profile(profile_args) => profile_args.rapl_polling,
-        ProfilerCommand::ListSensors => None,
+    let mut config_table = if let Some(config_file) = &cli.config_file {
+        let content = std::fs::read_to_string(config_file)?;
+        let mut value: toml::Table = toml::from_str(&content)?;
+        let sources = value
+            .remove("sources")
+            .unwrap_or(toml::Value::Table(toml::Table::new()))
+            .try_into()?;
+
+        ConfigTable::new(sources, &cli)
+    } else {
+        ConfigTable::new(toml::Table::new(), &cli)
     };
 
-    match cli.rapl_backend {
-        RaplBackend::Perf => {
-            if let Err(err) = perf::Rapl::check_perf_access() {
-                warn!("Cannot initialize RAPL with perf_event, switching to powercap: {err}");
-                let rapl_powercap =
-                    powercap::Rapl::new(rapl_path, rapl_sockets_spec.as_ref(), rapl_polling)?;
-                profiler.add_source(rapl_powercap);
-            } else {
-                trace!("Using perf_event for RAPL profiling");
-                let perf_rapl = perf::Rapl::new(rapl_sockets_spec.as_ref())?;
-                profiler.add_source(perf_rapl);
-            }
-        }
-        RaplBackend::Powercap => {
-            trace!("Using Powercap for RAPL profiling");
-            let rapl_powercap =
-                powercap::Rapl::new(rapl_path, rapl_sockets_spec.as_ref(), rapl_polling)?;
-            profiler.add_source(rapl_powercap);
-        }
-    }
+    register_sources!(
+        &mut profiler,
+        &mut config_table,
+        [PerfEvent, Nvml, perf::Rapl, powercap::Rapl,]
+    );
 
-    if cli.gpu {
-        match Nvml::new() {
-            Ok(nvml) => {
-                trace!("Using NVML for Nvidia GPU profiling");
-                profiler.add_source(nvml);
-            }
-            Err(err) => warn!("{err}"),
-        }
-    }
-
-    if cli.perf {
-        trace!("Initializing perf_event source");
-        let perf_event = PerfEvent::new()?;
-        profiler.add_source(perf_event);
-    }
-
+    let mut displayer = output_format_to_displayer(&cli)?;
     let config = Config::from(cli);
 
     match config.command {

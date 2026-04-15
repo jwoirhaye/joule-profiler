@@ -1,7 +1,7 @@
 use clap::Parser;
 
 /// Arguments for profiling mode.
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 pub struct ProfileArgs {
     /// Regex pattern to detect phase tokens in program output.
     ///

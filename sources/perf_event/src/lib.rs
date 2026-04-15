@@ -15,14 +15,16 @@ use joule_profiler_core::{
 use log::{debug, info, trace};
 
 use crate::{
+    config::PerfConfig,
     error::PerfEventError,
-    event::EVENTS,
+    event::{EVENTS, Event},
     hardware::{PerfEventCounters, PerfEventHardware},
     snapshot::{Phase, Snapshot},
 };
 
+pub mod config;
 mod error;
-mod event;
+pub mod event;
 mod hardware;
 mod snapshot;
 
@@ -40,32 +42,33 @@ const PERF_EVENT_METRIC_UNIT: MetricUnit = MetricUnit {
 ///
 /// The hardware generic type is used for testing purposes, it allows to change the implementation
 /// used to interact with `perf_event`. The default adapter use the `perf_event2` library.
+#[derive(Default)]
 pub struct PerfEvent<H: PerfEventHardware = PerfEventCounters> {
     hardware: H,
     begin_snapshot: Option<Snapshot>,
     last_snapshot: Option<Snapshot>,
+    events: Vec<Event>,
 }
 
 impl PerfEvent {
     /// Creates a new uninitialized `perf_event` source with the `perf_event2` backend.
-    pub fn new() -> Result<Self> {
-        debug!("Creating new perf_event source");
-        Ok(Self {
-            hardware: PerfEventCounters::new(),
-            begin_snapshot: None,
-            last_snapshot: None,
-        })
+    pub fn new() -> Self {
+        Self {
+            events: EVENTS.to_vec(),
+            ..Default::default()
+        }
     }
 }
 
 impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     type Type = Phase;
     type Error = PerfEventError;
+    type Config = PerfConfig;
 
     /// Initialize counters for a specific process and start monitoring.
     async fn init(&mut self, pid: i32) -> Result<()> {
         info!("Initializing perf_event source for PID {pid}");
-        self.hardware.init_counters(pid)
+        self.hardware.init_counters(&self.events, pid)
     }
 
     /// Read current counter values and compute delta since last measurement.
@@ -133,6 +136,17 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     fn get_name() -> &'static str {
         "perf_event"
     }
+
+    fn get_id() -> &'static str {
+        "perf_event"
+    }
+
+    fn from_config(config: PerfConfig) -> Result<Self> {
+        Ok(Self {
+            events: config.events.unwrap_or(EVENTS.to_vec()),
+            ..Default::default()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -151,6 +165,7 @@ mod tests {
             hardware,
             begin_snapshot: None,
             last_snapshot: None,
+            events: EVENTS.to_vec(),
         }
     }
 

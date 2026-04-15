@@ -18,7 +18,7 @@ use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};
 pub use error::MetricSourceError;
 pub use reader::MetricReader;
-pub use types::{MetricReaderErrorBound, MetricReaderTypeBound};
+pub use types::{BlankConfig, MetricReaderErrorBound, MetricReaderTypeBound};
 
 /// Internal trait representing a runnable metric source.
 ///

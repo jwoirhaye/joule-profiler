@@ -47,6 +47,7 @@
 use crate::MICRO_JOULE_UNIT;
 use crate::error::RaplError;
 use crate::powercap::compute::compute_measurement_from_snapshots;
+use crate::powercap::config::RaplPowercapConfig;
 use crate::powercap::domain::{RaplDomain, get_domains, read_energy};
 use crate::snapshot::Snapshot;
 use crate::util::check_os;
@@ -66,6 +67,7 @@ use tokio::task::JoinHandle;
 use tokio_timerfd::Interval;
 
 mod compute;
+pub mod config;
 mod domain;
 mod socket;
 
@@ -182,6 +184,7 @@ impl Rapl {
 impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
+    type Config = RaplPowercapConfig;
 
     async fn init(&mut self, _: i32) -> Result<()> {
         check_rapl_access(&self.rapl_path)?;
@@ -300,6 +303,14 @@ impl MetricReader for Rapl {
 
     fn get_name() -> &'static str {
         POWERCAP_SOURCE_NAME
+    }
+
+    fn from_config(_config: Self::Config) -> Result<Self> {
+        Self::try_default()
+    }
+
+    fn get_id() -> &'static str {
+        "rapl_powercap"
     }
 }
 

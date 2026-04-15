@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
 use clap::{ArgAction, Parser, ValueEnum};
 
@@ -16,10 +16,11 @@ use crate::output::{
 mod commands;
 mod logging;
 mod output;
+pub mod plugin;
 
 /// joule-profiler: measure program energy consumption
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(name = "joule-profiler")]
 #[command(
     version,
@@ -72,6 +73,9 @@ pub struct CliArgs {
     /// The command to execute
     #[command(subcommand)]
     pub command: ProfilerCommand,
+
+    #[arg(long = "config")]
+    pub config_file: Option<PathBuf>,
 }
 
 impl CliArgs {
@@ -99,7 +103,7 @@ impl From<CliArgs> for Config {
     }
 }
 
-#[derive(Clone, Debug, ValueEnum)]
+#[derive(Clone, Debug, ValueEnum, PartialEq)]
 pub enum RaplBackend {
     Perf,
     Powercap,

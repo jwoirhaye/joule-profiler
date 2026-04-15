@@ -1,3 +1,5 @@
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 
 use crate::aggregate::sensor_result::SensorResult;
@@ -21,6 +23,13 @@ impl<T> MetricReaderTypeBound for T where T: Debug + Default + Send {}
 pub trait MetricReaderErrorBound: std::error::Error + Send + Sync {}
 
 impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
+
+pub trait MetricReaderConfigBound: Send + Default + DeserializeOwned {}
+
+impl<C> MetricReaderConfigBound for C where C: Default + Send + DeserializeOwned {}
+
+#[derive(Default, Deserialize)]
+pub struct BlankConfig {}
 
 /// The handle of a worker to gracefully join it.
 /// It returns the collected results and also the metric source with erased type for API convenience.

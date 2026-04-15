@@ -12,6 +12,7 @@ keywords = ["energy", "nvml", "nvidia", "GPU", "hardware"]
 joule-profiler-core.workspace = true
 log.workspace = true
 thiserror.workspace = true
+serde.workspace = true
 
 nvml-wrapper = "0.12.0"
 
