@@ -178,162 +178,164 @@ impl SourceOrchestrator {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use mockall::mock;
+#[cfg(test)]
+mod tests {
+    use mockall::mock;
 
-//     use crate::{sensor::Sensors, source::MetricReader, types::Metrics};
+    use crate::{sensor::Sensors, source::MetricReader, types::Metrics};
 
-//     use super::*;
-//     use std::sync::{Arc, Mutex};
+    use super::*;
+    use std::sync::{Arc, Mutex};
 
-//     #[derive(Debug)]
-//     pub struct MockError;
+    #[derive(Debug)]
+    pub struct MockError;
 
-//     impl std::fmt::Display for MockError {
-//         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//             write!(f, "mock error")
-//         }
-//     }
+    impl std::fmt::Display for MockError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "mock error")
+        }
+    }
 
-//     impl std::error::Error for MockError {}
+    impl std::error::Error for MockError {}
 
-//     mock! {
-//         pub MetricReader {}
+    mock! {
+        pub MetricReader {}
 
-//         impl MetricReader for MetricReader {
-//             type Type = ();
-//             type Error = MockError;
-//             type Config = ();
+        impl MetricReader for MetricReader {
+            type Type = ();
+            type Error = MockError;
+            type Config = ();
 
-//             async fn init(&mut self, pid: i32) -> Result<(), MockError>;
-//             async fn join(&mut self) -> Result<(), MockError>;
-//             async fn measure(&mut self) -> Result<(), MockError>;
-//             async fn retrieve(&mut self) -> Result<(), MockError>;
-//             fn get_sensors(&self) -> Result<Sensors, MockError>;
-//             fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
-//             fn get_name() -> &'static str;
-//         }
-//     }
+            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn join(&mut self) -> Result<(), MockError>;
+            async fn measure(&mut self) -> Result<(), MockError>;
+            async fn retrieve(&mut self) -> Result<(), MockError>;
+            fn get_sensors(&self) -> Result<Sensors, MockError>;
+            fn to_metrics(&self, v: ()) -> Result<Metrics, MockError>;
+            fn get_name() -> &'static str;
+            fn get_id() -> &'static str;
+            fn from_config(config: ()) -> Result<Self, MockError>;
+        }
+    }
 
-//     #[derive(Debug, Default)]
-//     struct State {
-//         pid: i32,
-//         init: usize,
-//         join: usize,
-//         measure: usize,
-//     }
+    #[derive(Debug, Default)]
+    struct State {
+        pid: i32,
+        init: usize,
+        join: usize,
+        measure: usize,
+    }
 
-//     fn mock_reader() -> (MockMetricReader, Arc<Mutex<State>>) {
-//         let state_arc = Arc::new(Mutex::new(State::default()));
-//         let mut mock = MockMetricReader::new();
+    fn mock_reader() -> (MockMetricReader, Arc<Mutex<State>>) {
+        let state_arc = Arc::new(Mutex::new(State::default()));
+        let mut mock = MockMetricReader::new();
 
-//         let state = state_arc.clone();
-//         mock.expect_init().returning(move |pid| {
-//             let mut lock = state.lock().unwrap();
-//             lock.init += 1;
-//             lock.pid = pid;
-//             Ok(())
-//         });
+        let state = state_arc.clone();
+        mock.expect_init().returning(move |pid| {
+            let mut lock = state.lock().unwrap();
+            lock.init += 1;
+            lock.pid = pid;
+            Ok(())
+        });
 
-//         let state = state_arc.clone();
-//         mock.expect_join().returning(move || {
-//             state.lock().unwrap().join += 1;
-//             Ok(())
-//         });
+        let state = state_arc.clone();
+        mock.expect_join().returning(move || {
+            state.lock().unwrap().join += 1;
+            Ok(())
+        });
 
-//         let state = state_arc.clone();
-//         mock.expect_measure().returning(move || {
-//             state.lock().unwrap().measure += 1;
-//             Ok(())
-//         });
+        let state = state_arc.clone();
+        mock.expect_measure().returning(move || {
+            state.lock().unwrap().measure += 1;
+            Ok(())
+        });
 
-//         mock.expect_get_sensors().returning(|| Ok(vec![]));
-//         mock.expect_to_metrics()
-//             .returning(|_| Ok(Metrics::default()));
+        mock.expect_get_sensors().returning(|| Ok(vec![]));
+        mock.expect_to_metrics()
+            .returning(|_| Ok(Metrics::default()));
 
-//         (mock, state_arc)
-//     }
+        (mock, state_arc)
+    }
 
-//     fn mock_source() -> (Box<dyn MetricSource>, Arc<Mutex<State>>) {
-//         let (r, state) = mock_reader();
-//         (r.into(), state)
-//     }
+    fn mock_source() -> (Box<dyn MetricSource>, Arc<Mutex<State>>) {
+        let (r, state) = mock_reader();
+        (r.into(), state)
+    }
 
-//     #[tokio::test]
-//     async fn finalize_without_measurements_returns_not_enough_snapshots() {
-//         let mut orchestrator = SourceOrchestrator::default();
-//         let (source, _) = mock_source();
-//         orchestrator.run(vec![source]).unwrap();
-//         orchestrator.init(0).unwrap();
+    #[tokio::test]
+    async fn finalize_without_measurements_returns_not_enough_snapshots() {
+        let mut orchestrator = SourceOrchestrator::default();
+        let (source, _) = mock_source();
+        orchestrator.run(vec![source]).unwrap();
+        orchestrator.init(0).unwrap();
 
-//         assert!(matches!(
-//             orchestrator.finalize().await,
-//             Err(OrchestratorError::NotEnoughSnapshots)
-//         ));
-//     }
+        assert!(matches!(
+            orchestrator.finalize().await,
+            Err(OrchestratorError::NotEnoughSnapshots)
+        ));
+    }
 
-//     #[tokio::test]
-//     async fn run_orchestrator_with_no_source_returns_error() {
-//         let mut orchestrator = SourceOrchestrator::default();
+    #[tokio::test]
+    async fn run_orchestrator_with_no_source_returns_error() {
+        let mut orchestrator = SourceOrchestrator::default();
 
-//         assert!(matches!(
-//             orchestrator.run(vec![]),
-//             Err(OrchestratorError::NoSourceConfigured)
-//         ));
-//     }
+        assert!(matches!(
+            orchestrator.run(vec![]),
+            Err(OrchestratorError::NoSourceConfigured)
+        ));
+    }
 
-//     #[tokio::test]
-//     async fn event_reaches_worker() {
-//         let (source, state) = mock_source();
-//         let mut orchestrator = SourceOrchestrator::default();
-//         orchestrator.run(vec![source]).unwrap();
+    #[tokio::test]
+    async fn event_reaches_worker() {
+        let (source, state) = mock_source();
+        let mut orchestrator = SourceOrchestrator::default();
+        orchestrator.run(vec![source]).unwrap();
 
-//         let _ = orchestrator.measure().await;
-//         let _ = orchestrator.init(0);
-//         let _ = orchestrator.join().await;
+        let _ = orchestrator.measure().await;
+        let _ = orchestrator.init(0);
+        let _ = orchestrator.join().await;
 
-//         tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
 
-//         let lock = state.lock().unwrap();
+        let lock = state.lock().unwrap();
 
-//         assert_eq!(lock.measure, 1);
-//         assert_eq!(lock.init, 1);
-//         assert_eq!(lock.join, 1);
-//     }
+        assert_eq!(lock.measure, 1);
+        assert_eq!(lock.init, 1);
+        assert_eq!(lock.join, 1);
+    }
 
-//     #[tokio::test]
-//     async fn init_initializes_source_with_right_pid() {
-//         let (source, state) = mock_source();
+    #[tokio::test]
+    async fn init_initializes_source_with_right_pid() {
+        let (source, state) = mock_source();
 
-//         let mut orchestrator = SourceOrchestrator::default();
-//         orchestrator.run(vec![source]).unwrap();
+        let mut orchestrator = SourceOrchestrator::default();
+        orchestrator.run(vec![source]).unwrap();
 
-//         orchestrator.init(42).unwrap();
+        orchestrator.init(42).unwrap();
 
-//         // wait for initialization
-//         tokio::task::yield_now().await;
+        // wait for initialization
+        tokio::task::yield_now().await;
 
-//         assert_eq!(state.lock().unwrap().pid, 42);
-//     }
+        assert_eq!(state.lock().unwrap().pid, 42);
+    }
 
-//     #[tokio::test]
-//     async fn measure_error_in_worker_propagates_to_orchestrator() {
-//         let mut reader = MockMetricReader::new();
-//         reader.expect_init().returning(|_| Ok(()));
-//         reader.expect_measure().returning(|| Err(MockError));
-//         let source: Box<dyn MetricSource> = reader.into();
-//         let mut orchestrator = SourceOrchestrator::default();
+    #[tokio::test]
+    async fn measure_error_in_worker_propagates_to_orchestrator() {
+        let mut reader = MockMetricReader::new();
+        reader.expect_init().returning(|_| Ok(()));
+        reader.expect_measure().returning(|| Err(MockError));
+        let source: Box<dyn MetricSource> = reader.into();
+        let mut orchestrator = SourceOrchestrator::default();
 
-//         orchestrator.run(vec![source]).unwrap();
-//         orchestrator.init(0).unwrap();
-//         orchestrator.measure().await.unwrap();
-//         let result = orchestrator.finalize().await;
+        orchestrator.run(vec![source]).unwrap();
+        orchestrator.init(0).unwrap();
+        orchestrator.measure().await.unwrap();
+        let result = orchestrator.finalize().await;
 
-//         assert!(result.is_err());
-//         assert!(matches!(
-//             result,
-//             Err(OrchestratorError::MetricSourceError(_))
-//         ));
-//     }
-// }
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(OrchestratorError::MetricSourceError(_))
+        ));
+    }
+}

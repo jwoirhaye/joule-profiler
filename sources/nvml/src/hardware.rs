@@ -6,7 +6,6 @@ use log::trace;
 use crate::{MILLI_JOULE_UNIT, NVML_SOURCE_NAME, Result, error::NvmlError, snapshot::NvmlSnapshot};
 
 /// Trait abstracting NVML hardware access for testability.
-#[cfg_attr(test, mockall::automock)]
 pub trait NvmlHardware: Send {
     fn new() -> Result<Self>
     where

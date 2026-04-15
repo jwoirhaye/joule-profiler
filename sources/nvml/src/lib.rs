@@ -150,184 +150,198 @@ impl<H: NvmlHardware + 'static> Nvml<H> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use joule_profiler_core::sensor::Sensor;
+#[cfg(test)]
+mod tests {
+    use joule_profiler_core::sensor::Sensor;
+    use mockall::mock;
 
-//     use super::*;
-//     use crate::{hardware::MockNvmlHardware, snapshot::NvmlSnapshot};
+    use super::*;
+    use crate::snapshot::NvmlSnapshot;
 
-//     fn snapshot(entries: Vec<(u32, u64)>) -> NvmlSnapshot {
-//         NvmlSnapshot {
-//             gpus_energy: entries.into_iter().collect(),
-//         }
-//     }
+    mock! {
+        pub NvmlHardware {}
 
-//     fn sensors(count: u32) -> Sensors {
-//         (0..count)
-//             .map(|i| Sensor {
-//                 name: format!("GPU-{i}"),
-//                 unit: MILLI_JOULE_UNIT,
-//                 source: NVML_SOURCE_NAME.to_string(),
-//             })
-//             .collect()
-//     }
+        impl NvmlHardware for NvmlHardware {
+            fn new() -> Result<MockNvmlHardware>
+            where
+                MockNvmlHardware: Sized;
 
-//     fn nvml_with_hardware(hardware: MockNvmlHardware) -> Nvml<MockNvmlHardware> {
-//         Nvml {
-//             hardware,
-//             begin_snapshot: None,
-//             last_snapshot: None,
-//         }
-//     }
+            fn read_snapshot(&self) -> Result<NvmlSnapshot>;
+            fn get_sensors(&self) -> Result<Sensors>;
+        }
+    }
 
-//     #[test]
-//     fn diff_compute_right_values() {
-//         let begin = snapshot(vec![(0, 100), (1, 200)]);
-//         let end = snapshot(vec![(0, 150), (1, 300)]);
-//         let diff = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin).unwrap();
-//         assert_eq!(diff.gpus_energy[&0], 50);
-//         assert_eq!(diff.gpus_energy[&1], 100);
-//     }
+    fn snapshot(entries: Vec<(u32, u64)>) -> NvmlSnapshot {
+        NvmlSnapshot {
+            gpus_energy: entries.into_iter().collect(),
+        }
+    }
 
-//     #[test]
-//     fn diff_wraps_on_counter_overflow() {
-//         let begin = snapshot(vec![(0, u64::MAX - 5)]);
-//         let end = snapshot(vec![(0, 10)]);
-//         let diff = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin).unwrap();
-//         assert_eq!(diff.gpus_energy[&0], 16);
-//     }
+    fn sensors(count: u32) -> Sensors {
+        (0..count)
+            .map(|i| Sensor {
+                name: format!("GPU-{i}"),
+                unit: MILLI_JOULE_UNIT,
+                source: NVML_SOURCE_NAME.to_string(),
+            })
+            .collect()
+    }
 
-//     #[test]
-//     fn diff_device_missing_in_end_returns_error() {
-//         let begin = snapshot(vec![(0, 100), (1, 200)]);
-//         let end = snapshot(vec![(0, 150)]);
-//         let result = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin);
-//         assert!(matches!(result, Err(NvmlError::UnknownMetricError(_))));
-//     }
+    fn nvml_with_hardware(hardware: MockNvmlHardware) -> Nvml<MockNvmlHardware> {
+        Nvml {
+            hardware,
+            begin_snapshot: None,
+            last_snapshot: None,
+        }
+    }
 
-//     #[tokio::test]
-//     async fn measure_stores_begin_snapshot() {
-//         let mut hardware = MockNvmlHardware::new();
-//         hardware
-//             .expect_read_snapshot()
-//             .returning(|| Ok(snapshot(vec![(0, 100)])));
+    #[test]
+    fn diff_compute_right_values() {
+        let begin = snapshot(vec![(0, 100), (1, 200)]);
+        let end = snapshot(vec![(0, 150), (1, 300)]);
+        let diff = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 50);
+        assert_eq!(diff.gpus_energy[&1], 100);
+    }
 
-//         let mut nvml = nvml_with_hardware(hardware);
-//         nvml.measure().await.unwrap();
-//         assert!(nvml.begin_snapshot.is_some());
-//         assert!(nvml.last_snapshot.is_none());
-//     }
+    #[test]
+    fn diff_wraps_on_counter_overflow() {
+        let begin = snapshot(vec![(0, u64::MAX - 5)]);
+        let end = snapshot(vec![(0, 10)]);
+        let diff = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin).unwrap();
+        assert_eq!(diff.gpus_energy[&0], 16);
+    }
 
-//     #[tokio::test]
-//     async fn measure_twice_stores_last_snapshot() {
-//         let mut hardware = MockNvmlHardware::new();
-//         let mut read_snapshot_call_count = 0u64;
-//         hardware.expect_read_snapshot().returning(move || {
-//             read_snapshot_call_count += 1;
-//             Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
-//         });
+    #[test]
+    fn diff_device_missing_in_end_returns_error() {
+        let begin = snapshot(vec![(0, 100), (1, 200)]);
+        let end = snapshot(vec![(0, 150)]);
+        let result = Nvml::<MockNvmlHardware>::compute_energy_diff(&end, &begin);
+        assert!(matches!(result, Err(NvmlError::UnknownMetricError(_))));
+    }
 
-//         let mut nvml = nvml_with_hardware(hardware);
-//         nvml.measure().await.unwrap();
-//         nvml.measure().await.unwrap();
+    #[tokio::test]
+    async fn measure_stores_begin_snapshot() {
+        let mut hardware = MockNvmlHardware::default();
+        hardware
+            .expect_read_snapshot()
+            .returning(|| Ok(snapshot(vec![(0, 100)])));
 
-//         assert!(nvml.begin_snapshot.is_some());
-//         assert!(nvml.last_snapshot.is_some());
-//     }
+        let mut nvml = nvml_with_hardware(hardware);
+        nvml.measure().await.unwrap();
+        assert!(nvml.begin_snapshot.is_some());
+        assert!(nvml.last_snapshot.is_none());
+    }
 
-//     #[tokio::test]
-//     async fn retrieve_without_enough_snapshots_returns_error() {
-//         let mut hardware = MockNvmlHardware::new();
-//         hardware
-//             .expect_read_snapshot()
-//             .returning(|| Ok(snapshot(vec![(0, 100)])));
+    #[tokio::test]
+    async fn measure_twice_stores_last_snapshot() {
+        let mut hardware = MockNvmlHardware::default();
+        let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
+        });
 
-//         let mut nvml = nvml_with_hardware(hardware);
-//         nvml.measure().await.unwrap();
+        let mut nvml = nvml_with_hardware(hardware);
+        nvml.measure().await.unwrap();
+        nvml.measure().await.unwrap();
 
-//         assert!(matches!(
-//             nvml.retrieve().await,
-//             Err(NvmlError::NotEnoughSamples)
-//         ));
-//     }
+        assert!(nvml.begin_snapshot.is_some());
+        assert!(nvml.last_snapshot.is_some());
+    }
 
-//     #[tokio::test]
-//     async fn retrieve_returns_correct_phase() {
-//         let mut hardware = MockNvmlHardware::new();
-//         let mut read_snapshot_call_count = 0;
+    #[tokio::test]
+    async fn retrieve_without_enough_snapshots_returns_error() {
+        let mut hardware = MockNvmlHardware::default();
+        hardware
+            .expect_read_snapshot()
+            .returning(|| Ok(snapshot(vec![(0, 100)])));
 
-//         hardware.expect_read_snapshot().returning(move || {
-//             read_snapshot_call_count += 1;
-//             Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
-//         });
-//         let mut nvml = nvml_with_hardware(hardware);
+        let mut nvml = nvml_with_hardware(hardware);
+        nvml.measure().await.unwrap();
 
-//         nvml.measure().await.unwrap();
-//         nvml.measure().await.unwrap();
-//         let phase = nvml.retrieve().await.unwrap();
+        assert!(matches!(
+            nvml.retrieve().await,
+            Err(NvmlError::NotEnoughSamples)
+        ));
+    }
 
-//         assert_eq!(phase.begin.gpus_energy[&0], 100);
-//         assert_eq!(phase.end.gpus_energy[&0], 200);
-//     }
+    #[tokio::test]
+    async fn retrieve_returns_correct_phase() {
+        let mut hardware = MockNvmlHardware::default();
+        let mut read_snapshot_call_count = 0;
 
-//     #[tokio::test]
-//     async fn retrieve_replace_begin_snapshot_with_end() {
-//         let mut hardware = MockNvmlHardware::new();
-//         let mut read_snapshot_call_count = 0u64;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
+        });
+        let mut nvml = nvml_with_hardware(hardware);
 
-//         hardware.expect_read_snapshot().returning(move || {
-//             read_snapshot_call_count += 1;
-//             Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
-//         });
+        nvml.measure().await.unwrap();
+        nvml.measure().await.unwrap();
+        let phase = nvml.retrieve().await.unwrap();
 
-//         let mut nvml = nvml_with_hardware(hardware);
-//         nvml.measure().await.unwrap();
-//         nvml.measure().await.unwrap();
-//         nvml.retrieve().await.unwrap();
+        assert_eq!(phase.begin.gpus_energy[&0], 100);
+        assert_eq!(phase.end.gpus_energy[&0], 200);
+    }
 
-//         assert_eq!(nvml.begin_snapshot.as_ref().unwrap().gpus_energy[&0], 200);
-//         assert!(nvml.last_snapshot.is_none());
-//     }
+    #[tokio::test]
+    async fn retrieve_replace_begin_snapshot_with_end() {
+        let mut hardware = MockNvmlHardware::default();
+        let mut read_snapshot_call_count = 0u64;
 
-//     #[tokio::test]
-//     async fn to_metrics_returns_correct_values() {
-//         let mut hardware = MockNvmlHardware::new();
-//         let mut read_snapshot_call_count = 0;
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(snapshot(vec![(0, read_snapshot_call_count * 100)]))
+        });
 
-//         hardware.expect_read_snapshot().returning(move || {
-//             read_snapshot_call_count += 1;
-//             Ok(match read_snapshot_call_count {
-//                 1 => snapshot(vec![(0, 0), (1, 0)]),
-//                 _ => snapshot(vec![(0, 100), (1, 200)]),
-//             })
-//         });
+        let mut nvml = nvml_with_hardware(hardware);
+        nvml.measure().await.unwrap();
+        nvml.measure().await.unwrap();
+        nvml.retrieve().await.unwrap();
 
-//         let mut nvml = nvml_with_hardware(hardware);
-//         nvml.measure().await.unwrap();
-//         nvml.measure().await.unwrap();
-//         let phase = nvml.retrieve().await.unwrap();
-//         let mut metrics = nvml.to_metrics(phase).unwrap();
-//         metrics.sort_by_key(|m| m.name.clone());
+        assert_eq!(nvml.begin_snapshot.as_ref().unwrap().gpus_energy[&0], 200);
+        assert!(nvml.last_snapshot.is_none());
+    }
 
-//         assert_eq!(metrics.len(), 2);
-//         assert_eq!(metrics[0].name, "GPU-0");
-//         assert_eq!(metrics[0].value, 100);
-//         assert_eq!(metrics[0].unit, MILLI_JOULE_UNIT);
-//         assert_eq!(metrics[1].name, "GPU-1");
-//         assert_eq!(metrics[1].value, 200);
-//         assert_eq!(metrics[1].unit, MILLI_JOULE_UNIT);
-//     }
+    #[tokio::test]
+    async fn to_metrics_returns_correct_values() {
+        let mut hardware = MockNvmlHardware::default();
+        let mut read_snapshot_call_count = 0;
 
-//     #[test]
-//     fn get_sensors_returns_one_sensor_per_device() {
-//         let mut hardware = MockNvmlHardware::new();
-//         hardware.expect_get_sensors().returning(|| Ok(sensors(2)));
+        hardware.expect_read_snapshot().returning(move || {
+            read_snapshot_call_count += 1;
+            Ok(match read_snapshot_call_count {
+                1 => snapshot(vec![(0, 0), (1, 0)]),
+                _ => snapshot(vec![(0, 100), (1, 200)]),
+            })
+        });
 
-//         let nvml = nvml_with_hardware(hardware);
-//         let sensors = nvml.get_sensors().unwrap();
-//         assert_eq!(sensors.len(), 2);
-//         assert_eq!(sensors[0].name, "GPU-0");
-//         assert_eq!(sensors[1].name, "GPU-1");
-//     }
-// }
+        let mut nvml = nvml_with_hardware(hardware);
+        nvml.measure().await.unwrap();
+        nvml.measure().await.unwrap();
+        let phase = nvml.retrieve().await.unwrap();
+        let mut metrics = nvml.to_metrics(phase).unwrap();
+        metrics.sort_by_key(|m| m.name.clone());
+
+        assert_eq!(metrics.len(), 2);
+        assert_eq!(metrics[0].name, "GPU-0");
+        assert_eq!(metrics[0].value, 100);
+        assert_eq!(metrics[0].unit, MILLI_JOULE_UNIT);
+        assert_eq!(metrics[1].name, "GPU-1");
+        assert_eq!(metrics[1].value, 200);
+        assert_eq!(metrics[1].unit, MILLI_JOULE_UNIT);
+    }
+
+    #[test]
+    fn get_sensors_returns_one_sensor_per_device() {
+        let mut hardware = MockNvmlHardware::default();
+        hardware.expect_get_sensors().returning(|| Ok(sensors(2)));
+
+        let nvml = nvml_with_hardware(hardware);
+        let sensors = nvml.get_sensors().unwrap();
+        assert_eq!(sensors.len(), 2);
+        assert_eq!(sensors[0].name, "GPU-0");
+        assert_eq!(sensors[1].name, "GPU-1");
+    }
+}
