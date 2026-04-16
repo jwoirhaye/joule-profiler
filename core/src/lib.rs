@@ -9,6 +9,7 @@ mod util;
 pub use util::fs;
 
 pub mod source;
+pub mod transformer;
 
 pub use profiler::{JouleProfiler, JouleProfilerError};
 

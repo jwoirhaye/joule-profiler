@@ -6,6 +6,7 @@
 
 use log::{debug, info, trace};
 use regex::Regex;
+use std::any::type_name_of_val;
 use std::io::BufWriter;
 use std::{
     io::{BufRead, BufReader, ErrorKind, Write},
@@ -20,6 +21,7 @@ use crate::phase::{PhaseInfo, PhaseToken};
 use crate::profiler::types::{MeasurePhasesReturnType, Phase, ProfilerResults, Result};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
+use crate::transformer::{GlobalMetricTransformer, MetricTransformer};
 use crate::util::fs::create_file_with_user_permissions;
 use crate::util::time::get_timestamp_millis;
 pub use error::JouleProfilerError;
@@ -61,6 +63,8 @@ pub struct JouleProfiler {
 
     /// The different metric sources.
     sources: Vec<Box<dyn MetricSource>>,
+
+    global_transformer: GlobalMetricTransformer,
 }
 
 impl JouleProfiler {
@@ -76,8 +80,19 @@ impl JouleProfiler {
         T: MetricReader,
     {
         debug!("Registering additional metric source: {}", T::get_name());
-        trace!("MetricReader type: {}", std::any::type_name::<T>());
+        trace!("MetricReader type: {}", type_name_of_val(&reader));
         self.sources.push(reader.into());
+    }
+
+    pub fn add_transformer<T>(&mut self, transformer: T, order: i16)
+    where
+        T: MetricTransformer,
+    {
+        debug!(
+            "Registering additional metric transformer: {}",
+            type_name_of_val(&transformer)
+        );
+        self.global_transformer.add_transformer(transformer, order);
     }
 
     /// List the sensors of the provided sources.
@@ -435,6 +450,7 @@ mod tests {
     };
     use crate::sensor::Sensors;
     use crate::source::MetricReader;
+    use crate::transformer::GlobalMetricTransformer;
     use crate::types::Metrics;
     use crate::{JouleProfiler, JouleProfilerError};
     use mockall::mock;
@@ -447,6 +463,7 @@ mod tests {
         JouleProfiler {
             orchestrator: SourceOrchestrator::default(),
             sources: Vec::new(),
+            global_transformer: GlobalMetricTransformer::default(),
         }
     }
 
