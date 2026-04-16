@@ -13,6 +13,7 @@ pub mod reader;
 pub(crate) mod runtime;
 pub(crate) mod types;
 
+use crate::profiler::types::ProcessInfo;
 use crate::sensor::Sensors;
 use crate::source::runtime::MetricSourceRuntime;
 use crate::source::types::{SourceEvent, SourceWorkerHandle};
@@ -32,7 +33,7 @@ pub(crate) trait MetricSource: Send {
     ) -> (
         SourceWorkerHandle,
         mpsc::Sender<SourceEvent>,
-        oneshot::Sender<i32>,
+        oneshot::Sender<ProcessInfo>,
     );
 
     /// List sensors exposed by this source.
@@ -52,7 +53,7 @@ where
     ) -> (
         SourceWorkerHandle,
         mpsc::Sender<SourceEvent>,
-        oneshot::Sender<i32>,
+        oneshot::Sender<ProcessInfo>,
     ) {
         let (control_sender, control_receiver) = mpsc::channel(4);
         let (init_sender, init_receiver) = oneshot::channel();

@@ -53,7 +53,7 @@ use crate::util::check_os;
 use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
-use joule_profiler_core::types::{Metric, Metrics};
+use joule_profiler_core::types::{Metric, Metrics, ProcessInfo};
 use log::{debug, error, info, trace};
 use std::collections::HashSet;
 use std::fs;
@@ -183,7 +183,7 @@ impl MetricReader for Rapl {
     type Type = Snapshot;
     type Error = RaplError;
 
-    async fn init(&mut self, _: i32) -> Result<()> {
+    async fn init(&mut self, _: ProcessInfo) -> Result<()> {
         check_rapl_access(&self.rapl_path)?;
 
         let mut ticker = if let Some(interval) = self.poll_interval {

@@ -4,6 +4,7 @@
 
 use crate::aggregate::sensor_result::SensorResult;
 use crate::orchestrator::error::OrchestratorError;
+use crate::profiler::types::ProcessInfo;
 use crate::source::types::SourceEvent;
 use crate::source::{MetricSource, MetricSourceError};
 use futures::future::try_join_all;
@@ -22,7 +23,7 @@ struct SourceHandle {
     control_sender: mpsc::Sender<SourceEvent>,
 
     /// The oneshot sender used to initialized sources.
-    init_sender: Option<oneshot::Sender<i32>>,
+    init_sender: Option<oneshot::Sender<ProcessInfo>>,
 
     /// The handle of the worker task, used for joining sources gracefully.
     handle: TaskHandle,
@@ -72,10 +73,10 @@ impl SourceOrchestrator {
     /// Initializes each metric source.
     /// Called when the program execution is stopped to inizialize sources requiring pid filtering (e.g. `perf_event`).
     #[inline]
-    pub fn init(&mut self, pid: i32) -> Result<(), OrchestratorError> {
+    pub fn init(&mut self, process_info: ProcessInfo) -> Result<(), OrchestratorError> {
         for source_handle in &mut self.handles {
             if let Some(init_sender) = source_handle.init_sender.take()
-                && init_sender.send(pid).is_err()
+                && init_sender.send(process_info.clone()).is_err()
             {
                 return Err(OrchestratorError::InitializationError(
                     "Failed to initialize sources.".to_string(),
@@ -185,7 +186,10 @@ mod tests {
     use crate::{sensor::Sensors, source::MetricReader, types::Metrics};
 
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+    };
 
     #[derive(Debug)]
     pub struct MockError;
@@ -205,7 +209,7 @@ mod tests {
             type Type = ();
             type Error = MockError;
 
-            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn init(&mut self, process_info: ProcessInfo) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;
@@ -223,15 +227,22 @@ mod tests {
         measure: usize,
     }
 
+    fn process_info(pid: i32) -> ProcessInfo {
+        ProcessInfo {
+            pid,
+            sched_affinity: HashSet::new(),
+        }
+    }
+
     fn mock_reader() -> (MockMetricReader, Arc<Mutex<State>>) {
         let state_arc = Arc::new(Mutex::new(State::default()));
         let mut mock = MockMetricReader::new();
 
         let state = state_arc.clone();
-        mock.expect_init().returning(move |pid| {
+        mock.expect_init().returning(move |process_info| {
             let mut lock = state.lock().unwrap();
             lock.init += 1;
-            lock.pid = pid;
+            lock.pid = process_info.pid;
             Ok(())
         });
 
@@ -264,7 +275,7 @@ mod tests {
         let mut orchestrator = SourceOrchestrator::default();
         let (source, _) = mock_source();
         orchestrator.run(vec![source]).unwrap();
-        orchestrator.init(0).unwrap();
+        orchestrator.init(process_info(0)).unwrap();
 
         assert!(matches!(
             orchestrator.finalize().await,
@@ -289,7 +300,7 @@ mod tests {
         orchestrator.run(vec![source]).unwrap();
 
         let _ = orchestrator.measure().await;
-        let _ = orchestrator.init(0);
+        let _ = orchestrator.init(process_info(0));
         let _ = orchestrator.join().await;
 
         tokio::task::yield_now().await;
@@ -308,7 +319,7 @@ mod tests {
         let mut orchestrator = SourceOrchestrator::default();
         orchestrator.run(vec![source]).unwrap();
 
-        orchestrator.init(42).unwrap();
+        orchestrator.init(process_info(42)).unwrap();
 
         // wait for initialization
         tokio::task::yield_now().await;
@@ -325,7 +336,7 @@ mod tests {
         let mut orchestrator = SourceOrchestrator::default();
 
         orchestrator.run(vec![source]).unwrap();
-        orchestrator.init(0).unwrap();
+        orchestrator.init(process_info(0)).unwrap();
         orchestrator.measure().await.unwrap();
         let result = orchestrator.finalize().await;
 

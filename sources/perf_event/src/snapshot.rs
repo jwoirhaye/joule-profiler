@@ -5,7 +5,8 @@ use crate::event::Event;
 /// Snapshot of `perf_event` counters.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Snapshot {
-    pub metrics: HashMap<Event, u64>,
+    pub counters_metrics: HashMap<Event, u64>,
+    pub global_counters_metrics: HashMap<u16, u64>,
 }
 
 /// A pair of snapshots delimiting a phase.
@@ -21,14 +22,14 @@ pub struct Phase {
 impl Phase {
     /// Computes the per-event delta between begin and end.
     pub fn diff(&self) -> Snapshot {
-        let metrics = self
+        let counters_metrics = self
             .end
-            .metrics
+            .counters_metrics
             .iter()
             .map(|(event, &current_value)| {
                 let delta = self
                     .begin
-                    .metrics
+                    .counters_metrics
                     .get(event)
                     .map_or(current_value, |&prev| current_value.wrapping_sub(prev));
 
@@ -36,7 +37,25 @@ impl Phase {
             })
             .collect();
 
-        Snapshot { metrics }
+        let global_counters_metrics = self
+            .end
+            .global_counters_metrics
+            .iter()
+            .map(|(cpu, &current_value)| {
+                let delta = self
+                    .begin
+                    .global_counters_metrics
+                    .get(cpu)
+                    .map_or(current_value, |&prev| current_value.wrapping_sub(prev));
+
+                (*cpu, delta)
+            })
+            .collect();
+
+        Snapshot {
+            counters_metrics,
+            global_counters_metrics,
+        }
     }
 }
 
@@ -47,7 +66,8 @@ mod tests {
 
     fn snapshot(metrics: Vec<(Event, u64)>) -> Snapshot {
         Snapshot {
-            metrics: metrics.into_iter().collect(),
+            counters_metrics: metrics.into_iter().collect(),
+            global_counters_metrics: HashMap::new(),
         }
     }
 
@@ -67,8 +87,8 @@ mod tests {
             end: snapshot(vec![(Event::CpuCycles, 400), (Event::Instructions, 500)]),
         };
         let diff = phase.diff();
-        assert_eq!(diff.metrics[&Event::CpuCycles], 300);
-        assert_eq!(diff.metrics[&Event::Instructions], 300);
+        assert_eq!(diff.counters_metrics[&Event::CpuCycles], 300);
+        assert_eq!(diff.counters_metrics[&Event::Instructions], 300);
     }
 
     #[test]
@@ -105,9 +125,9 @@ mod tests {
             end: snapshot(vec![(Event::CpuCycles, 150)]),
         };
         let diff = phase.diff();
-        assert_eq!(diff.metrics.len(), 1);
-        assert_eq!(diff.metrics[&Event::CpuCycles], 50);
-        assert!(!diff.metrics.contains_key(&Event::Instructions));
+        assert_eq!(diff.counters_metrics.len(), 1);
+        assert_eq!(diff.counters_metrics[&Event::CpuCycles], 50);
+        assert!(!diff.counters_metrics.contains_key(&Event::Instructions));
     }
 
     #[test]

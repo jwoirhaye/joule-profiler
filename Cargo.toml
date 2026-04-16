@@ -3,9 +3,8 @@ resolver = "2"
 members = [
     "core",
     "cli",
-    "sources/rapl",
-    "sources/nvml",
-    "sources/perf_event"
+    "sources/*",
+    "transformers/*"
 ]
 
 [workspace.package]

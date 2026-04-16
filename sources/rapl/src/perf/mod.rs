@@ -7,7 +7,7 @@ use std::{
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
-    types::{Metric, Metrics},
+    types::{Metric, Metrics, ProcessInfo},
 };
 use log::{info, trace};
 use perf_event::GroupData;
@@ -123,7 +123,7 @@ impl MetricReader for Rapl {
     type Error = RaplError;
 
     /// Enable the `perf_event` counters.
-    async fn init(&mut self, _: i32) -> Result<()> {
+    async fn init(&mut self, _: ProcessInfo) -> Result<()> {
         self.sockets
             .iter_mut()
             .try_for_each(|socket| socket.group.enable().map_err(RaplError::from))?;

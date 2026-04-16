@@ -17,5 +17,5 @@ pub mod unit;
 pub mod types {
     pub use super::aggregate::{Metric, Metrics, sensor_result::SensorResult};
     pub use super::phase::PhaseToken;
-    pub use super::profiler::types::{Phase, Phases, ProfilerResults};
+    pub use super::profiler::types::{Phase, Phases, ProcessInfo, ProfilerResults};
 }

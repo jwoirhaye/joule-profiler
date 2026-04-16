@@ -5,6 +5,7 @@ use joule_profiler_cli::{
 };
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
+use joule_profiler_transformer_rapl_perf_attribution::RaplPerProcessAttributionTransformer;
 use log::{trace, warn};
 use source_nvml::Nvml;
 use source_perf_event::PerfEvent;
@@ -24,6 +25,8 @@ async fn main() -> Result<()> {
         ProfilerCommand::Profile(profile_args) => profile_args.rapl_polling,
         ProfilerCommand::ListSensors => None,
     };
+
+    profiler.add_transformer(RaplPerProcessAttributionTransformer, 0);
 
     match cli.rapl_backend {
         RaplBackend::Perf => {

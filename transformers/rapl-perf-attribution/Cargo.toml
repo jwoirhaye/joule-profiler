@@ -1,0 +1,15 @@
+[package]
+name = "joule-profiler-transformer-rapl-perf-attribution"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RAPL per-process attribution transformer for Joule Profiler"
+keywords = ["attribution", "transformer", "perf", "rapl"]
+
+[dependencies]
+joule-profiler-core.workspace = true
+
+[lints]
+workspace = true

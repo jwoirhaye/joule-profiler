@@ -3,7 +3,7 @@ use joule_profiler_core::{
     config::ProfileConfig,
     sensor::Sensors,
     source::MetricReader,
-    types::{Metrics, PhaseToken},
+    types::{Metrics, PhaseToken, ProcessInfo},
 };
 use mockall::mock;
 
@@ -24,7 +24,7 @@ mock! {
         type Type = ();
         type Error = MockError;
 
-        async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+        async fn init(&mut self, process_info: ProcessInfo) -> Result<(), MockError>;
         async fn join(&mut self) -> Result<(), MockError>;
         async fn measure(&mut self) -> Result<(), MockError>;
         async fn retrieve(&mut self) -> Result<(), MockError>;

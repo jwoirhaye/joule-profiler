@@ -1,4 +1,5 @@
 use crate::aggregate::Metrics;
+use crate::profiler::types::ProcessInfo;
 use crate::sensor::Sensors;
 use crate::source::{MetricReaderErrorBound, MetricReaderTypeBound};
 
@@ -35,7 +36,11 @@ pub trait MetricReader: Send + 'static {
     type Error: MetricReaderErrorBound;
 
     /// Init the source if it implements custom logic underneath.
-    fn init(&mut self, _pid: i32) -> impl Future<Output = Result<(), Self::Error>> + Send {
+    #[allow(unused_variables)]
+    fn init(
+        &mut self,
+        process_info: ProcessInfo,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
         async { Ok(()) }
     }
 

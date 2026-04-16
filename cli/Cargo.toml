@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 source-rapl = { path = "../sources/rapl" }
 source-nvml = { path = "../sources/nvml" }
 source-perf_event = { path = "../sources/perf_event" }
+joule-profiler-transformer-rapl-perf-attribution = { path = "../transformers/rapl-perf-attribution" }
 
 joule-profiler-core.workspace = true
 log.workspace = true

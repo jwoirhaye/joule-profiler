@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::JouleProfilerError;
 use crate::aggregate::Metrics;
 use crate::phase::{PhaseInfo, PhaseToken};
@@ -60,4 +62,10 @@ pub struct ProfilerResults {
 
     /// Phases detected in the program's standard output.
     pub phases: Phases,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessInfo {
+    pub pid: i32,
+    pub sched_affinity: HashSet<u16>,
 }

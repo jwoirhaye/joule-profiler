@@ -18,11 +18,14 @@ pub mod error;
 use crate::config::ProfileConfig;
 use crate::orchestrator::SourceOrchestrator;
 use crate::phase::{PhaseInfo, PhaseToken};
-use crate::profiler::types::{MeasurePhasesReturnType, Phase, ProfilerResults, Result};
+use crate::profiler::types::{
+    MeasurePhasesReturnType, Phase, ProcessInfo, ProfilerResults, Result,
+};
 use crate::sensor::{Sensor, Sensors};
 use crate::source::{MetricReader, MetricSource, MetricSourceError};
 use crate::transformer::{GlobalMetricTransformer, MetricTransformer};
 use crate::util::fs::create_file_with_user_permissions;
+use crate::util::sys::get_process_sched_affinity;
 use crate::util::time::get_timestamp_millis;
 pub use error::JouleProfilerError;
 
@@ -172,12 +175,17 @@ impl JouleProfiler {
         }
 
         debug!("Collected {} sensor phase(s)", phases.len());
-        Ok(ProfilerResults {
+
+        let mut results = ProfilerResults {
             timestamp,
             duration_ms,
             exit_code,
             phases,
-        })
+        };
+
+        self.global_transformer.transform(&mut results);
+
+        Ok(results)
     }
 
     /// Spawn the configured command and profile it, separating its execution into phases through tokens matching
@@ -208,7 +216,15 @@ impl JouleProfiler {
         let pid = child.id().cast_signed();
 
         pause_prosess(pid)?;
-        self.orchestrator.init(pid)?;
+
+        let sched_affinity = get_process_sched_affinity(pid)?;
+
+        let process_info = ProcessInfo {
+            pid,
+            sched_affinity,
+        };
+
+        self.orchestrator.init(process_info)?;
 
         let child_stdout = child
             .stdout
@@ -445,6 +461,7 @@ mod tests {
     use crate::config::ProfileConfig;
     use crate::orchestrator::SourceOrchestrator;
     use crate::phase::PhaseToken;
+    use crate::profiler::types::ProcessInfo;
     use crate::profiler::{
         create_output_sink, phase_token_in_line, spawn_profiled_command, wait_for_child_exit,
     };
@@ -493,7 +510,7 @@ mod tests {
             type Type = ();
             type Error = MockError;
 
-            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn init(&mut self, process_info: ProcessInfo) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;

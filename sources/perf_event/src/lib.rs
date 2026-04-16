@@ -9,7 +9,7 @@
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
-    types::{Metric, Metrics},
+    types::{Metric, Metrics, ProcessInfo},
     unit::{MetricUnit, Unit, UnitPrefix},
 };
 use log::{debug, info, trace};
@@ -63,9 +63,12 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     type Error = PerfEventError;
 
     /// Initialize counters for a specific process and start monitoring.
-    async fn init(&mut self, pid: i32) -> Result<()> {
-        info!("Initializing perf_event source for PID {pid}");
-        self.hardware.init_counters(pid)
+    async fn init(&mut self, process_info: ProcessInfo) -> Result<()> {
+        info!(
+            "Initializing perf_event source for PID {}",
+            process_info.pid
+        );
+        self.hardware.init_counters(&process_info)
     }
 
     /// Read current counter values and compute delta since last measurement.
@@ -115,11 +118,12 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     fn to_metrics(&self, result: Self::Type) -> Result<Metrics> {
         trace!(
             "Converting {} counters to metrics",
-            result.begin.metrics.len()
+            result.begin.counters_metrics.len()
         );
         let diff = result.diff();
-        Ok(diff
-            .metrics
+
+        let mut counters: Metrics = diff
+            .counters_metrics
             .into_iter()
             .map(|(event, counter)| Metric {
                 name: event.to_string(),
@@ -127,7 +131,30 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
                 value: counter,
                 unit: PERF_EVENT_METRIC_UNIT,
             })
-            .collect())
+            .collect();
+
+        // let global_counters: Metrics = diff
+        //     .global_counters_metrics
+        //     .into_iter()
+        //     .map(|(cpu, counter)| Metric {
+        //         name: format!("CPU_{}-CPU_CYCLES", cpu),
+        //         source: Self::get_name().to_string(),
+        //         value: counter,
+        //         unit: PERF_EVENT_METRIC_UNIT,
+        //     })
+        //     .collect();
+
+        // counters.extend(global_counters);
+
+        let nb_cycles: u64 = diff.global_counters_metrics.values().into_iter().sum();
+        counters.push(Metric {
+            name: "GLOBAL_CPU_CYCLES".to_string(),
+            value: nb_cycles,
+            unit: PERF_EVENT_METRIC_UNIT,
+            source: Self::get_name().to_string(),
+        });
+
+        Ok(counters)
     }
 
     fn get_name() -> &'static str {
@@ -137,12 +164,15 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::{event::Event, hardware::MockPerfEventHardware, snapshot::Snapshot};
 
     fn snapshot(entries: Vec<(Event, u64)>) -> Snapshot {
         Snapshot {
-            metrics: entries.into_iter().collect(),
+            counters_metrics: entries.into_iter().collect(),
+            global_counters_metrics: HashMap::new(),
         }
     }
 
@@ -221,8 +251,8 @@ mod tests {
         source.measure().await.unwrap();
         let phase = source.retrieve().await.unwrap();
 
-        assert_eq!(phase.begin.metrics[&Event::CpuCycles], 100);
-        assert_eq!(phase.end.metrics[&Event::CpuCycles], 200);
+        assert_eq!(phase.begin.counters_metrics[&Event::CpuCycles], 100);
+        assert_eq!(phase.end.counters_metrics[&Event::CpuCycles], 200);
     }
 
     #[tokio::test]
@@ -242,7 +272,7 @@ mod tests {
         source.measure().await.unwrap();
         source.retrieve().await.unwrap();
         assert_eq!(
-            source.begin_snapshot.as_ref().unwrap().metrics[&Event::CpuCycles],
+            source.begin_snapshot.as_ref().unwrap().counters_metrics[&Event::CpuCycles],
             200
         );
         assert!(source.last_snapshot.is_none());

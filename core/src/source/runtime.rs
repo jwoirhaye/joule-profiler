@@ -8,6 +8,7 @@ use tokio::{
 
 use crate::{
     aggregate::{phase::SensorPhase, sensor_result::SensorResult},
+    profiler::types::ProcessInfo,
     sensor::Sensors,
     source::{
         MetricReader, MetricSource, MetricSourceError, accumulator::MetricAccumulator,
@@ -38,14 +39,14 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
     pub async fn run_worker(
         mut self,
         mut receiver: mpsc::Receiver<SourceEvent>,
-        init_receiver: oneshot::Receiver<i32>,
+        init_receiver: oneshot::Receiver<ProcessInfo>,
     ) -> Result<(SensorResult, Box<dyn MetricSource>), MetricSourceError> {
-        let pid = timeout(Duration::from_secs(1), init_receiver)
+        let process_info = timeout(Duration::from_secs(1), init_receiver)
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)?
             .map_err(|_| MetricSourceError::InitTimeout)?;
 
-        self.init_source(pid).await?;
+        self.init_source(process_info).await?;
 
         loop {
             if let Some(event) = receiver.recv().await {
@@ -77,9 +78,9 @@ impl<R: MetricReader> MetricSourceRuntime<R> {
 
     /// Init the source with the profiled program pid.
     #[inline]
-    async fn init_source(&mut self, pid: i32) -> Result<(), MetricSourceError> {
+    async fn init_source(&mut self, process_info: ProcessInfo) -> Result<(), MetricSourceError> {
         self.source
-            .init(pid)
+            .init(process_info)
             .await
             .map_err(IntoMetricSourceError::into_metric_source_error)
     }
@@ -131,7 +132,10 @@ mod tests {
     use crate::sensor::Sensors;
     use crate::source::MetricReader;
     use mockall::mock;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+    };
     use tokio::sync::mpsc;
 
     #[derive(Debug)]
@@ -149,7 +153,7 @@ mod tests {
         impl MetricReader for MetricReader {
             type Type  = ();
             type Error = MockError;
-            async fn init(&mut self, pid: i32) -> Result<(), MockError>;
+            async fn init(&mut self, process_info: ProcessInfo) -> Result<(), MockError>;
             async fn join(&mut self) -> Result<(), MockError>;
             async fn measure(&mut self) -> Result<(), MockError>;
             async fn retrieve(&mut self) -> Result<(), MockError>;
@@ -159,9 +163,13 @@ mod tests {
         }
     }
 
-    fn pid(p: i32) -> oneshot::Receiver<i32> {
+    fn process_info(pid: i32) -> oneshot::Receiver<ProcessInfo> {
         let (tx, rx) = oneshot::channel();
-        tx.send(p).unwrap();
+        tx.send(ProcessInfo {
+            pid,
+            sched_affinity: HashSet::new(),
+        })
+        .unwrap();
         rx
     }
 
@@ -217,7 +225,7 @@ mod tests {
         tx.send(SourceEvent::Measure).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
-        rt.run_worker(rx, pid(0)).await.unwrap();
+        rt.run_worker(rx, process_info(0)).await.unwrap();
 
         assert_eq!(counts.lock().unwrap().measure, 2);
     }
@@ -229,7 +237,7 @@ mod tests {
         let (tx, rx) = mpsc::channel(16);
 
         tx.send(SourceEvent::JoinWorker).await.unwrap();
-        rt.run_worker(rx, pid(42)).await.unwrap();
+        rt.run_worker(rx, process_info(42)).await.unwrap();
 
         assert_eq!(counts.lock().unwrap().init, 1);
     }
@@ -247,7 +255,7 @@ mod tests {
         tx.send(SourceEvent::Measure).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
-        assert!(rt.run_worker(rx, pid(0)).await.is_err());
+        assert!(rt.run_worker(rx, process_info(0)).await.is_err());
     }
 
     #[tokio::test]
@@ -259,7 +267,7 @@ mod tests {
         tx.send(SourceEvent::NewPhase).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
-        rt.run_worker(rx, pid(0)).await.unwrap();
+        rt.run_worker(rx, process_info(0)).await.unwrap();
 
         assert_eq!(counts.lock().unwrap().retrieve, 1);
     }
@@ -271,7 +279,7 @@ mod tests {
         let (tx, rx) = mpsc::channel(16);
 
         tx.send(SourceEvent::JoinWorker).await.unwrap();
-        rt.run_worker(rx, pid(0)).await.unwrap();
+        rt.run_worker(rx, process_info(0)).await.unwrap();
 
         assert_eq!(counts.lock().unwrap().join, 1);
     }
@@ -287,7 +295,7 @@ mod tests {
         tx.send(SourceEvent::NewPhase).await.unwrap();
         tx.send(SourceEvent::JoinWorker).await.unwrap();
 
-        assert!(rt.run_worker(rx, pid(0)).await.is_ok());
+        assert!(rt.run_worker(rx, process_info(0)).await.is_ok());
 
         let c = counts.lock().unwrap();
         assert_eq!(c.measure, 2);
