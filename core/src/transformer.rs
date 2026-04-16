@@ -1,4 +1,4 @@
-use crate::types::Metrics;
+use crate::types::{Metrics, ProfilerResults};
 
 pub trait MetricTransformer: 'static {
     fn transform(&self, metrics: &mut Metrics);
@@ -26,18 +26,12 @@ impl GlobalMetricTransformer {
         let index = self.transformers.partition_point(|w| w.order >= order);
         self.transformers.insert(index, wrapper);
     }
-}
 
-impl<'a> IntoIterator for &'a GlobalMetricTransformer {
-    type Item = &'a dyn MetricTransformer;
-    type IntoIter = std::iter::Map<
-        std::slice::Iter<'a, MetricTransformerWrapper>,
-        fn(&'a MetricTransformerWrapper) -> &'a dyn MetricTransformer,
-    >;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.transformers
-            .iter()
-            .map(|wrapper| wrapper.transformer.as_ref())
+    pub fn transform(&self, results: &mut ProfilerResults) {
+        for transformer in self.transformers.iter().map(|w| w.transformer.as_ref()) {
+            for result in &mut results.phases {
+                transformer.transform(&mut result.metrics);
+            }
+        }
     }
 }
