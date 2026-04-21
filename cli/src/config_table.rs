@@ -1,5 +1,5 @@
 use anyhow::Result;
-use joule_profiler_core::source::{MetricReader, MetricSource};
+use joule_profiler_core::{JouleProfiler, source::MetricReader};
 use source_nvml::config::NvmlConfig;
 use source_perf_event::config::PerfConfig;
 use source_rapl::{perf::config::RaplPerfConfig, powercap::config::RaplPowercapConfig};
@@ -9,17 +9,14 @@ use crate::{CliArgs, RaplBackend};
 
 #[macro_export]
 macro_rules! register_sources {
-    ($configs:expr, [$($source:ty),* $(,)?]) => {
-        $($configs.register::<$source>()?;)*
+    ($profiler:expr, $config_table:expr, [$($source:ty),* $(,)?]) => {
+        $($config_table.register::<$source>($profiler)?;)*
     };
 }
-
-type InitFn = Box<dyn FnOnce() -> Result<Box<dyn MetricSource>>>;
 
 pub struct ConfigTable<'a> {
     cli: &'a CliArgs,
     inner: HashMap<String, toml::Value>,
-    init_fns: HashMap<String, InitFn>,
 }
 
 impl<'a> ConfigTable<'a> {
@@ -27,38 +24,27 @@ impl<'a> ConfigTable<'a> {
         Self {
             cli,
             inner: table.into_iter().collect(),
-            init_fns: HashMap::new(),
         }
     }
 
-    pub fn register<R>(&mut self) -> Result<()>
+    pub fn register<R>(&mut self, profiler: &mut JouleProfiler) -> Result<()>
     where
         R: MetricReader + 'static,
         R::Config: CliOverride,
     {
-        let (toml_config, has_toml) = match self.inner.remove(R::get_id()) {
+        let (mut config, has_toml) = match self.inner.remove(R::get_id()) {
             Some(v) => (v.try_into().unwrap_or_default(), true),
             None => (R::Config::default(), false),
         };
 
-        let is_activated = has_toml || toml_config.is_enabled(self.cli);
-        let config = toml_config.apply_override(self.cli);
-
-        let init_fn: InitFn = Box::new(move || Ok(R::from_config(config)?.into()));
+        let is_activated = has_toml || config.is_enabled(self.cli);
+        config.apply_override(self.cli);
 
         if is_activated {
-            self.init_fns.insert(R::get_id().to_string(), init_fn);
+            profiler.add_source(R::from_config(config)?);
         }
 
         Ok(())
-    }
-
-    pub fn build_sources(self) -> Result<Vec<Box<dyn MetricSource>>> {
-        let mut sources = Vec::new();
-        for (_id, init_fn) in self.init_fns {
-            sources.push(init_fn()?);
-        }
-        Ok(sources)
     }
 }
 
@@ -74,18 +60,16 @@ impl<'a> TryFrom<&'a CliArgs> for ConfigTable<'a> {
                 .unwrap_or(toml::Value::Table(toml::Table::new()))
                 .try_into()?;
 
-            ConfigTable::new(sources, &cli)
+            ConfigTable::new(sources, cli)
         } else {
-            ConfigTable::new(toml::Table::new(), &cli)
+            ConfigTable::new(toml::Table::new(), cli)
         };
         Ok(config_table)
     }
 }
 
 pub trait CliOverride: Sized + Default {
-    fn apply_override(self, _cli: &CliArgs) -> Self {
-        self
-    }
+    fn apply_override(&mut self, _cli: &CliArgs) {}
 
     fn is_enabled(&self, _cli: &CliArgs) -> bool {
         false

@@ -15,10 +15,11 @@ async fn main() -> Result<()> {
     let mut profiler = JouleProfiler::new();
     let mut config_table = ConfigTable::try_from(&cli)?;
 
-    register_sources!(config_table, [Nvml, PerfEvent, powercap::Rapl, perf::Rapl]);
-
-    let sources = config_table.build_sources()?;
-    profiler.set_sources(sources);
+    register_sources!(
+        &mut profiler,
+        config_table,
+        [Nvml, PerfEvent, powercap::Rapl, perf::Rapl]
+    );
 
     let mut displayer = output_format_to_displayer(&cli)?;
     let config = Config::from(cli);
