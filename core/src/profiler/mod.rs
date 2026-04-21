@@ -80,6 +80,10 @@ impl JouleProfiler {
         self.sources.push(reader.into());
     }
 
+    pub fn set_sources(&mut self, sources: Vec<Box<dyn MetricSource>>) {
+        self.sources = sources;
+    }
+
     /// List the sensors of the provided sources.
     pub fn list_sensors(&mut self) -> Result<Sensors> {
         debug!("Listing sensors from {} source(s)", self.sources.len());

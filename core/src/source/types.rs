@@ -24,9 +24,9 @@ pub trait MetricReaderErrorBound: std::error::Error + Send + Sync {}
 
 impl<E> MetricReaderErrorBound for E where E: std::error::Error + Send + Sync {}
 
-pub trait MetricReaderConfigBound: Send + Default + DeserializeOwned {}
+pub trait MetricReaderConfigBound: Send + Default + DeserializeOwned + Debug {}
 
-impl<C> MetricReaderConfigBound for C where C: Default + Send + DeserializeOwned {}
+impl<C> MetricReaderConfigBound for C where C: Default + Send + DeserializeOwned + Debug {}
 
 #[derive(Default, Deserialize)]
 pub struct BlankConfig {}

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use joule_profiler_cli::output_format_to_displayer;
-use joule_profiler_cli::plugin::ConfigTable;
-use joule_profiler_cli::{CliArgs, plugin::register_source, register_sources};
+use joule_profiler_cli::config_table::ConfigTable;
+use joule_profiler_cli::{CliArgs, register_sources};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
 use source_nvml::Nvml;
@@ -27,11 +27,10 @@ async fn main() -> Result<()> {
         ConfigTable::new(toml::Table::new(), &cli)
     };
 
-    register_sources!(
-        &mut profiler,
-        &mut config_table,
-        [PerfEvent, Nvml, perf::Rapl, powercap::Rapl]
-    );
+    register_sources!(config_table, [Nvml, PerfEvent, powercap::Rapl, perf::Rapl]);
+
+    let sources = config_table.build_sources()?;
+    profiler.set_sources(sources);
 
     let mut displayer = output_format_to_displayer(&cli)?;
     let config = Config::from(cli);

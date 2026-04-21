@@ -25,7 +25,7 @@ pub use types::{BlankConfig, MetricReaderErrorBound, MetricReaderTypeBound};
 /// Implemented by the runtime wrapper around a [`MetricReader`].
 /// This trait is used to erase the type of the metric source, to be able to have a
 /// convenient API for users while maintaining performance with monomorphization during hot paths.
-pub(crate) trait MetricSource: Send {
+pub trait MetricSource: Send {
     /// Spawn the source worker and return its handle, control channel and initialization channel.
     fn run(
         self: Box<Self>,
