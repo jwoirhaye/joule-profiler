@@ -62,6 +62,26 @@ impl<'a> ConfigTable<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a CliArgs> for ConfigTable<'a> {
+    type Error = anyhow::Error;
+
+    fn try_from(cli: &'a CliArgs) -> Result<Self, Self::Error> {
+        let config_table = if let Some(config_file) = &cli.config_file {
+            let content = std::fs::read_to_string(config_file)?;
+            let mut value: toml::Table = toml::from_str(&content)?;
+            let sources = value
+                .remove("sources")
+                .unwrap_or(toml::Value::Table(toml::Table::new()))
+                .try_into()?;
+
+            ConfigTable::new(sources, &cli)
+        } else {
+            ConfigTable::new(toml::Table::new(), &cli)
+        };
+        Ok(config_table)
+    }
+}
+
 pub trait CliOverride: Sized + Default {
     fn apply_override(self, _cli: &CliArgs) -> Self {
         self

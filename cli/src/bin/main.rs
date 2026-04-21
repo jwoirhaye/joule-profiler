@@ -1,6 +1,6 @@
 use anyhow::Result;
-use joule_profiler_cli::output_format_to_displayer;
 use joule_profiler_cli::config_table::ConfigTable;
+use joule_profiler_cli::output_format_to_displayer;
 use joule_profiler_cli::{CliArgs, register_sources};
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
@@ -13,19 +13,7 @@ async fn main() -> Result<()> {
     let cli = CliArgs::from_args();
 
     let mut profiler = JouleProfiler::new();
-
-    let mut config_table = if let Some(config_file) = &cli.config_file {
-        let content = std::fs::read_to_string(config_file)?;
-        let mut value: toml::Table = toml::from_str(&content)?;
-        let sources = value
-            .remove("sources")
-            .unwrap_or(toml::Value::Table(toml::Table::new()))
-            .try_into()?;
-
-        ConfigTable::new(sources, &cli)
-    } else {
-        ConfigTable::new(toml::Table::new(), &cli)
-    };
+    let mut config_table = ConfigTable::try_from(&cli)?;
 
     register_sources!(config_table, [Nvml, PerfEvent, powercap::Rapl, perf::Rapl]);
 

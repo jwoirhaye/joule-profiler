@@ -14,9 +14,9 @@ use crate::output::{
 };
 
 mod commands;
+pub mod config_table;
 mod logging;
 mod output;
-pub mod config_table;
 
 /// joule-profiler: measure program energy consumption
 #[allow(clippy::struct_excessive_bools)]
