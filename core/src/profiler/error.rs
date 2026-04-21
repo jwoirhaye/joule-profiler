@@ -28,6 +28,10 @@ pub enum JouleProfilerError {
     #[error("Stdout capture failed")]
     StdOutCaptureFail,
 
+    /// Cannot convert string to a known metric unit.
+    #[error("Invalid metric unit: {0}")]
+    InvalidUnit(String),
+
     /// Generic I/O error.
     #[error("I/O error")]
     IoError(
