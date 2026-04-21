@@ -42,6 +42,10 @@ pub enum JouleProfilerError {
     #[error("Unable to retrieve current user id by it's name.")]
     CannotRetrieveCurrentUserId,
 
+    /// Cannot convert string to a known metric unit.
+    #[error("Invalid metric unit: {0}")]
+    InvalidUnit(String),
+
     /// Generic I/O error.
     #[error("I/O error")]
     IoError(
