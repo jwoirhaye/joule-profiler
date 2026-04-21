@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 source-rapl = { path = "../sources/rapl" }
 source-nvml = { path = "../sources/nvml" }
 source-perf_event = { path = "../sources/perf_event" }
+joule-profiler-source-procfs = { path = "../sources/procfs" }
 
 joule-profiler-core.workspace = true
 log.workspace = true

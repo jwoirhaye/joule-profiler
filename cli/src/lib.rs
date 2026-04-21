@@ -57,13 +57,17 @@ pub struct CliArgs {
     #[arg(short = 'o', long = "output-file")]
     pub output_file: Option<String>,
 
-    /// GPU support
+    /// GPU support through NVML library
     #[arg(long)]
     pub gpu: bool,
 
     /// `perf_event` counters support
     #[arg(long)]
     pub perf: bool,
+
+    /// `procfs` support for memory profiling
+    #[arg(long)]
+    pub procfs: bool,
 
     /// Choose RAPL backend between powercap or perf
     #[arg(long = "rapl-backend", value_enum, default_value_t = RaplBackend::Perf)]

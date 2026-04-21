@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use joule_profiler_cli::{
     CliArgs, ProfilerCommand, RaplBackend, init_logging, output_format_to_displayer,
@@ -5,6 +7,7 @@ use joule_profiler_cli::{
 };
 use joule_profiler_core::JouleProfiler;
 use joule_profiler_core::config::{Command, Config};
+use joule_profiler_source_procfs::Procfs;
 use log::{trace, warn};
 use source_nvml::Nvml;
 use source_perf_event::PerfEvent;
@@ -60,6 +63,12 @@ async fn main() -> Result<()> {
         trace!("Initializing perf_event source");
         let perf_event = PerfEvent::new()?;
         profiler.add_source(perf_event);
+    }
+
+    if cli.procfs {
+        trace!("Initializing procfs source");
+        let procfs = Procfs::new(Some(Duration::from_millis(1)))?;
+        profiler.add_source(procfs);
     }
 
     let config = Config::from(cli);
