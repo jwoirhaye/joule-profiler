@@ -141,7 +141,7 @@ impl MetricReader for Procfs {
 
         if let Some(snapshot) = snap {
             self.phase_max.store(snapshot.rss_kb, Ordering::Relaxed);
-            self.begin_snapshot = Some(snapshot);
+            self.begin_snapshot = Some(Snapshot { rss_kb: 0 });
             self.end_snapshot = Some(snapshot);
         }
 
@@ -149,13 +149,15 @@ impl MetricReader for Procfs {
 
         Ok(())
     }
+
     async fn measure(&mut self) -> Result<()> {
-        let snap = if self.process.is_alive()
-            && let Some(snap) = self.read_memory()?
-        {
-            snap
-        } else {
+        if !self.process.is_alive() {
             return Ok(());
+        }
+
+        let snap = match self.read_memory()? {
+            Some(snap) => snap,
+            None => return Ok(()),
         };
 
         self.end_snapshot = Some(snap);
