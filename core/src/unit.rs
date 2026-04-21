@@ -107,6 +107,16 @@ impl Display for MetricUnit {
     }
 }
 
+const PREFIXES: &[(&str, UnitPrefix)] = &[
+    ("n", UnitPrefix::Nano),
+    ("µ", UnitPrefix::Micro),
+    ("u", UnitPrefix::Micro),
+    ("m", UnitPrefix::Milli),
+    ("k", UnitPrefix::Kilo),
+    ("M", UnitPrefix::Mega),
+    ("G", UnitPrefix::Giga),
+];
+
 impl TryFrom<&str> for MetricUnit {
     type Error = JouleProfilerError;
 
@@ -115,25 +125,9 @@ impl TryFrom<&str> for MetricUnit {
             return Err(JouleProfilerError::InvalidUnit(s.into()));
         }
 
-        const PREFIXES: &[(&str, UnitPrefix)] = &[
-            ("n", UnitPrefix::Nano),
-            ("µ", UnitPrefix::Micro),
-            ("u", UnitPrefix::Micro),
-            ("m", UnitPrefix::Milli),
-            ("k", UnitPrefix::Kilo),
-            ("M", UnitPrefix::Mega),
-            ("G", UnitPrefix::Giga),
-        ];
-
         let (prefix, unit_str) = PREFIXES
             .iter()
-            .find_map(|(p, prefix)| {
-                if s.starts_with(p) {
-                    Some((*prefix, &s[p.len()..]))
-                } else {
-                    None
-                }
-            })
+            .find_map(|(p, prefix)| s.strip_prefix(p).map(|stripped| (*prefix, stripped)))
             .unwrap_or((UnitPrefix::None, s));
 
         if unit_str.is_empty() {
