@@ -162,13 +162,55 @@ mod tests {
 
     #[test]
     fn test_valid_conversion() {
-        assert_eq!(parse("J"),  MetricUnit { prefix: UnitPrefix::None,  unit: Unit::Joule });
-        assert_eq!(parse("mW"), MetricUnit { prefix: UnitPrefix::Milli, unit: Unit::Watt });
-        assert_eq!(parse("ns"), MetricUnit { prefix: UnitPrefix::Nano,  unit: Unit::Second });
-        assert_eq!(parse("kB"), MetricUnit { prefix: UnitPrefix::Kilo,  unit: Unit::Byte });
-        assert_eq!(parse("uJ"), MetricUnit { prefix: UnitPrefix::Micro, unit: Unit::Joule });
-        assert_eq!(parse("µJ"), MetricUnit { prefix: UnitPrefix::Micro, unit: Unit::Joule });
-        assert_eq!(parse("count"), MetricUnit { prefix: UnitPrefix::None, unit: Unit::Count });
+        assert_eq!(
+            parse("J"),
+            MetricUnit {
+                prefix: UnitPrefix::None,
+                unit: Unit::Joule
+            }
+        );
+        assert_eq!(
+            parse("mW"),
+            MetricUnit {
+                prefix: UnitPrefix::Milli,
+                unit: Unit::Watt
+            }
+        );
+        assert_eq!(
+            parse("ns"),
+            MetricUnit {
+                prefix: UnitPrefix::Nano,
+                unit: Unit::Second
+            }
+        );
+        assert_eq!(
+            parse("kB"),
+            MetricUnit {
+                prefix: UnitPrefix::Kilo,
+                unit: Unit::Byte
+            }
+        );
+        assert_eq!(
+            parse("uJ"),
+            MetricUnit {
+                prefix: UnitPrefix::Micro,
+                unit: Unit::Joule
+            }
+        );
+        assert_eq!(
+            parse("µJ"),
+            MetricUnit {
+                prefix: UnitPrefix::Micro,
+                unit: Unit::Joule
+            }
+        );
+        assert_eq!(
+            parse("count"),
+            MetricUnit {
+                prefix: UnitPrefix::None,
+                unit: Unit::Count
+            }
+        );
     }
 
     #[test]
