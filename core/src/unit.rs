@@ -151,3 +151,38 @@ impl TryFrom<&str> for MetricUnit {
         Ok(MetricUnit { prefix, unit })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(s: &str) -> MetricUnit {
+        MetricUnit::try_from(s).unwrap()
+    }
+
+    #[test]
+    fn test_valid_conversion() {
+        assert_eq!(parse("J"),  MetricUnit { prefix: UnitPrefix::None,  unit: Unit::Joule });
+        assert_eq!(parse("mW"), MetricUnit { prefix: UnitPrefix::Milli, unit: Unit::Watt });
+        assert_eq!(parse("ns"), MetricUnit { prefix: UnitPrefix::Nano,  unit: Unit::Second });
+        assert_eq!(parse("kB"), MetricUnit { prefix: UnitPrefix::Kilo,  unit: Unit::Byte });
+        assert_eq!(parse("uJ"), MetricUnit { prefix: UnitPrefix::Micro, unit: Unit::Joule });
+        assert_eq!(parse("µJ"), MetricUnit { prefix: UnitPrefix::Micro, unit: Unit::Joule });
+        assert_eq!(parse("count"), MetricUnit { prefix: UnitPrefix::None, unit: Unit::Count });
+    }
+
+    #[test]
+    fn test_invalid_conversion() {
+        assert!(MetricUnit::try_from("").is_err());
+        assert!(MetricUnit::try_from("Hz").is_err());
+        assert!(MetricUnit::try_from("k").is_err());
+        assert!(MetricUnit::try_from("kcount").is_err());
+    }
+
+    #[test]
+    fn test_backward_conversion() {
+        for s in ["J", "mW", "ns", "kB", "GJ", "count", "%"] {
+            assert_eq!(parse(s).to_string(), s);
+        }
+    }
+}
