@@ -6,6 +6,8 @@
 //! Note: Counters are created individually (not grouped) because
 //! `inherit(true)` is incompatible with `perf_event` groups on Linux.
 
+use std::collections::HashSet;
+
 use joule_profiler_core::{
     sensor::{Sensor, Sensors},
     source::MetricReader,
@@ -15,7 +17,7 @@ use joule_profiler_core::{
 use log::{debug, info, trace};
 
 use crate::{
-    config::PerfConfig,
+    config::{PerfConfig},
     error::PerfEventError,
     event::{DEFAULT_EVENTS, Event},
     hardware::{PerfEventCounters, PerfEventHardware},
@@ -47,7 +49,7 @@ pub struct PerfEvent<H: PerfEventHardware = PerfEventCounters> {
     hardware: H,
     begin_snapshot: Option<Snapshot>,
     last_snapshot: Option<Snapshot>,
-    events: Vec<Event>,
+    events: HashSet<Event>,
 }
 
 impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
@@ -133,8 +135,9 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
     }
 
     fn from_config(config: PerfConfig) -> Result<Self> {
+        let events = config.events.unwrap_or(DEFAULT_EVENTS.iter().copied().collect::<HashSet<_>>());
         Ok(Self {
-            events: config.events.unwrap_or(DEFAULT_EVENTS.to_vec()),
+            events,
             ..Default::default()
         })
     }
@@ -156,7 +159,7 @@ mod tests {
             hardware,
             begin_snapshot: None,
             last_snapshot: None,
-            events: DEFAULT_EVENTS.to_vec(),
+            events: DEFAULT_EVENTS.iter().copied().collect::<HashSet<_>>(),
         }
     }
 

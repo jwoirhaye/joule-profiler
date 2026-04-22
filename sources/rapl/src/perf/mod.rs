@@ -22,7 +22,7 @@ use crate::{
         socket::Socket,
     },
     snapshot::{Phase, Snapshot},
-    util::check_os,
+    util::{SocketSelector, check_os},
 };
 
 mod compute;
@@ -218,9 +218,10 @@ impl MetricReader for Rapl {
     where
         Self: Sized,
     {
-        let sockets_spec = config
-            .sockets_spec
-            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
+        let sockets_spec = match config.target_sockets {
+            SocketSelector::All => None,
+            SocketSelector::List(sockets) => Some(sockets.into_iter().collect::<HashSet<u32>>()),
+        };
         Self::new(sockets_spec.as_ref())
     }
 

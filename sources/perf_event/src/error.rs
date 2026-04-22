@@ -20,4 +20,7 @@ pub enum PerfEventError {
     /// Not enough snapshots have been taken to compute the delta between two measures.
     #[error("Not enough measures to compute perf counters differences")]
     NotEnoughSamples,
+
+    #[error("Error parsing event \"{0}\"")]
+    ParseEventError(String),
 }

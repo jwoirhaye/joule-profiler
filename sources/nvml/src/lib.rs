@@ -14,7 +14,7 @@ use joule_profiler_core::{
 };
 
 use crate::{
-    config::NvmlConfig,
+    config::{GpuSelector, NvmlConfig},
     error::NvmlError,
     hardware::{NvmlHardware, NvmlWrapperHardware},
     snapshot::{NvmlSnapshot, Phase},
@@ -111,9 +111,10 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
     }
 
     fn from_config(config: Self::Config) -> Result<Self> {
-        let gpus_spec = config
-            .gpus_spec
-            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
+        let gpus_spec = match config.target_gpus {
+            GpuSelector::All => None,
+            GpuSelector::List(sockets) => Some(sockets.into_iter().collect::<HashSet<u32>>()),
+        };
         Ok(Self {
             hardware: H::new(gpus_spec, config.exit_on_device_failure)?,
             begin_snapshot: None,

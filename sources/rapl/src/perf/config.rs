@@ -1,6 +1,9 @@
 use serde::Deserialize;
 
+use crate::util::SocketSelector;
+
 #[derive(Default, Deserialize, Debug)]
 pub struct RaplPerfConfig {
-    pub sockets_spec: Option<Vec<u32>>,
+    #[serde(default)]
+    pub target_sockets: SocketSelector,
 }

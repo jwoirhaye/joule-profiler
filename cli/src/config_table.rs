@@ -33,7 +33,7 @@ impl<'a> ConfigTable<'a> {
         R::Config: CliOverride,
     {
         let (mut config, has_toml) = match self.inner.remove(R::get_id()) {
-            Some(v) => (v.try_into().unwrap_or_default(), true),
+            Some(v) => (v.try_into()?, true),
             None => (R::Config::default(), false),
         };
 

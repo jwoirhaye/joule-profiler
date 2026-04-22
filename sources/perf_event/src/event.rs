@@ -3,19 +3,21 @@ use std::fmt::Display;
 use perf_event::events::Hardware;
 use serde::Deserialize;
 
+use crate::error::PerfEventError;
+
 /// Hardware performance counter event types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Event {
-    #[serde(alias = "CPU_CYCLES", alias = "cpu-cycles")]
+    #[serde(rename = "CPU_CYCLES", alias = "cpu-cycles")]
     CpuCycles,
 
-    #[serde(alias = "INSTRUCTIONS", alias = "instructions")]
+    #[serde(rename = "INSTRUCTIONS", alias = "instructions")]
     Instructions,
 
-    #[serde(alias = "CACHE_MISSES", alias = "cache-misses")]
+    #[serde(rename = "CACHE_MISSES", alias = "cache-misses")]
     CacheMisses,
 
-    #[serde(alias = "BRANCH_MISSES", alias = "branch-misses")]
+    #[serde(rename = "BRANCH_MISSES", alias = "branch-misses")]
     BranchMisses,
 }
 
@@ -46,5 +48,19 @@ impl Display for Event {
             Event::CacheMisses => "CACHE_MISSES",
             Event::BranchMisses => "BRANCH_MISSES",
         })
+    }
+}
+
+impl TryFrom<&str> for Event {
+    type Error = PerfEventError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s.to_uppercase().replace('-', "_").as_str() {
+            "CPU_CYCLES" => Ok(Event::CpuCycles),
+            "INSTRUCTIONS" => Ok(Event::Instructions),
+            "CACHE_MISSES" => Ok(Event::CacheMisses),
+            "BRANCH_MISSES" => Ok(Event::BranchMisses),
+            other => Err(PerfEventError::ParseEventError(other.to_string())),
+        }
     }
 }

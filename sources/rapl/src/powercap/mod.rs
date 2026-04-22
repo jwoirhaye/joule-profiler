@@ -50,7 +50,7 @@ use crate::powercap::compute::compute_measurement_from_snapshots;
 use crate::powercap::config::RaplPowercapConfig;
 use crate::powercap::domain::{RaplDomain, get_domains, read_energy};
 use crate::snapshot::Snapshot;
-use crate::util::check_os;
+use crate::util::{SocketSelector, check_os};
 use futures::StreamExt;
 use joule_profiler_core::sensor::{Sensor, Sensors};
 use joule_profiler_core::source::MetricReader;
@@ -301,9 +301,10 @@ impl MetricReader for Rapl {
     }
 
     fn from_config(config: Self::Config) -> Result<Self> {
-        let sockets_spec = config
-            .sockets_spec
-            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
+        let sockets_spec = match config.target_sockets {
+            SocketSelector::All => None,
+            SocketSelector::List(sockets) => Some(sockets.into_iter().collect::<HashSet<u32>>()),
+        };
         Self::new(
             config.rapl_path.as_deref(),
             sockets_spec.as_ref(),

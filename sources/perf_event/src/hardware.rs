@@ -1,11 +1,11 @@
 use crate::{Result, error::PerfEventError, event::Event, snapshot::Snapshot};
 use log::{debug, info, trace};
 use perf_event::{Builder, Counter, events::Hardware};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg_attr(test, mockall::automock)]
 pub trait PerfEventHardware: Send + Default {
-    fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()>;
+    fn init_counters(&mut self, events: &HashSet<Event>, pid: i32) -> Result<()>;
     fn read_snapshot(&mut self) -> Result<Snapshot>;
 }
 
@@ -19,7 +19,7 @@ impl PerfEventHardware for PerfEventCounters {
     ///
     /// Each counter is built separately with `inherit(true)` and `observe_pid`,
     /// since grouped counters do not support inheritance.
-    fn init_counters(&mut self, events: &[Event], pid: i32) -> Result<()> {
+    fn init_counters(&mut self, events: &HashSet<Event>, pid: i32) -> Result<()> {
         debug!("Adding {} individual performance counters", events.len());
         for event in events {
             trace!("Building counter: {event:?}");
