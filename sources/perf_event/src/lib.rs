@@ -17,7 +17,7 @@ use log::{debug, info, trace};
 use crate::{
     config::PerfConfig,
     error::PerfEventError,
-    event::{EVENTS, Event},
+    event::{DEFAULT_EVENTS, Event},
     hardware::{PerfEventCounters, PerfEventHardware},
     snapshot::{Phase, Snapshot},
 };
@@ -48,16 +48,6 @@ pub struct PerfEvent<H: PerfEventHardware = PerfEventCounters> {
     begin_snapshot: Option<Snapshot>,
     last_snapshot: Option<Snapshot>,
     events: Vec<Event>,
-}
-
-impl PerfEvent {
-    /// Creates a new uninitialized `perf_event` source with the `perf_event2` backend.
-    pub fn new() -> Self {
-        Self {
-            events: EVENTS.to_vec(),
-            ..Default::default()
-        }
-    }
 }
 
 impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
@@ -144,7 +134,7 @@ impl<H: PerfEventHardware + 'static> MetricReader for PerfEvent<H> {
 
     fn from_config(config: PerfConfig) -> Result<Self> {
         Ok(Self {
-            events: config.events.unwrap_or(EVENTS.to_vec()),
+            events: config.events.unwrap_or(DEFAULT_EVENTS.to_vec()),
             ..Default::default()
         })
     }
@@ -166,7 +156,7 @@ mod tests {
             hardware,
             begin_snapshot: None,
             last_snapshot: None,
-            events: EVENTS.to_vec(),
+            events: DEFAULT_EVENTS.to_vec(),
         }
     }
 

@@ -53,7 +53,7 @@ pub fn get_domains(base_path: &str, spec: Option<&HashSet<u32>>) -> Result<Vec<R
 
     let filtered: Vec<RaplDomain> = domains
         .into_iter()
-        .filter(|d| sockets.contains(&d.socket))
+        .filter(|d| sockets.contains(&d.socket) || d.domain_type == RaplDomainType::Psys)
         .collect();
 
     Ok(filtered)

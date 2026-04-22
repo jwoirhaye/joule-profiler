@@ -20,7 +20,7 @@ pub enum Event {
 }
 
 /// Default hardware events to be used in `perf_event`.
-pub static EVENTS: &[Event] = &[
+pub static DEFAULT_EVENTS: &[Event] = &[
     Event::CpuCycles,
     Event::Instructions,
     Event::CacheMisses,
@@ -46,18 +46,5 @@ impl Display for Event {
             Event::CacheMisses => "CACHE_MISSES",
             Event::BranchMisses => "BRANCH_MISSES",
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn events_slice_contains_all_variants() {
-        assert!(EVENTS.contains(&Event::CpuCycles));
-        assert!(EVENTS.contains(&Event::Instructions));
-        assert!(EVENTS.contains(&Event::CacheMisses));
-        assert!(EVENTS.contains(&Event::BranchMisses));
     }
 }

@@ -148,7 +148,7 @@ impl MetricReader for Rapl {
 
     /// Retrieve accumulated metrics since the last reset.
     async fn retrieve(&mut self) -> Result<Self::Type> {
-        trace!("Retrieving RAPL counters",);
+        trace!("Retrieving RAPL counters");
 
         if let Some(begin) = self.begin_snapshot.take()
             && let Some(end) = self.end_snapshot.take()
@@ -214,11 +214,14 @@ impl MetricReader for Rapl {
         PERF_SOURCE_NAME
     }
 
-    fn from_config(_config: Self::Config) -> std::result::Result<Self, Self::Error>
+    fn from_config(config: Self::Config) -> Result<Self>
     where
         Self: Sized,
     {
-        Self::new(None)
+        let sockets_spec = config
+            .sockets_spec
+            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
+        Self::new(sockets_spec.as_ref())
     }
 
     fn get_id() -> &'static str {

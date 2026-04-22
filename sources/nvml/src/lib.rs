@@ -4,7 +4,7 @@
 //! It implements the `MetricReader` trait to collect energy metrics from GPU devices and
 //! track energy usage over time.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use joule_profiler_core::{
     sensor::Sensors,
@@ -39,7 +39,6 @@ type Result<T> = std::result::Result<T, NvmlError>;
 /// This struct provides an interface to monitor energy consumption of NVIDIA GPUs using
 /// the NVML library.
 /// The NVML hardware can be changed for testing purposes, but the default adapter is the NVML one.
-#[allow(private_interfaces, private_bounds)]
 pub struct Nvml<H: NvmlHardware = NvmlWrapperHardware> {
     /// The hardware instance for interacting with the NVIDIA driver.
     hardware: H,
@@ -52,9 +51,9 @@ pub struct Nvml<H: NvmlHardware = NvmlWrapperHardware> {
 }
 
 impl Nvml {
-    pub fn new() -> Result<Self> {
+    pub fn new(gpus_spec: Option<HashSet<u32>>, exit_on_device_failure: bool) -> Result<Self> {
         Ok(Self {
-            hardware: NvmlWrapperHardware::new()?,
+            hardware: NvmlWrapperHardware::new(gpus_spec, exit_on_device_failure)?,
             begin_snapshot: None,
             last_snapshot: None,
         })
@@ -111,9 +110,12 @@ impl<H: NvmlHardware + 'static> MetricReader for Nvml<H> {
         NVML_SOURCE_NAME
     }
 
-    fn from_config(_config: Self::Config) -> Result<Self> {
+    fn from_config(config: Self::Config) -> Result<Self> {
+        let gpus_spec = config
+            .gpus_spec
+            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
         Ok(Self {
-            hardware: H::new()?,
+            hardware: H::new(gpus_spec, config.exit_on_device_failure)?,
             begin_snapshot: None,
             last_snapshot: None,
         })
@@ -162,7 +164,7 @@ mod tests {
         pub NvmlHardware {}
 
         impl NvmlHardware for NvmlHardware {
-            fn new() -> Result<MockNvmlHardware>
+            fn new(gpus_spec: Option<HashSet<u32>>, exit_on_device_failure: bool) -> Result<MockNvmlHardware>
             where
                 MockNvmlHardware: Sized;
 

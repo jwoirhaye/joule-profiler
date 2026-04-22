@@ -112,7 +112,7 @@ impl Rapl {
     pub fn new(
         rapl_path: Option<&str>,
         sockets_spec: Option<&HashSet<u32>>,
-        polling_rate_s: Option<f64>,
+        poll_interval: Option<Duration>,
     ) -> Result<Self> {
         let rapl_path = rapl_base_path(rapl_path);
 
@@ -130,8 +130,6 @@ impl Rapl {
         }
 
         info!("Discovered {} RAPL domain(s)", domains.len());
-
-        let poll_interval = polling_rate_s.map(Duration::from_secs_f64);
 
         trace!(
             "Creating Rapl instance (domains={}, ticker={})",
@@ -166,10 +164,7 @@ impl Rapl {
         let mut map = HashMap::with_capacity(self.domains.len());
 
         for domain in &self.domains {
-            trace!(
-                "Reading domain: type={:?} socket={}",
-                domain.domain_type, domain.socket
-            );
+            trace!("Reading domain: {}", domain.get_name());
 
             let val_uj = read_energy(domain)?;
             trace!("Energy read: {val_uj} µJ");
@@ -305,8 +300,15 @@ impl MetricReader for Rapl {
         POWERCAP_SOURCE_NAME
     }
 
-    fn from_config(_config: Self::Config) -> Result<Self> {
-        Self::try_default()
+    fn from_config(config: Self::Config) -> Result<Self> {
+        let sockets_spec = config
+            .sockets_spec
+            .map(|spec| spec.into_iter().collect::<HashSet<u32>>());
+        Self::new(
+            config.rapl_path.as_deref(),
+            sockets_spec.as_ref(),
+            config.poll_interval,
+        )
     }
 
     fn get_id() -> &'static str {
