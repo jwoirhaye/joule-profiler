@@ -1,0 +1,34 @@
+[package]
+name = "joule-profiler-cli"
+version = "2.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI tool to measure program energy consumption"
+keywords = ["energy", "profiling", "rapl", "nvml", "cli"]
+
+[[bin]]
+name = "joule-profiler"
+path = "src/bin/main.rs"
+
+[dependencies]
+joule-profiler-source-rapl = { path = "../sources/rapl", version = "1.0.1" }
+joule-profiler-source-nvml = { path = "../sources/nvml", version = "1.0.1" }
+joule-profiler-source-perf_event = { path = "../sources/perf_event", version = "1.0.1" }
+
+joule-profiler-core.workspace = true
+log.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+anyhow = "1.0.100"
+env_logger = "0.11.8"
+clap = { version = "4.5.53", features = ["derive"] }
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

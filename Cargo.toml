@@ -1,21 +1,39 @@
-[package]
-name = "joule-profiler"
-version = "1.0.1"
+[workspace]
+resolver = "2"
+members = [
+    "core",
+    "cli",
+    "sources/*"
+]
+
+[workspace.package]
 edition = "2024"
-authors = ["Jérémy Woirhaye <jerem.woirhaye@gmail.com>"]
-description = "joule-profiler is a Rust tool that measures a program’s energy consumption using Intel RAPL."
+authors = ["Jérémy Woirhaye <jerem.woirhaye@gmail.com>", "François Gibier <francoisgibier.contact@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/jwoirhaye/joule-profiler"
+readme = "README.md"
 
-[dependencies]
-anyhow = "1.0.100"
-clap = { version = "4.5.53", features = ["derive"] }
-env_logger = "0.11.8"
-thiserror = "2.0.17"
+[workspace.dependencies]
+joule-profiler-core = { path = "core", version = "1.0.1" }
+
 log = "0.4.28"
-serde_json = "1.0.145"
+tokio = { version = "1.25", features = ["time", "rt-multi-thread", "macros", "sync", "rt"] }
 serde = { version = "1.0.228", features = ["derive"] }
-regex = "1.12.2"
+thiserror = "2.0.17"
+futures = "0.3.31"
 
-[dev-dependencies]
-serial_test = "3.0"
+# dev-dependencies
+tempfile = "3"
+mockall = "0.13"
+async-trait = "0.1"
+tokio-test = "0.4"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+struct_field_names = "allow"

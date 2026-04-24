@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 
-
 def find_primes(limit):
     """Find all prime numbers up to limit."""
     primes = []

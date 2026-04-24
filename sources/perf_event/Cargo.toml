@@ -1,0 +1,23 @@
+[package]
+name = "joule-profiler-source-perf_event"
+version = "1.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "perf_event counters source for joule-profiler"
+keywords = ["energy", "perf_event", "performance_counters"]
+
+[dependencies]
+joule-profiler-core.workspace = true
+log.workspace = true
+thiserror.workspace = true
+
+perf-event2 = "0.7.4"
+
+[dev-dependencies]
+mockall.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
