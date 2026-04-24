@@ -1,59 +1,183 @@
 {
+  "command": "python3 ./examples/programs/workload.py",
   "mode": "phases",
+  "token_pattern": "__[A-Z0-9_]+__",
+  "exit_code": 0,
   "phases": [
     {
-      "name": "global (START -> END)",
-      "result": {
-        "duration_ms": 30,
-        "energy_uj": {
-          "CORE_0": 170471,
-          "PACKAGE-0_0": 295043,
-          "PSYS_1": 744444,
-          "UNCORE_0": 1404
+      "index": 0,
+      "start_token": "START",
+      "end_token": "__WORK_START__",
+      "timestamp": 1770948298904,
+      "duration_ms": 18,
+      "end_token_line": 1,
+      "metrics": [
+        {
+          "name": "BRANCH_MISSES",
+          "value": 793413,
+          "unit": "count",
+          "source": "perf_event"
         },
-        "exit_code": 0
-      }
+        {
+          "name": "CACHE_MISSES",
+          "value": 113064,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "CORE-0",
+          "value": 422241,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "CPU_CYCLES",
+          "value": 61267222,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "DRAM-0",
+          "value": 16540,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "GPU-0",
+          "value": 511,
+          "unit": "mJ",
+          "source": "NVML"
+        },
+        {
+          "name": "INSTRUCTIONS",
+          "value": 71501525,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "PACKAGE-0",
+          "value": 491088,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        }
+      ]
     },
     {
-      "name": "pre_work (START -> __WORK_START__)",
-      "result": {
-        "duration_ms": 24,
-        "energy_uj": {
-          "CORE_0": 114319,
-          "PACKAGE-0_0": 218933,
-          "PSYS_1": 594786,
-          "UNCORE_0": 1404
+      "index": 1,
+      "start_token": "__WORK_START__",
+      "end_token": "__WORK_END__",
+      "timestamp": 1770948298922,
+      "duration_ms": 39,
+      "start_token_line": 1,
+      "end_token_line": 2,
+      "metrics": [
+        {
+          "name": "BRANCH_MISSES",
+          "value": 101886,
+          "unit": "count",
+          "source": "perf_event"
         },
-        "exit_code": 0
-      }
+        {
+          "name": "CACHE_MISSES",
+          "value": 31820,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "CORE-0",
+          "value": 923034,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "CPU_CYCLES",
+          "value": 167893248,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "DRAM-0",
+          "value": 30212,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "GPU-0",
+          "value": 1109,
+          "unit": "mJ",
+          "source": "NVML"
+        },
+        {
+          "name": "INSTRUCTIONS",
+          "value": 463004665,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "PACKAGE-0",
+          "value": 1045471,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        }
+      ]
     },
     {
-      "name": "work (__WORK_START__ -> __WORK_END__)",
-      "result": {
-        "duration_ms": 3,
-        "energy_uj": {
-          "CORE_0": 36560,
-          "PACKAGE-0_0": 49133,
-          "PSYS_1": 95642,
-          "UNCORE_0": 0
+      "index": 2,
+      "start_token": "__WORK_END__",
+      "end_token": "END",
+      "timestamp": 1770948298961,
+      "duration_ms": 3,
+      "start_token_line": 2,
+      "metrics": [
+        {
+          "name": "BRANCH_MISSES",
+          "value": 82036,
+          "unit": "count",
+          "source": "perf_event"
         },
-        "exit_code": 0
-      }
-    },
-    {
-      "name": "post_work (__WORK_END__ -> END)",
-      "result": {
-        "duration_ms": 2,
-        "energy_uj": {
-          "CORE_0": 19592,
-          "PACKAGE-0_0": 26977,
-          "PSYS_1": 54016,
-          "UNCORE_0": 0
+        {
+          "name": "CACHE_MISSES",
+          "value": 154735,
+          "unit": "count",
+          "source": "perf_event"
         },
-        "exit_code": 0
-      }
+        {
+          "name": "CORE-0",
+          "value": 101806,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "CPU_CYCLES",
+          "value": 10454514,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "DRAM-0",
+          "value": 5126,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        },
+        {
+          "name": "GPU-0",
+          "value": 0,
+          "unit": "mJ",
+          "source": "NVML"
+        },
+        {
+          "name": "INSTRUCTIONS",
+          "value": 10109790,
+          "unit": "count",
+          "source": "perf_event"
+        },
+        {
+          "name": "PACKAGE-0",
+          "value": 121704,
+          "unit": "µJ",
+          "source": "RAPL (perf_event)"
+        }
+      ]
     }
-  ],
-  "token_end": "__WORK_END__",
-  "token_start": "__WORK_START__"
+  ]
 }

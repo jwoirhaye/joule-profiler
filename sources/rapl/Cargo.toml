@@ -1,0 +1,25 @@
+[package]
+name = "joule-profiler-source-rapl"
+version = "1.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Intel RAPL energy measurement source for joule-profiler"
+keywords = ["energy", "rapl", "intel", "hardware", "powercap", "perf_event"]
+
+[dependencies]
+joule-profiler-core.workspace = true
+log.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+futures.workspace = true
+
+tokio-timerfd = "0.2.0"
+perf-event2 = "0.7.4"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

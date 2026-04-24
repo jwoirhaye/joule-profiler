@@ -1,5 +1,25 @@
-phase_name;CORE_0_uj;PACKAGE-0_0_uj;PSYS_1_uj;UNCORE_0_uj;duration_ms;exit_code
-global (START -> END);163208;305785;797667;244;34;0
-pre_work (START -> __WORK_START__);96253;216063;631895;244;28;0
-work (__WORK_START__ -> __WORK_END__);38452;51636;97107;0;3;0
-post_work (__WORK_END__ -> END);28503;38086;68665;0;2;0
+phase_id;phase_name;phase_duration_ms;metric_name;metric_value;metric_unit;metric_source;start_token;end_token;start_token_line;end_token_line;timestamp;command;exit_code;token_pattern
+0;"START -> __WORK_START__";17;BRANCH_MISSES;800581;count;perf_event;START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;CACHE_MISSES;107930;count;perf_event;START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;CORE-0;492065;µJ;RAPL (perf_event);START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;CPU_CYCLES;61037627;count;perf_event;START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;DRAM-0;16906;µJ;RAPL (perf_event);START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;GPU-0;516;mJ;NVML;START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;INSTRUCTIONS;71471654;count;perf_event;START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+0;"START -> __WORK_START__";17;PACKAGE-0;699768;µJ;RAPL (perf_event);START;__WORK_START__;;1;1770947926761;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;BRANCH_MISSES;97448;count;perf_event;__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;CACHE_MISSES;36850;count;perf_event;__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;CORE-0;1157470;µJ;RAPL (perf_event);__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;CPU_CYCLES;169513181;count;perf_event;__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;DRAM-0;30700;µJ;RAPL (perf_event);__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;GPU-0;489;mJ;NVML;__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;INSTRUCTIONS;463914384;count;perf_event;__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+1;"__WORK_START__ -> __WORK_END__";40;PACKAGE-0;1605529;µJ;RAPL (perf_event);__WORK_START__;__WORK_END__;1;2;1770947926778;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;BRANCH_MISSES;84787;count;perf_event;__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;CACHE_MISSES;103807;count;perf_event;__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;CORE-0;87524;µJ;RAPL (perf_event);__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;CPU_CYCLES;9723860;count;perf_event;__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;DRAM-0;3540;µJ;RAPL (perf_event);__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;GPU-0;0;mJ;NVML;__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;INSTRUCTIONS;10050683;count;perf_event;__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
+2;"__WORK_END__ -> END";3;PACKAGE-0;121337;µJ;RAPL (perf_event);__WORK_END__;END;2;;1770947926818;"python3 ./examples/programs/workload.py";0;"__[A-Z0-9_]+__"
