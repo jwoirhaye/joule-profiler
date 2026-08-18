@@ -1,5 +1,5 @@
 > **⚠️ This repository has moved.**
-> Joule Profiler is now maintained under a dedicated organization. Please use this new repository for the latest releases, issue tracking, and contributions: **[github.com/ORGANIZATION-NAME](https://github.com/ORGANIZATION-NAME)**.
+> Joule Profiler is now maintained under a dedicated organization. Please use this new repository for the latest releases, issue tracking, and contributions: **[github.com/joule-profiler](https://github.com/joule-profiler)**.
 
 ---
 
